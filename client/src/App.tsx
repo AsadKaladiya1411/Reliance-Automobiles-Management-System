@@ -67,6 +67,13 @@ type MasterSummary = {
   warehouses: number;
 };
 
+type InventorySummary = {
+  stockItems: number;
+  movementCount: number;
+  totalQuantity: string | number;
+  stockValue: string | number;
+};
+
 const modules = [
   { name: "Foundation", icon: "FD", status: "In progress", text: "Company, RBAC, audit, number series" },
   { name: "Masters", icon: "MS", status: "Planned", text: "Products, customers, suppliers, employees, vehicles" },
@@ -144,6 +151,16 @@ function useMasterSummary() {
     queryKey: ["master-summary"],
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<MasterSummary>>("/masters/summary");
+      return response.data.data;
+    },
+  });
+}
+
+function useInventorySummary() {
+  return useQuery({
+    queryKey: ["inventory-summary"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<InventorySummary>>("/inventory/summary");
       return response.data.data;
     },
   });
@@ -310,6 +327,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
   const financialYears = useFinancialYears();
   const numberSeries = useNumberSeries();
   const masterSummary = useMasterSummary();
+  const inventorySummary = useInventorySummary();
   const logout = useMutation({
     mutationFn: async () => {
       await api.post("/auth/logout");
@@ -424,6 +442,16 @@ function DashboardShell({ user }: { user: AuthUser }) {
           </div>
         </section>
 
+        <section className="setup-panel" aria-label="Inventory foundation">
+          <h2>Inventory Foundation</h2>
+          <div className="readiness-grid">
+            <ReadinessMetric label="Stock Items" value={inventorySummary.data?.stockItems} />
+            <ReadinessMetric label="Movements" value={inventorySummary.data?.movementCount} />
+            <ReadinessMetric label="Total Quantity" value={inventorySummary.data?.totalQuantity} />
+            <ReadinessMetric label="Stock Value" value={inventorySummary.data?.stockValue} />
+          </div>
+        </section>
+
         <section className="module-grid" aria-label="RAMS modules">
           {modules.map((module) => (
             <article className="module-card" key={module.name}>
@@ -443,7 +471,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
   );
 }
 
-function ReadinessMetric({ label, value }: { label: string; value?: number }) {
+function ReadinessMetric({ label, value }: { label: string; value?: number | string }) {
   return (
     <div className="readiness-metric">
       <span>{label}</span>

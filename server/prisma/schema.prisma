@@ -56,6 +56,18 @@ enum ProductTrackingType {
   SERIAL
 }
 
+enum StockMovementType {
+  OPENING_STOCK
+  PURCHASE_INVOICE
+  SALES_INVOICE
+  SALES_RETURN
+  PURCHASE_RETURN
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  TRANSFER_IN
+  TRANSFER_OUT
+}
+
 model Company {
   id            String       @id @default(uuid()) @db.Uuid
   code          String       @unique @db.VarChar(32)
@@ -93,6 +105,8 @@ model Company {
   products       Product[]
   productVariants ProductVariant[]
   warehouses     Warehouse[]
+  stockBalances  StockBalance[]
+  stockMovements StockMovement[]
 }
 
 model FinancialYear {
@@ -371,6 +385,8 @@ model Product {
   hsnCode     HsnCode?         @relation(fields: [hsnCodeId], references: [id])
   taxRate     TaxRate?         @relation(fields: [taxRateId], references: [id])
   variants    ProductVariant[]
+  stockBalances StockBalance[]
+  stockMovements StockMovement[]
 
   @@unique([companyId, code])
   @@index([companyId, name])
@@ -392,6 +408,8 @@ model ProductVariant {
 
   company Company @relation(fields: [companyId], references: [id])
   product Product @relation(fields: [productId], references: [id])
+  stockBalances StockBalance[]
+  stockMovements StockMovement[]
 
   @@unique([companyId, code])
   @@unique([companyId, barcode])
@@ -410,6 +428,8 @@ model Warehouse {
 
   company Company @relation(fields: [companyId], references: [id])
   blocks  WarehouseBlock[]
+  stockBalances StockBalance[]
+  stockMovements StockMovement[]
 
   @@unique([companyId, code])
   @@unique([companyId, name])
@@ -427,6 +447,8 @@ model WarehouseBlock {
 
   warehouse Warehouse       @relation(fields: [warehouseId], references: [id])
   racks     WarehouseRack[]
+  stockBalances StockBalance[]
+  stockMovements StockMovement[]
 
   @@unique([warehouseId, code])
   @@unique([warehouseId, name])
@@ -445,6 +467,8 @@ model WarehouseRack {
 
   block   WarehouseBlock  @relation(fields: [blockId], references: [id])
   shelves WarehouseShelf[]
+  stockBalances StockBalance[]
+  stockMovements StockMovement[]
 
   @@unique([blockId, code])
   @@unique([blockId, name])
@@ -461,8 +485,73 @@ model WarehouseShelf {
   updatedAt DateTime     @updatedAt
 
   rack WarehouseRack @relation(fields: [rackId], references: [id])
+  stockBalances StockBalance[]
+  stockMovements StockMovement[]
 
   @@unique([rackId, code])
   @@unique([rackId, name])
   @@unique([barcode])
+}
+
+model StockBalance {
+  id               String   @id @default(uuid()) @db.Uuid
+  companyId        String   @db.Uuid
+  productId        String   @db.Uuid
+  productVariantId String   @db.Uuid
+  warehouseId      String   @db.Uuid
+  blockId          String?  @db.Uuid
+  rackId           String?  @db.Uuid
+  shelfId          String?  @db.Uuid
+  locationKey      String   @db.VarChar(180)
+  quantity         Decimal  @default(0) @db.Decimal(14, 3)
+  averageCost      Decimal  @default(0) @db.Decimal(14, 2)
+  stockValue       Decimal  @default(0) @db.Decimal(14, 2)
+  updatedAt        DateTime @updatedAt
+
+  company        Company         @relation(fields: [companyId], references: [id])
+  product        Product         @relation(fields: [productId], references: [id])
+  productVariant ProductVariant  @relation(fields: [productVariantId], references: [id])
+  warehouse      Warehouse       @relation(fields: [warehouseId], references: [id])
+  block          WarehouseBlock? @relation(fields: [blockId], references: [id])
+  rack           WarehouseRack?  @relation(fields: [rackId], references: [id])
+  shelf          WarehouseShelf? @relation(fields: [shelfId], references: [id])
+
+  @@unique([companyId, productVariantId, warehouseId, locationKey])
+  @@index([companyId, productId])
+  @@index([companyId, warehouseId])
+}
+
+model StockMovement {
+  id               String            @id @default(uuid()) @db.Uuid
+  companyId        String            @db.Uuid
+  productId        String            @db.Uuid
+  productVariantId String            @db.Uuid
+  warehouseId      String            @db.Uuid
+  blockId          String?           @db.Uuid
+  rackId           String?           @db.Uuid
+  shelfId          String?           @db.Uuid
+  locationKey      String            @db.VarChar(180)
+  movementType     StockMovementType
+  documentType     String            @db.VarChar(80)
+  documentNumber   String            @db.VarChar(80)
+  documentDate     DateTime          @db.Date
+  quantityIn       Decimal           @default(0) @db.Decimal(14, 3)
+  quantityOut      Decimal           @default(0) @db.Decimal(14, 3)
+  unitCost         Decimal           @default(0) @db.Decimal(14, 2)
+  totalValue       Decimal           @default(0) @db.Decimal(14, 2)
+  narration        String?           @db.VarChar(500)
+  createdByUserId  String?           @db.Uuid
+  createdAt        DateTime          @default(now())
+
+  company        Company         @relation(fields: [companyId], references: [id])
+  product        Product         @relation(fields: [productId], references: [id])
+  productVariant ProductVariant  @relation(fields: [productVariantId], references: [id])
+  warehouse      Warehouse       @relation(fields: [warehouseId], references: [id])
+  block          WarehouseBlock? @relation(fields: [blockId], references: [id])
+  rack           WarehouseRack?  @relation(fields: [rackId], references: [id])
+  shelf          WarehouseShelf? @relation(fields: [shelfId], references: [id])
+
+  @@index([companyId, productVariantId, createdAt])
+  @@index([companyId, documentType, documentNumber])
+  @@index([companyId, warehouseId, createdAt])
 }
