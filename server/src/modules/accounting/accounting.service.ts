@@ -173,6 +173,76 @@ export async function listJournalEntries(companyId: string) {
   });
 }
 
+export async function getTrialBalance(companyId: string) {
+  const balances = await prisma.journalLine.groupBy({
+    by: ["accountId"],
+    where: { journalEntry: { companyId, status: "POSTED" } },
+    _sum: { debitAmount: true, creditAmount: true },
+  });
+  const accounts = await prisma.account.findMany({
+    where: { companyId, id: { in: balances.map((balance) => balance.accountId) } },
+    orderBy: [{ code: "asc" }],
+  });
+  const accountMap = new Map(accounts.map((account) => [account.id, account]));
+  const rows = balances
+    .map((balance) => {
+      const account = accountMap.get(balance.accountId);
+      const debitTotal = new Prisma.Decimal(balance._sum.debitAmount ?? 0);
+      const creditTotal = new Prisma.Decimal(balance._sum.creditAmount ?? 0);
+      const net = debitTotal.minus(creditTotal);
+
+      return {
+        account,
+        debitTotal,
+        creditTotal,
+        debitBalance: net.gt(0) ? net : new Prisma.Decimal(0),
+        creditBalance: net.lt(0) ? net.abs() : new Prisma.Decimal(0),
+      };
+    })
+    .filter((row) => row.account);
+
+  return {
+    rows,
+    debitTotal: rows.reduce((total, row) => total.plus(row.debitTotal), new Prisma.Decimal(0)),
+    creditTotal: rows.reduce((total, row) => total.plus(row.creditTotal), new Prisma.Decimal(0)),
+    debitBalanceTotal: rows.reduce((total, row) => total.plus(row.debitBalance), new Prisma.Decimal(0)),
+    creditBalanceTotal: rows.reduce((total, row) => total.plus(row.creditBalance), new Prisma.Decimal(0)),
+  };
+}
+
+export async function listGeneralLedger(companyId: string, accountId?: string) {
+  const normalizedAccountId = accountId?.trim();
+
+  if (normalizedAccountId) {
+    const account = await prisma.account.findFirst({ where: { id: normalizedAccountId, companyId } });
+    if (!account) {
+      throw new ApiError(404, "ACCOUNT_NOT_FOUND", "Account not found.");
+    }
+  }
+
+  const lines = await prisma.journalLine.findMany({
+    where: {
+      ...(normalizedAccountId ? { accountId: normalizedAccountId } : {}),
+      journalEntry: { companyId, status: "POSTED" },
+    },
+    include: { account: true, journalEntry: true },
+    orderBy: [{ journalEntry: { entryDate: "desc" } }, { createdAt: "desc" }],
+    take: 200,
+  });
+
+  return lines.map((line) => ({
+    id: line.id,
+    account: line.account,
+    entryNumber: line.journalEntry.entryNumber,
+    entryDate: line.journalEntry.entryDate,
+    sourceModule: line.journalEntry.sourceModule,
+    sourceType: line.journalEntry.sourceType,
+    debitAmount: line.debitAmount,
+    creditAmount: line.creditAmount,
+    narration: line.narration ?? line.journalEntry.narration,
+  }));
+}
+
 export async function listPartyLedgerEntries(companyId: string, partyType?: string) {
   const normalizedPartyType = partyType?.trim().toUpperCase();
 

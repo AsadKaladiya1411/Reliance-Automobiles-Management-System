@@ -293,6 +293,32 @@ type JournalEntry = {
   }>;
 };
 
+type TrialBalance = {
+  rows: Array<{
+    account?: Account;
+    debitTotal: string | number;
+    creditTotal: string | number;
+    debitBalance: string | number;
+    creditBalance: string | number;
+  }>;
+  debitTotal: string | number;
+  creditTotal: string | number;
+  debitBalanceTotal: string | number;
+  creditBalanceTotal: string | number;
+};
+
+type GeneralLedgerLine = {
+  id: string;
+  account: Account;
+  entryNumber: string;
+  entryDate: string;
+  sourceModule: string;
+  sourceType: string;
+  debitAmount: string | number;
+  creditAmount: string | number;
+  narration?: string | null;
+};
+
 type PartyLedgerEntry = {
   id: string;
   partyType: string;
@@ -1199,6 +1225,14 @@ function TransactionsView({
 }) {
   const accounts = useMasterList<Account>("accounts", "/accounting/accounts");
   const journalEntries = useMasterList<JournalEntry>("journal-entries", "/accounting/journal-entries");
+  const trialBalance = useQuery({
+    queryKey: ["trial-balance"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<TrialBalance>>("/accounting/trial-balance");
+      return response.data.data;
+    },
+  });
+  const generalLedger = useMasterList<GeneralLedgerLine>("general-ledger", "/accounting/general-ledger");
   const suppliers = useMasterList<Supplier>("suppliers", "/commercial-masters/suppliers");
   const variants = useMasterList<ProductVariant>("product-variants", "/masters/product-variants");
   const warehouses = useMasterList<Warehouse>("warehouses", "/masters/warehouses");
@@ -1287,6 +1321,8 @@ function TransactionsView({
         <SalesReturnPanel invoices={salesInvoices.data ?? []} items={salesReturns.data ?? []} />
         <AccountPanel items={accounts.data ?? []} />
         <JournalPanel accounts={accounts.data ?? []} items={journalEntries.data ?? []} />
+        <TrialBalancePanel trialBalance={trialBalance.data} />
+        <GeneralLedgerPanel items={generalLedger.data ?? []} />
         <PaymentPanel
           customers={customers.data ?? []}
           items={payments.data ?? []}
@@ -2112,6 +2148,8 @@ function JournalPanel({ accounts, items }: { accounts: Account[]; items: Journal
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
+        queryClient.invalidateQueries({ queryKey: ["trial-balance"] }),
+        queryClient.invalidateQueries({ queryKey: ["general-ledger"] }),
         queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
       ]);
       setForm({ ...form, amount: "0", narration: "Manual journal" });
@@ -2143,6 +2181,42 @@ function JournalPanel({ accounts, items }: { accounts: Account[]; items: Journal
           id: item.id,
           label: item.entryNumber,
           meta: item.narration ?? `${item.lines.length} lines`,
+        }))}
+      />
+    </article>
+  );
+}
+
+function TrialBalancePanel({ trialBalance }: { trialBalance?: TrialBalance }) {
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Trial Balance</h2>
+      <div className="readiness-grid">
+        <ReadinessMetric label="Debit Total" value={trialBalance?.debitTotal} />
+        <ReadinessMetric label="Credit Total" value={trialBalance?.creditTotal} />
+        <ReadinessMetric label="Debit Balance" value={trialBalance?.debitBalanceTotal} />
+        <ReadinessMetric label="Credit Balance" value={trialBalance?.creditBalanceTotal} />
+      </div>
+      <MasterList
+        items={(trialBalance?.rows ?? []).map((row) => ({
+          id: row.account?.id ?? `${row.account?.code ?? "account"}-${row.debitTotal}-${row.creditTotal}`,
+          label: `${row.account?.code ?? ""} ${row.account?.name ?? "Account"}`,
+          meta: `Dr ${row.debitBalance} / Cr ${row.creditBalance}`,
+        }))}
+      />
+    </article>
+  );
+}
+
+function GeneralLedgerPanel({ items }: { items: GeneralLedgerLine[] }) {
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>General Ledger</h2>
+      <MasterList
+        items={items.map((line) => ({
+          id: line.id,
+          label: `${line.account.code} ${line.account.name}`,
+          meta: `${line.entryNumber} / Dr ${line.debitAmount} / Cr ${line.creditAmount}`,
         }))}
       />
     </article>
@@ -3345,6 +3419,8 @@ async function invalidatePostingQueries(extraKeys: string[] = []) {
     queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
     queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
     queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
+    queryClient.invalidateQueries({ queryKey: ["trial-balance"] }),
+    queryClient.invalidateQueries({ queryKey: ["general-ledger"] }),
     queryClient.invalidateQueries({ queryKey: ["party-ledger"] }),
     queryClient.invalidateQueries({ queryKey: ["party-ledger-summary"] }),
     queryClient.invalidateQueries({ queryKey: ["party-outstanding"] }),

@@ -9,7 +9,9 @@ import {
   getGstSummary,
   getPartyOutstanding,
   getPartyLedgerSummary,
+  getTrialBalance,
   listAccounts,
+  listGeneralLedger,
   listJournalEntries,
   listPartyLedgerEntries,
   postJournalEntry,
@@ -47,6 +49,14 @@ router.post("/accounting/accounts/seed-defaults", asyncHandler(async (req, res) 
 
 router.get("/accounting/journal-entries", asyncHandler(async (req, res) => {
   sendSuccess(res, await listJournalEntries(req.user!.companyId));
+}));
+
+router.get("/accounting/trial-balance", asyncHandler(async (req, res) => {
+  sendSuccess(res, await getTrialBalance(req.user!.companyId));
+}));
+
+router.get("/accounting/general-ledger", asyncHandler(async (req, res) => {
+  sendSuccess(res, await listGeneralLedger(req.user!.companyId, String(req.query.accountId ?? "")));
 }));
 
 router.get("/accounting/party-ledger-summary", asyncHandler(async (req, res) => {
