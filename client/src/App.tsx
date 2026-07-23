@@ -126,6 +126,15 @@ type Warehouse = {
   name: string;
 };
 
+type StockBalance = {
+  id: string;
+  quantity: string | number;
+  stockValue: string | number;
+  product: { name: string };
+  productVariant: { name: string; code: string };
+  warehouse: { name: string };
+};
+
 type AppView = "dashboard" | "masters" | "inventory" | "transactions" | "settings";
 
 const navItems: Array<{ id: AppView; label: string; icon: string }> = [
@@ -580,6 +589,10 @@ function MastersView({ masterSummary }: { masterSummary?: MasterSummary }) {
 }
 
 function InventoryView({ inventorySummary }: { inventorySummary?: InventorySummary }) {
+  const variants = useMasterList<ProductVariant>("product-variants", "/masters/product-variants");
+  const warehouses = useMasterList<Warehouse>("warehouses", "/masters/warehouses");
+  const stockBalances = useMasterList<StockBalance>("stock-balances", "/inventory/stock-balances");
+
   return (
     <>
       <section className="view-header">
@@ -589,6 +602,17 @@ function InventoryView({ inventorySummary }: { inventorySummary?: InventorySumma
       <section className="setup-panel">
         <h2>Inventory Foundation</h2>
         <InventoryReadinessGrid inventorySummary={inventorySummary} />
+      </section>
+      <OpeningStockPanel variants={variants.data ?? []} warehouses={warehouses.data ?? []} />
+      <section className="setup-panel">
+        <h2>Current Stock</h2>
+        <MasterList
+          items={(stockBalances.data ?? []).map((balance) => ({
+            id: balance.id,
+            label: `${balance.product.name} / ${balance.productVariant.name}`,
+            meta: `${balance.quantity} @ ${balance.warehouse.name}`,
+          }))}
+        />
       </section>
       <ModuleGrid filter={["Inventory"]} />
     </>
@@ -694,6 +718,84 @@ function ModuleGrid({ filter }: { filter?: string[] }) {
         </article>
       ))}
     </section>
+  );
+}
+
+function OpeningStockPanel({
+  variants,
+  warehouses,
+}: {
+  variants: ProductVariant[];
+  warehouses: Warehouse[];
+}) {
+  const [form, setForm] = useState({
+    productVariantId: "",
+    warehouseId: "",
+    quantity: "1",
+    unitCost: "0",
+    narration: "Opening stock",
+  });
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/inventory/opening-stock", form);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["inventory-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-balances"] }),
+      ]);
+      setForm({ ...form, quantity: "1", unitCost: "0", narration: "Opening stock" });
+    },
+  });
+
+  return (
+    <article className="setup-panel">
+      <h2>Post Opening Stock</h2>
+      <form
+        className="compact-form product-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          mutation.mutate();
+        }}
+      >
+        <select
+          value={form.productVariantId}
+          onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}
+        >
+          <option value="">Product variant</option>
+          {variants.map((variant) => (
+            <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>
+          ))}
+        </select>
+        <select
+          value={form.warehouseId}
+          onChange={(event) => setForm({ ...form, warehouseId: event.target.value })}
+        >
+          <option value="">Warehouse</option>
+          {warehouses.map((warehouse) => (
+            <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
+          ))}
+        </select>
+        <input
+          placeholder="Quantity"
+          value={form.quantity}
+          onChange={(event) => setForm({ ...form, quantity: event.target.value })}
+        />
+        <input
+          placeholder="Unit cost"
+          value={form.unitCost}
+          onChange={(event) => setForm({ ...form, unitCost: event.target.value })}
+        />
+        <input
+          placeholder="Narration"
+          value={form.narration}
+          onChange={(event) => setForm({ ...form, narration: event.target.value })}
+        />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>
+          Post
+        </Button>
+      </form>
+    </article>
   );
 }
 
