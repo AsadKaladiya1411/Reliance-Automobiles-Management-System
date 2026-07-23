@@ -18,6 +18,11 @@ type SalesLineInput = {
   unitPrice?: unknown;
 };
 
+type ReturnLineInput = {
+  salesInvoiceLineId?: unknown;
+  quantity?: unknown;
+};
+
 function requiredString(value: unknown, field: string) {
   if (typeof value !== "string" || value.trim() === "") {
     throw new ApiError(400, "INVALID_SALES_INPUT", `${field} is required.`);
@@ -147,6 +152,20 @@ export async function listSalesInvoices(companyId: string) {
       lines: { include: { product: true, productVariant: true }, orderBy: { lineOrder: "asc" } },
     },
     orderBy: { invoiceDate: "desc" },
+    take: 50,
+  });
+}
+
+export async function listSalesReturns(companyId: string) {
+  return prisma.salesReturn.findMany({
+    where: { companyId },
+    include: {
+      customer: true,
+      warehouse: true,
+      salesInvoice: true,
+      lines: { include: { product: true, productVariant: true }, orderBy: { lineOrder: "asc" } },
+    },
+    orderBy: { returnDate: "desc" },
     take: 50,
   });
 }
@@ -555,5 +574,233 @@ export async function cancelSalesInvoice(context: SalesContext, invoiceId: strin
     });
 
     return cancelled;
+  });
+}
+
+export async function postSalesReturn(context: SalesContext, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const salesInvoiceId = requiredString(data.salesInvoiceId, "Sales invoice");
+  const returnDate = parseDate(data.returnDate);
+  const reason = requiredString(data.reason, "Reason");
+  const rawLines = Array.isArray(data.lines) ? (data.lines as ReturnLineInput[]) : [];
+
+  if (rawLines.length === 0) {
+    throw new ApiError(400, "RETURN_LINES_REQUIRED", "At least one return line is required.");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const invoice = await tx.salesInvoice.findFirst({
+      where: { id: salesInvoiceId, companyId: context.companyId, status: "POSTED" },
+      include: { lines: true, customer: true },
+    });
+
+    if (!invoice) {
+      throw new ApiError(404, "SALES_INVOICE_NOT_FOUND", "Posted sales invoice not found.");
+    }
+
+    const receivableAccount = await requireAccount(tx, context.companyId, "1100");
+    const revenueAccount = await requireAccount(tx, context.companyId, "4000");
+    const gstPayableAccount = await requireAccount(tx, context.companyId, "2100");
+    const cogsAccount = await requireAccount(tx, context.companyId, "5000");
+    const inventoryAccount = await requireAccount(tx, context.companyId, "1200");
+    const returnNumber = await nextDocumentNumber(tx, context.companyId, "SALES_RETURN");
+    const journalNumber = await nextDocumentNumber(tx, context.companyId, "JOURNAL_ENTRY");
+    const preparedLines = [];
+
+    for (const [index, line] of rawLines.entries()) {
+      const salesInvoiceLineId = requiredString(line.salesInvoiceLineId, "Sales invoice line");
+      const invoiceLine = invoice.lines.find((item) => item.id === salesInvoiceLineId);
+
+      if (!invoiceLine) {
+        throw new ApiError(400, "INVALID_RETURN_LINE", "Return line does not belong to the selected invoice.");
+      }
+
+      const quantity = positiveDecimal(line.quantity, "Return quantity", 3);
+
+      if (quantity.gt(invoiceLine.quantity)) {
+        throw new ApiError(400, "RETURN_QUANTITY_EXCEEDS_INVOICE", "Return quantity cannot exceed invoice quantity.");
+      }
+
+      const ratio = quantity.div(invoiceLine.quantity);
+      preparedLines.push({
+        companyId: context.companyId,
+        productId: invoiceLine.productId,
+        productVariantId: invoiceLine.productVariantId,
+        blockId: invoiceLine.blockId,
+        rackId: invoiceLine.rackId,
+        shelfId: invoiceLine.shelfId,
+        hsnCode: invoiceLine.hsnCode,
+        quantity,
+        unitPrice: invoiceLine.unitPrice,
+        unitCost: invoiceLine.unitCost,
+        taxableAmount: invoiceLine.taxableAmount.mul(ratio).toDecimalPlaces(2),
+        cgstAmount: invoiceLine.cgstAmount.mul(ratio).toDecimalPlaces(2),
+        sgstAmount: invoiceLine.sgstAmount.mul(ratio).toDecimalPlaces(2),
+        igstAmount: invoiceLine.igstAmount.mul(ratio).toDecimalPlaces(2),
+        lineTotal: invoiceLine.lineTotal.mul(ratio).toDecimalPlaces(2),
+        costAmount: invoiceLine.costAmount.mul(ratio).toDecimalPlaces(2),
+        lineOrder: index + 1,
+      });
+    }
+
+    const taxableAmount = preparedLines.reduce((total, line) => total.plus(line.taxableAmount), new Prisma.Decimal(0));
+    const cgstAmount = preparedLines.reduce((total, line) => total.plus(line.cgstAmount), new Prisma.Decimal(0));
+    const sgstAmount = preparedLines.reduce((total, line) => total.plus(line.sgstAmount), new Prisma.Decimal(0));
+    const igstAmount = preparedLines.reduce((total, line) => total.plus(line.igstAmount), new Prisma.Decimal(0));
+    const totalTaxAmount = cgstAmount.plus(sgstAmount).plus(igstAmount).toDecimalPlaces(2);
+    const grandTotal = taxableAmount.plus(totalTaxAmount).toDecimalPlaces(2);
+    const costOfGoodsSold = preparedLines.reduce((total, line) => total.plus(line.costAmount), new Prisma.Decimal(0));
+
+    const journalEntry = await tx.journalEntry.create({
+      data: {
+        companyId: context.companyId,
+        entryNumber: journalNumber,
+        entryDate: returnDate,
+        sourceModule: "sales",
+        sourceType: "SALES_RETURN",
+        narration: `Sales return ${returnNumber}`,
+        status: "POSTED",
+        postedByUserId: context.userId,
+        postedAt: new Date(),
+        lines: {
+          create: [
+            { accountId: revenueAccount.id, debitAmount: taxableAmount, narration: returnNumber, lineOrder: 1 },
+            ...(totalTaxAmount.gt(0)
+              ? [{ accountId: gstPayableAccount.id, debitAmount: totalTaxAmount, narration: returnNumber, lineOrder: 2 }]
+              : []),
+            { accountId: receivableAccount.id, creditAmount: grandTotal, narration: returnNumber, lineOrder: 3 },
+            { accountId: inventoryAccount.id, debitAmount: costOfGoodsSold, narration: returnNumber, lineOrder: 4 },
+            { accountId: cogsAccount.id, creditAmount: costOfGoodsSold, narration: returnNumber, lineOrder: 5 },
+          ],
+        },
+      },
+    });
+
+    const salesReturn = await tx.salesReturn.create({
+      data: {
+        companyId: context.companyId,
+        salesInvoiceId: invoice.id,
+        customerId: invoice.customerId,
+        warehouseId: invoice.warehouseId,
+        returnNumber,
+        returnDate,
+        reason,
+        taxableAmount,
+        cgstAmount,
+        sgstAmount,
+        igstAmount,
+        totalTaxAmount,
+        grandTotal,
+        costOfGoodsSold,
+        journalEntryId: journalEntry.id,
+        postedByUserId: context.userId,
+        postedAt: new Date(),
+        lines: { create: preparedLines },
+      },
+      include: { customer: true, warehouse: true, salesInvoice: true, lines: { include: { product: true, productVariant: true } } },
+    });
+
+    for (const line of preparedLines) {
+      const key = locationKey({
+        warehouseId: invoice.warehouseId,
+        blockId: line.blockId ?? undefined,
+        rackId: line.rackId ?? undefined,
+        shelfId: line.shelfId ?? undefined,
+      });
+      const balance = await tx.stockBalance.findUnique({
+        where: {
+          companyId_productVariantId_warehouseId_locationKey: {
+            companyId: context.companyId,
+            productVariantId: line.productVariantId,
+            warehouseId: invoice.warehouseId,
+            locationKey: key,
+          },
+        },
+      });
+      const newQuantity = new Prisma.Decimal(balance?.quantity ?? 0).plus(line.quantity);
+      const newValue = new Prisma.Decimal(balance?.stockValue ?? 0).plus(line.costAmount).toDecimalPlaces(2);
+      const averageCost = newValue.div(newQuantity).toDecimalPlaces(2);
+
+      await tx.stockBalance.upsert({
+        where: {
+          companyId_productVariantId_warehouseId_locationKey: {
+            companyId: context.companyId,
+            productVariantId: line.productVariantId,
+            warehouseId: invoice.warehouseId,
+            locationKey: key,
+          },
+        },
+        create: {
+          companyId: context.companyId,
+          productId: line.productId,
+          productVariantId: line.productVariantId,
+          warehouseId: invoice.warehouseId,
+          blockId: line.blockId,
+          rackId: line.rackId,
+          shelfId: line.shelfId,
+          locationKey: key,
+          quantity: line.quantity,
+          averageCost: line.unitCost,
+          stockValue: line.costAmount,
+        },
+        update: { quantity: newQuantity, averageCost, stockValue: newValue },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          companyId: context.companyId,
+          productId: line.productId,
+          productVariantId: line.productVariantId,
+          warehouseId: invoice.warehouseId,
+          blockId: line.blockId,
+          rackId: line.rackId,
+          shelfId: line.shelfId,
+          locationKey: key,
+          movementType: "SALES_RETURN",
+          documentType: "SALES_RETURN",
+          documentNumber: returnNumber,
+          documentDate: returnDate,
+          quantityIn: line.quantity,
+          unitCost: line.unitCost,
+          totalValue: line.costAmount,
+          narration: reason,
+          createdByUserId: context.userId,
+        },
+      });
+    }
+
+    await tx.partyLedgerEntry.create({
+      data: {
+        companyId: context.companyId,
+        partyType: "CUSTOMER",
+        customerId: invoice.customerId,
+        journalEntryId: journalEntry.id,
+        entryType: "CREDIT_NOTE",
+        documentType: "SALES_RETURN",
+        documentId: salesReturn.id,
+        documentNumber: returnNumber,
+        entryDate: returnDate,
+        creditAmount: grandTotal,
+        narration: reason,
+      },
+    });
+
+    await tx.journalEntry.update({ where: { id: journalEntry.id }, data: { sourceId: salesReturn.id } });
+    await tx.auditLog.create({
+      data: {
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        module: "sales",
+        action: "POST",
+        entityType: "SalesReturn",
+        entityId: salesReturn.id,
+        description: "Sales return posted.",
+        afterData: json(salesReturn),
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return salesReturn;
   });
 }

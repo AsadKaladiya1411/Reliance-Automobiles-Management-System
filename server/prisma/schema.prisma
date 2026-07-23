@@ -163,6 +163,7 @@ model Company {
   payments       Payment[]
   purchaseInvoices PurchaseInvoice[]
   salesInvoices SalesInvoice[]
+  salesReturns SalesReturn[]
   jobCards      JobCard[]
 }
 
@@ -446,6 +447,7 @@ model Product {
   stockMovements StockMovement[]
   purchaseInvoiceLines PurchaseInvoiceLine[]
   salesInvoiceLines SalesInvoiceLine[]
+  salesReturnLines SalesReturnLine[]
 
   @@unique([companyId, code])
   @@index([companyId, name])
@@ -471,6 +473,7 @@ model ProductVariant {
   stockMovements StockMovement[]
   purchaseInvoiceLines PurchaseInvoiceLine[]
   salesInvoiceLines SalesInvoiceLine[]
+  salesReturnLines SalesReturnLine[]
   jobCardParts JobCardPart[]
 
   @@unique([companyId, code])
@@ -494,6 +497,7 @@ model Warehouse {
   stockMovements StockMovement[]
   purchaseInvoices PurchaseInvoice[]
   salesInvoices SalesInvoice[]
+  salesReturns SalesReturn[]
 
   @@unique([companyId, code])
   @@unique([companyId, name])
@@ -646,6 +650,7 @@ model Customer {
   vehicles Vehicle[]
   ledgerEntries PartyLedgerEntry[]
   salesInvoices SalesInvoice[]
+  salesReturns SalesReturn[]
   payments Payment[]
   jobCards JobCard[]
 
@@ -789,6 +794,7 @@ model JournalEntry {
   partyLedgerEntries PartyLedgerEntry[]
   purchaseInvoices PurchaseInvoice[]
   salesInvoices SalesInvoice[]
+  salesReturns SalesReturn[]
   payments Payment[]
 
   @@unique([companyId, entryNumber])
@@ -940,6 +946,7 @@ model SalesInvoice {
   warehouse    Warehouse     @relation(fields: [warehouseId], references: [id])
   journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
   lines        SalesInvoiceLine[]
+  returns      SalesReturn[]
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, customerId, invoiceDate])
@@ -976,6 +983,69 @@ model SalesInvoiceLine {
   block         WarehouseBlock? @relation(fields: [blockId], references: [id])
   rack          WarehouseRack?  @relation(fields: [rackId], references: [id])
   shelf         WarehouseShelf? @relation(fields: [shelfId], references: [id])
+
+  @@index([companyId, productVariantId])
+}
+
+model SalesReturn {
+  id              String         @id @default(uuid()) @db.Uuid
+  companyId       String         @db.Uuid
+  salesInvoiceId  String         @db.Uuid
+  customerId      String         @db.Uuid
+  warehouseId     String         @db.Uuid
+  returnNumber    String         @db.VarChar(80)
+  returnDate      DateTime       @db.Date
+  reason          String         @db.VarChar(500)
+  taxableAmount   Decimal        @default(0) @db.Decimal(14, 2)
+  cgstAmount      Decimal        @default(0) @db.Decimal(14, 2)
+  sgstAmount      Decimal        @default(0) @db.Decimal(14, 2)
+  igstAmount      Decimal        @default(0) @db.Decimal(14, 2)
+  totalTaxAmount  Decimal        @default(0) @db.Decimal(14, 2)
+  grandTotal      Decimal        @default(0) @db.Decimal(14, 2)
+  costOfGoodsSold Decimal        @default(0) @db.Decimal(14, 2)
+  status          DocumentStatus @default(POSTED)
+  journalEntryId  String?        @db.Uuid
+  postedByUserId  String?        @db.Uuid
+  postedAt        DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  salesInvoice SalesInvoice  @relation(fields: [salesInvoiceId], references: [id])
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  warehouse    Warehouse     @relation(fields: [warehouseId], references: [id])
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  lines        SalesReturnLine[]
+
+  @@unique([companyId, returnNumber])
+  @@index([companyId, customerId, returnDate])
+  @@index([companyId, salesInvoiceId])
+}
+
+model SalesReturnLine {
+  id               String  @id @default(uuid()) @db.Uuid
+  salesReturnId    String  @db.Uuid
+  companyId        String  @db.Uuid
+  productId        String  @db.Uuid
+  productVariantId String  @db.Uuid
+  blockId          String? @db.Uuid
+  rackId           String? @db.Uuid
+  shelfId          String? @db.Uuid
+  hsnCode          String? @db.VarChar(8)
+  quantity         Decimal @db.Decimal(14, 3)
+  unitPrice        Decimal @db.Decimal(14, 2)
+  unitCost         Decimal @default(0) @db.Decimal(14, 2)
+  taxableAmount    Decimal @db.Decimal(14, 2)
+  cgstAmount       Decimal @default(0) @db.Decimal(14, 2)
+  sgstAmount       Decimal @default(0) @db.Decimal(14, 2)
+  igstAmount       Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal        Decimal @db.Decimal(14, 2)
+  costAmount       Decimal @default(0) @db.Decimal(14, 2)
+  lineOrder        Int     @default(0)
+
+  salesReturn   SalesReturn    @relation(fields: [salesReturnId], references: [id], onDelete: Cascade)
+  product       Product        @relation(fields: [productId], references: [id])
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
 
   @@index([companyId, productVariantId])
 }
