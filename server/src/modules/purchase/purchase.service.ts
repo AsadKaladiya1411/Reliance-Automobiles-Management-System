@@ -169,19 +169,37 @@ async function validateLineLocation(
 }
 
 export async function getPurchaseSummary(companyId: string) {
-  const [postedInvoices, totals] = await Promise.all([
+  const [postedInvoices, postedReturns, invoiceTotals, returnTotals] = await Promise.all([
     prisma.purchaseInvoice.count({ where: { companyId, status: "POSTED" } }),
+    prisma.purchaseReturn.count({ where: { companyId } }),
     prisma.purchaseInvoice.aggregate({
       where: { companyId, status: "POSTED" },
       _sum: { taxableAmount: true, totalTaxAmount: true, grandTotal: true },
     }),
+    prisma.purchaseReturn.aggregate({
+      where: { companyId },
+      _sum: { taxableAmount: true, totalTaxAmount: true, grandTotal: true },
+    }),
   ]);
+  const grossTaxableAmount = new Prisma.Decimal(invoiceTotals._sum.taxableAmount ?? 0);
+  const grossTaxAmount = new Prisma.Decimal(invoiceTotals._sum.totalTaxAmount ?? 0);
+  const grossGrandTotal = new Prisma.Decimal(invoiceTotals._sum.grandTotal ?? 0);
+  const returnTaxableAmount = new Prisma.Decimal(returnTotals._sum.taxableAmount ?? 0);
+  const returnTaxAmount = new Prisma.Decimal(returnTotals._sum.totalTaxAmount ?? 0);
+  const returnGrandTotal = new Prisma.Decimal(returnTotals._sum.grandTotal ?? 0);
 
   return {
     postedInvoices,
-    taxableAmount: totals._sum.taxableAmount ?? 0,
-    totalTaxAmount: totals._sum.totalTaxAmount ?? 0,
-    grandTotal: totals._sum.grandTotal ?? 0,
+    postedReturns,
+    grossTaxableAmount,
+    grossTaxAmount,
+    grossGrandTotal,
+    returnTaxableAmount,
+    returnTaxAmount,
+    returnGrandTotal,
+    taxableAmount: grossTaxableAmount.minus(returnTaxableAmount),
+    totalTaxAmount: grossTaxAmount.minus(returnTaxAmount),
+    grandTotal: grossGrandTotal.minus(returnGrandTotal),
   };
 }
 

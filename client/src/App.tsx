@@ -91,6 +91,9 @@ type AccountingSummary = {
 
 type PurchaseSummary = {
   postedInvoices: number;
+  postedReturns: number;
+  grossGrandTotal: string | number;
+  returnGrandTotal: string | number;
   taxableAmount: string | number;
   totalTaxAmount: string | number;
   grandTotal: string | number;
@@ -98,6 +101,9 @@ type PurchaseSummary = {
 
 type SalesSummary = {
   postedInvoices: number;
+  postedReturns: number;
+  grossGrandTotal: string | number;
+  returnGrandTotal: string | number;
   taxableAmount: string | number;
   totalTaxAmount: string | number;
   grandTotal: string | number;
@@ -1289,9 +1295,11 @@ function PurchaseReadinessGrid({ purchaseSummary }: { purchaseSummary?: Purchase
   return (
     <div className="readiness-grid">
       <ReadinessMetric label="Posted Invoices" value={purchaseSummary?.postedInvoices} />
-      <ReadinessMetric label="Taxable Purchase" value={purchaseSummary?.taxableAmount} />
-      <ReadinessMetric label="GST Input" value={purchaseSummary?.totalTaxAmount} />
-      <ReadinessMetric label="Grand Total" value={purchaseSummary?.grandTotal} />
+      <ReadinessMetric label="Posted Returns" value={purchaseSummary?.postedReturns} />
+      <ReadinessMetric label="Gross Purchase" value={purchaseSummary?.grossGrandTotal} />
+      <ReadinessMetric label="Return Value" value={purchaseSummary?.returnGrandTotal} />
+      <ReadinessMetric label="Net Purchase" value={purchaseSummary?.grandTotal} />
+      <ReadinessMetric label="Net GST Input" value={purchaseSummary?.totalTaxAmount} />
     </div>
   );
 }
@@ -1300,10 +1308,11 @@ function SalesReadinessGrid({ salesSummary }: { salesSummary?: SalesSummary }) {
   return (
     <div className="readiness-grid">
       <ReadinessMetric label="Posted Invoices" value={salesSummary?.postedInvoices} />
-      <ReadinessMetric label="Taxable Sales" value={salesSummary?.taxableAmount} />
-      <ReadinessMetric label="GST Output" value={salesSummary?.totalTaxAmount} />
-      <ReadinessMetric label="Grand Total" value={salesSummary?.grandTotal} />
-      <ReadinessMetric label="COGS" value={salesSummary?.costOfGoodsSold} />
+      <ReadinessMetric label="Posted Returns" value={salesSummary?.postedReturns} />
+      <ReadinessMetric label="Gross Sales" value={salesSummary?.grossGrandTotal} />
+      <ReadinessMetric label="Return Value" value={salesSummary?.returnGrandTotal} />
+      <ReadinessMetric label="Net Sales" value={salesSummary?.grandTotal} />
+      <ReadinessMetric label="Net COGS" value={salesSummary?.costOfGoodsSold} />
     </div>
   );
 }

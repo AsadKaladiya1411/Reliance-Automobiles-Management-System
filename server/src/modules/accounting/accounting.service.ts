@@ -268,26 +268,40 @@ export async function getPartyOutstanding(companyId: string) {
 }
 
 export async function getGstSummary(companyId: string) {
-  const [purchaseTotals, salesTotals] = await Promise.all([
+  const [purchaseTotals, purchaseReturnTotals, salesTotals, salesReturnTotals] = await Promise.all([
     prisma.purchaseInvoice.aggregate({
       where: { companyId, status: "POSTED" },
+      _sum: { cgstAmount: true, sgstAmount: true, igstAmount: true, totalTaxAmount: true },
+    }),
+    prisma.purchaseReturn.aggregate({
+      where: { companyId },
       _sum: { cgstAmount: true, sgstAmount: true, igstAmount: true, totalTaxAmount: true },
     }),
     prisma.salesInvoice.aggregate({
       where: { companyId, status: "POSTED" },
       _sum: { cgstAmount: true, sgstAmount: true, igstAmount: true, totalTaxAmount: true },
     }),
+    prisma.salesReturn.aggregate({
+      where: { companyId },
+      _sum: { cgstAmount: true, sgstAmount: true, igstAmount: true, totalTaxAmount: true },
+    }),
   ]);
-  const inputTax = new Prisma.Decimal(purchaseTotals._sum.totalTaxAmount ?? 0);
-  const outputTax = new Prisma.Decimal(salesTotals._sum.totalTaxAmount ?? 0);
+  const inputCgst = new Prisma.Decimal(purchaseTotals._sum.cgstAmount ?? 0).minus(purchaseReturnTotals._sum.cgstAmount ?? 0);
+  const inputSgst = new Prisma.Decimal(purchaseTotals._sum.sgstAmount ?? 0).minus(purchaseReturnTotals._sum.sgstAmount ?? 0);
+  const inputIgst = new Prisma.Decimal(purchaseTotals._sum.igstAmount ?? 0).minus(purchaseReturnTotals._sum.igstAmount ?? 0);
+  const outputCgst = new Prisma.Decimal(salesTotals._sum.cgstAmount ?? 0).minus(salesReturnTotals._sum.cgstAmount ?? 0);
+  const outputSgst = new Prisma.Decimal(salesTotals._sum.sgstAmount ?? 0).minus(salesReturnTotals._sum.sgstAmount ?? 0);
+  const outputIgst = new Prisma.Decimal(salesTotals._sum.igstAmount ?? 0).minus(salesReturnTotals._sum.igstAmount ?? 0);
+  const inputTax = new Prisma.Decimal(purchaseTotals._sum.totalTaxAmount ?? 0).minus(purchaseReturnTotals._sum.totalTaxAmount ?? 0);
+  const outputTax = new Prisma.Decimal(salesTotals._sum.totalTaxAmount ?? 0).minus(salesReturnTotals._sum.totalTaxAmount ?? 0);
 
   return {
-    inputCgst: purchaseTotals._sum.cgstAmount ?? 0,
-    inputSgst: purchaseTotals._sum.sgstAmount ?? 0,
-    inputIgst: purchaseTotals._sum.igstAmount ?? 0,
-    outputCgst: salesTotals._sum.cgstAmount ?? 0,
-    outputSgst: salesTotals._sum.sgstAmount ?? 0,
-    outputIgst: salesTotals._sum.igstAmount ?? 0,
+    inputCgst,
+    inputSgst,
+    inputIgst,
+    outputCgst,
+    outputSgst,
+    outputIgst,
     inputTax,
     outputTax,
     netPayable: outputTax.minus(inputTax),
