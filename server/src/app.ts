@@ -14,6 +14,7 @@ import financialYearRoutes from "./modules/financial-year/financial-year.routes"
 import inventoryRoutes from "./modules/inventory/inventory.routes";
 import mastersRoutes from "./modules/masters/masters.routes";
 import numberSeriesRoutes from "./modules/number-series/number-series.routes";
+import paymentRoutes from "./modules/payments/payments.routes";
 import purchaseRoutes from "./modules/purchase/purchase.routes";
 import salesRoutes from "./modules/sales/sales.routes";
 import systemRoutes from "./modules/system/system.routes";
@@ -40,6 +41,7 @@ app.use("/api", financialYearRoutes);
 app.use("/api", inventoryRoutes);
 app.use("/api", mastersRoutes);
 app.use("/api", numberSeriesRoutes);
+app.use("/api", paymentRoutes);
 app.use("/api", purchaseRoutes);
 app.use("/api", salesRoutes);
 app.use("/api", systemRoutes);

@@ -152,6 +152,7 @@ model Company {
   accounts       Account[]
   journalEntries JournalEntry[]
   partyLedgerEntries PartyLedgerEntry[]
+  payments       Payment[]
   purchaseInvoices PurchaseInvoice[]
   salesInvoices SalesInvoice[]
 }
@@ -635,6 +636,7 @@ model Customer {
   vehicles Vehicle[]
   ledgerEntries PartyLedgerEntry[]
   salesInvoices SalesInvoice[]
+  payments Payment[]
 
   @@unique([companyId, code])
   @@index([companyId, name])
@@ -659,6 +661,7 @@ model Supplier {
   company       Company            @relation(fields: [companyId], references: [id])
   ledgerEntries PartyLedgerEntry[]
   purchaseInvoices PurchaseInvoice[]
+  payments Payment[]
 
   @@unique([companyId, code])
   @@index([companyId, name])
@@ -724,6 +727,7 @@ model PaymentMode {
   updatedAt         DateTime     @updatedAt
 
   company Company @relation(fields: [companyId], references: [id])
+  payments Payment[]
 
   @@unique([companyId, code])
   @@unique([companyId, name])
@@ -771,6 +775,7 @@ model JournalEntry {
   partyLedgerEntries PartyLedgerEntry[]
   purchaseInvoices PurchaseInvoice[]
   salesInvoices SalesInvoice[]
+  payments Payment[]
 
   @@unique([companyId, entryNumber])
   @@index([companyId, entryDate])
@@ -959,4 +964,33 @@ model SalesInvoiceLine {
   shelf         WarehouseShelf? @relation(fields: [shelfId], references: [id])
 
   @@index([companyId, productVariantId])
+}
+
+model Payment {
+  id             String         @id @default(uuid()) @db.Uuid
+  companyId      String         @db.Uuid
+  partyType      PartyType
+  customerId     String?        @db.Uuid
+  supplierId     String?        @db.Uuid
+  paymentModeId  String         @db.Uuid
+  journalEntryId String?        @db.Uuid
+  paymentNumber  String         @db.VarChar(80)
+  paymentDate    DateTime       @db.Date
+  amount         Decimal        @db.Decimal(14, 2)
+  referenceNo    String?        @db.VarChar(120)
+  narration      String?        @db.VarChar(500)
+  status         DocumentStatus @default(POSTED)
+  postedByUserId String?        @db.Uuid
+  postedAt       DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  customer     Customer?     @relation(fields: [customerId], references: [id])
+  supplier     Supplier?     @relation(fields: [supplierId], references: [id])
+  paymentMode  PaymentMode   @relation(fields: [paymentModeId], references: [id])
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  @@unique([companyId, paymentNumber])
+  @@index([companyId, partyType, paymentDate])
 }

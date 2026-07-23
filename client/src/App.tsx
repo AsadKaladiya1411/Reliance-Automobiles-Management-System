@@ -109,6 +109,13 @@ type PartyLedgerSummary = {
   supplierBalance: string | number;
 };
 
+type PaymentSummary = {
+  receipts: number;
+  payments: number;
+  receiptTotal: string | number;
+  paymentTotal: string | number;
+};
+
 type GstSummary = {
   inputCgst: string | number;
   inputSgst: string | number;
@@ -263,6 +270,17 @@ type PartyLedgerEntry = {
   creditAmount: string | number;
   customer?: Customer | null;
   supplier?: Supplier | null;
+};
+
+type Payment = {
+  id: string;
+  partyType: string;
+  paymentNumber: string;
+  paymentDate: string;
+  amount: string | number;
+  customer?: Customer | null;
+  supplier?: Supplier | null;
+  paymentMode: PaymentMode;
 };
 
 type PurchaseInvoice = {
@@ -449,6 +467,16 @@ function useGstSummary() {
   });
 }
 
+function usePaymentSummary() {
+  return useQuery({
+    queryKey: ["payment-summary"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<PaymentSummary>>("/payments/summary");
+      return response.data.data;
+    },
+  });
+}
+
 function useMasterList<T>(key: string, path: string) {
   return useQuery({
     queryKey: [key],
@@ -628,6 +656,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
   const salesSummary = useSalesSummary();
   const partyLedgerSummary = usePartyLedgerSummary();
   const gstSummary = useGstSummary();
+  const paymentSummary = usePaymentSummary();
   const logout = useMutation({
     mutationFn: async () => {
       await api.post("/auth/logout");
@@ -686,6 +715,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
             purchaseSummary={purchaseSummary.data}
             salesSummary={salesSummary.data}
             partyLedgerSummary={partyLedgerSummary.data}
+            paymentSummary={paymentSummary.data}
             gstSummary={gstSummary.data}
             status={status}
           />
@@ -708,6 +738,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
             purchaseSummary={purchaseSummary.data}
             salesSummary={salesSummary.data}
             partyLedgerSummary={partyLedgerSummary.data}
+            paymentSummary={paymentSummary.data}
             gstSummary={gstSummary.data}
           />
         ) : null}
@@ -733,6 +764,7 @@ function DashboardView({
   purchaseSummary,
   salesSummary,
   partyLedgerSummary,
+  paymentSummary,
   gstSummary,
 }: {
   accountingSummary?: AccountingSummary;
@@ -743,6 +775,7 @@ function DashboardView({
   purchaseSummary?: PurchaseSummary;
   salesSummary?: SalesSummary;
   partyLedgerSummary?: PartyLedgerSummary;
+  paymentSummary?: PaymentSummary;
   gstSummary?: GstSummary;
 }) {
   return (
@@ -799,6 +832,11 @@ function DashboardView({
       <section className="setup-panel" aria-label="Ledger and GST reports">
         <h2>Ledger and GST Reports</h2>
         <ReportReadinessGrid partyLedgerSummary={partyLedgerSummary} gstSummary={gstSummary} />
+      </section>
+
+      <section className="setup-panel" aria-label="Payments">
+        <h2>Payments</h2>
+        <PaymentReadinessGrid paymentSummary={paymentSummary} />
       </section>
 
       <ModuleGrid />
@@ -929,12 +967,14 @@ function TransactionsView({
   purchaseSummary,
   salesSummary,
   partyLedgerSummary,
+  paymentSummary,
   gstSummary,
 }: {
   accountingSummary?: AccountingSummary;
   purchaseSummary?: PurchaseSummary;
   salesSummary?: SalesSummary;
   partyLedgerSummary?: PartyLedgerSummary;
+  paymentSummary?: PaymentSummary;
   gstSummary?: GstSummary;
 }) {
   const accounts = useMasterList<Account>("accounts", "/accounting/accounts");
@@ -946,6 +986,8 @@ function TransactionsView({
   const customers = useMasterList<Customer>("customers", "/commercial-masters/customers");
   const salesInvoices = useMasterList<SalesInvoice>("sales-invoices", "/sales/invoices");
   const partyLedger = useMasterList<PartyLedgerEntry>("party-ledger", "/accounting/party-ledger");
+  const paymentModes = useMasterList<PaymentMode>("payment-modes", "/commercial-masters/payment-modes");
+  const payments = useMasterList<Payment>("payments", "/payments");
 
   return (
     <>
@@ -969,6 +1011,10 @@ function TransactionsView({
         <h2>Ledger and GST Reports</h2>
         <ReportReadinessGrid partyLedgerSummary={partyLedgerSummary} gstSummary={gstSummary} />
       </section>
+      <section className="setup-panel">
+        <h2>Payments</h2>
+        <PaymentReadinessGrid paymentSummary={paymentSummary} />
+      </section>
       <section className="masters-grid">
         <PurchaseInvoicePanel
           invoices={purchaseInvoices.data ?? []}
@@ -984,6 +1030,12 @@ function TransactionsView({
         />
         <AccountPanel items={accounts.data ?? []} />
         <JournalPanel accounts={accounts.data ?? []} items={journalEntries.data ?? []} />
+        <PaymentPanel
+          customers={customers.data ?? []}
+          items={payments.data ?? []}
+          paymentModes={paymentModes.data ?? []}
+          suppliers={suppliers.data ?? []}
+        />
         <PartyLedgerPanel items={partyLedger.data ?? []} />
       </section>
       <ModuleGrid filter={["Purchase", "Sales", "Workshop", "Accounting"]} />
@@ -1122,6 +1174,17 @@ function ReportReadinessGrid({
       <ReadinessMetric label="GST Input" value={gstSummary?.inputTax} />
       <ReadinessMetric label="GST Output" value={gstSummary?.outputTax} />
       <ReadinessMetric label="Net GST Payable" value={gstSummary?.netPayable} />
+    </div>
+  );
+}
+
+function PaymentReadinessGrid({ paymentSummary }: { paymentSummary?: PaymentSummary }) {
+  return (
+    <div className="readiness-grid">
+      <ReadinessMetric label="Receipts" value={paymentSummary?.receipts} />
+      <ReadinessMetric label="Payments" value={paymentSummary?.payments} />
+      <ReadinessMetric label="Receipt Total" value={paymentSummary?.receiptTotal} />
+      <ReadinessMetric label="Payment Total" value={paymentSummary?.paymentTotal} />
     </div>
   );
 }
@@ -1790,6 +1853,80 @@ function PartyLedgerPanel({ items }: { items: PartyLedgerEntry[] }) {
           id: entry.id,
           label: `${entry.documentNumber} / ${entry.customer?.name ?? entry.supplier?.name ?? entry.partyType}`,
           meta: `Dr ${entry.debitAmount} / Cr ${entry.creditAmount}`,
+        }))}
+      />
+    </article>
+  );
+}
+
+function PaymentPanel({
+  customers,
+  items,
+  paymentModes,
+  suppliers,
+}: {
+  customers: Customer[];
+  items: Payment[];
+  paymentModes: PaymentMode[];
+  suppliers: Supplier[];
+}) {
+  const [form, setForm] = useState({
+    partyType: "CUSTOMER",
+    partyId: "",
+    paymentModeId: "",
+    paymentDate: new Date().toISOString().slice(0, 10),
+    amount: "0",
+    referenceNo: "",
+    narration: "Payment",
+  });
+  const parties = form.partyType === "CUSTOMER" ? customers : suppliers;
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/payments", form);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["payments"] }),
+        queryClient.invalidateQueries({ queryKey: ["payment-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["party-ledger"] }),
+        queryClient.invalidateQueries({ queryKey: ["party-ledger-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
+      ]);
+      setForm({ ...form, partyId: "", amount: "0", referenceNo: "" });
+    },
+  });
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Post Payment</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate();
+      }}>
+        <select value={form.partyType} onChange={(event) => setForm({ ...form, partyType: event.target.value, partyId: "" })}>
+          <option value="CUSTOMER">Customer receipt</option>
+          <option value="SUPPLIER">Supplier payment</option>
+        </select>
+        <select value={form.partyId} onChange={(event) => setForm({ ...form, partyId: event.target.value })}>
+          <option value="">{form.partyType === "CUSTOMER" ? "Customer" : "Supplier"}</option>
+          {parties.map((party) => <option key={party.id} value={party.id}>{party.name}</option>)}
+        </select>
+        <select value={form.paymentModeId} onChange={(event) => setForm({ ...form, paymentModeId: event.target.value })}>
+          <option value="">Payment mode</option>
+          {paymentModes.map((mode) => <option key={mode.id} value={mode.id}>{mode.name}</option>)}
+        </select>
+        <input type="date" value={form.paymentDate} onChange={(event) => setForm({ ...form, paymentDate: event.target.value })} />
+        <input placeholder="Amount" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} />
+        <input placeholder="Reference no." value={form.referenceNo} onChange={(event) => setForm({ ...form, referenceNo: event.target.value })} />
+        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
+      </form>
+      <MasterList
+        items={items.map((payment) => ({
+          id: payment.id,
+          label: payment.paymentNumber,
+          meta: `${payment.customer?.name ?? payment.supplier?.name ?? payment.partyType} / ${payment.amount}`,
         }))}
       />
     </article>
