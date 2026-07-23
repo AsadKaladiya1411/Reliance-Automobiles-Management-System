@@ -104,6 +104,23 @@ type SalesSummary = {
   costOfGoodsSold: string | number;
 };
 
+type PartyLedgerSummary = {
+  customerBalance: string | number;
+  supplierBalance: string | number;
+};
+
+type GstSummary = {
+  inputCgst: string | number;
+  inputSgst: string | number;
+  inputIgst: string | number;
+  outputCgst: string | number;
+  outputSgst: string | number;
+  outputIgst: string | number;
+  inputTax: string | number;
+  outputTax: string | number;
+  netPayable: string | number;
+};
+
 type Unit = {
   id: string;
   code: string;
@@ -165,6 +182,19 @@ type StockBalance = {
   warehouse: { name: string };
 };
 
+type StockMovement = {
+  id: string;
+  movementType: string;
+  documentNumber: string;
+  documentDate: string;
+  quantityIn: string | number;
+  quantityOut: string | number;
+  totalValue: string | number;
+  product: { name: string };
+  productVariant: { name: string; code: string };
+  warehouse: { name: string };
+};
+
 type Customer = {
   id: string;
   code: string;
@@ -221,6 +251,18 @@ type JournalEntry = {
     creditAmount: string | number;
     account: Account;
   }>;
+};
+
+type PartyLedgerEntry = {
+  id: string;
+  partyType: string;
+  documentType: string;
+  documentNumber: string;
+  entryDate: string;
+  debitAmount: string | number;
+  creditAmount: string | number;
+  customer?: Customer | null;
+  supplier?: Supplier | null;
 };
 
 type PurchaseInvoice = {
@@ -380,6 +422,26 @@ function useSalesSummary() {
     queryKey: ["sales-summary"],
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<SalesSummary>>("/sales/summary");
+      return response.data.data;
+    },
+  });
+}
+
+function usePartyLedgerSummary() {
+  return useQuery({
+    queryKey: ["party-ledger-summary"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<PartyLedgerSummary>>("/accounting/party-ledger-summary");
+      return response.data.data;
+    },
+  });
+}
+
+function useGstSummary() {
+  return useQuery({
+    queryKey: ["gst-summary"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<GstSummary>>("/accounting/gst-summary");
       return response.data.data;
     },
   });
@@ -562,6 +624,8 @@ function DashboardShell({ user }: { user: AuthUser }) {
   const accountingSummary = useAccountingSummary();
   const purchaseSummary = usePurchaseSummary();
   const salesSummary = useSalesSummary();
+  const partyLedgerSummary = usePartyLedgerSummary();
+  const gstSummary = useGstSummary();
   const logout = useMutation({
     mutationFn: async () => {
       await api.post("/auth/logout");
@@ -619,6 +683,8 @@ function DashboardShell({ user }: { user: AuthUser }) {
             masterSummary={masterSummary.data}
             purchaseSummary={purchaseSummary.data}
             salesSummary={salesSummary.data}
+            partyLedgerSummary={partyLedgerSummary.data}
+            gstSummary={gstSummary.data}
             status={status}
           />
         ) : null}
@@ -639,6 +705,8 @@ function DashboardShell({ user }: { user: AuthUser }) {
             accountingSummary={accountingSummary.data}
             purchaseSummary={purchaseSummary.data}
             salesSummary={salesSummary.data}
+            partyLedgerSummary={partyLedgerSummary.data}
+            gstSummary={gstSummary.data}
           />
         ) : null}
 
@@ -662,6 +730,8 @@ function DashboardView({
   inventorySummary,
   purchaseSummary,
   salesSummary,
+  partyLedgerSummary,
+  gstSummary,
 }: {
   accountingSummary?: AccountingSummary;
   commercialMasterSummary?: CommercialMasterSummary;
@@ -670,6 +740,8 @@ function DashboardView({
   inventorySummary?: InventorySummary;
   purchaseSummary?: PurchaseSummary;
   salesSummary?: SalesSummary;
+  partyLedgerSummary?: PartyLedgerSummary;
+  gstSummary?: GstSummary;
 }) {
   return (
     <>
@@ -720,6 +792,11 @@ function DashboardView({
       <section className="setup-panel" aria-label="Sales posting">
         <h2>Sales Posting</h2>
         <SalesReadinessGrid salesSummary={salesSummary} />
+      </section>
+
+      <section className="setup-panel" aria-label="Ledger and GST reports">
+        <h2>Ledger and GST Reports</h2>
+        <ReportReadinessGrid partyLedgerSummary={partyLedgerSummary} gstSummary={gstSummary} />
       </section>
 
       <ModuleGrid />
@@ -807,6 +884,7 @@ function InventoryView({ inventorySummary }: { inventorySummary?: InventorySumma
   const variants = useMasterList<ProductVariant>("product-variants", "/masters/product-variants");
   const warehouses = useMasterList<Warehouse>("warehouses", "/masters/warehouses");
   const stockBalances = useMasterList<StockBalance>("stock-balances", "/inventory/stock-balances");
+  const stockMovements = useMasterList<StockMovement>("stock-movements", "/inventory/stock-movements");
 
   return (
     <>
@@ -829,6 +907,16 @@ function InventoryView({ inventorySummary }: { inventorySummary?: InventorySumma
           }))}
         />
       </section>
+      <section className="setup-panel">
+        <h2>Stock Movement History</h2>
+        <MasterList
+          items={(stockMovements.data ?? []).map((movement) => ({
+            id: movement.id,
+            label: `${movement.documentNumber} / ${movement.productVariant.name}`,
+            meta: `${movement.movementType}: +${movement.quantityIn} / -${movement.quantityOut}`,
+          }))}
+        />
+      </section>
       <ModuleGrid filter={["Inventory"]} />
     </>
   );
@@ -838,10 +926,14 @@ function TransactionsView({
   accountingSummary,
   purchaseSummary,
   salesSummary,
+  partyLedgerSummary,
+  gstSummary,
 }: {
   accountingSummary?: AccountingSummary;
   purchaseSummary?: PurchaseSummary;
   salesSummary?: SalesSummary;
+  partyLedgerSummary?: PartyLedgerSummary;
+  gstSummary?: GstSummary;
 }) {
   const accounts = useMasterList<Account>("accounts", "/accounting/accounts");
   const journalEntries = useMasterList<JournalEntry>("journal-entries", "/accounting/journal-entries");
@@ -851,6 +943,7 @@ function TransactionsView({
   const purchaseInvoices = useMasterList<PurchaseInvoice>("purchase-invoices", "/purchase/invoices");
   const customers = useMasterList<Customer>("customers", "/commercial-masters/customers");
   const salesInvoices = useMasterList<SalesInvoice>("sales-invoices", "/sales/invoices");
+  const partyLedger = useMasterList<PartyLedgerEntry>("party-ledger", "/accounting/party-ledger");
 
   return (
     <>
@@ -870,6 +963,10 @@ function TransactionsView({
         <h2>Sales Posting</h2>
         <SalesReadinessGrid salesSummary={salesSummary} />
       </section>
+      <section className="setup-panel">
+        <h2>Ledger and GST Reports</h2>
+        <ReportReadinessGrid partyLedgerSummary={partyLedgerSummary} gstSummary={gstSummary} />
+      </section>
       <section className="masters-grid">
         <PurchaseInvoicePanel
           invoices={purchaseInvoices.data ?? []}
@@ -885,6 +982,7 @@ function TransactionsView({
         />
         <AccountPanel items={accounts.data ?? []} />
         <JournalPanel accounts={accounts.data ?? []} items={journalEntries.data ?? []} />
+        <PartyLedgerPanel items={partyLedger.data ?? []} />
       </section>
       <ModuleGrid filter={["Purchase", "Sales", "Workshop", "Accounting"]} />
     </>
@@ -1004,6 +1102,24 @@ function SalesReadinessGrid({ salesSummary }: { salesSummary?: SalesSummary }) {
       <ReadinessMetric label="GST Output" value={salesSummary?.totalTaxAmount} />
       <ReadinessMetric label="Grand Total" value={salesSummary?.grandTotal} />
       <ReadinessMetric label="COGS" value={salesSummary?.costOfGoodsSold} />
+    </div>
+  );
+}
+
+function ReportReadinessGrid({
+  gstSummary,
+  partyLedgerSummary,
+}: {
+  gstSummary?: GstSummary;
+  partyLedgerSummary?: PartyLedgerSummary;
+}) {
+  return (
+    <div className="readiness-grid">
+      <ReadinessMetric label="Customer Balance" value={partyLedgerSummary?.customerBalance} />
+      <ReadinessMetric label="Supplier Balance" value={partyLedgerSummary?.supplierBalance} />
+      <ReadinessMetric label="GST Input" value={gstSummary?.inputTax} />
+      <ReadinessMetric label="GST Output" value={gstSummary?.outputTax} />
+      <ReadinessMetric label="Net GST Payable" value={gstSummary?.netPayable} />
     </div>
   );
 }
@@ -1579,6 +1695,21 @@ function SalesInvoicePanel({
           id: invoice.id,
           label: invoice.invoiceNumber,
           meta: `${invoice.customer.name} / ${invoice.grandTotal}`,
+        }))}
+      />
+    </article>
+  );
+}
+
+function PartyLedgerPanel({ items }: { items: PartyLedgerEntry[] }) {
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Party Ledger</h2>
+      <MasterList
+        items={items.map((entry) => ({
+          id: entry.id,
+          label: `${entry.documentNumber} / ${entry.customer?.name ?? entry.supplier?.name ?? entry.partyType}`,
+          meta: `Dr ${entry.debitAmount} / Cr ${entry.creditAmount}`,
         }))}
       />
     </article>

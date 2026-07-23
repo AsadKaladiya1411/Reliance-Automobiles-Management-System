@@ -173,6 +173,73 @@ export async function listJournalEntries(companyId: string) {
   });
 }
 
+export async function listPartyLedgerEntries(companyId: string, partyType?: string) {
+  const normalizedPartyType = partyType?.trim().toUpperCase();
+
+  if (normalizedPartyType && !["CUSTOMER", "SUPPLIER"].includes(normalizedPartyType)) {
+    throw new ApiError(400, "INVALID_PARTY_TYPE", "Party type must be CUSTOMER or SUPPLIER.");
+  }
+
+  return prisma.partyLedgerEntry.findMany({
+    where: {
+      companyId,
+      ...(normalizedPartyType ? { partyType: normalizedPartyType as "CUSTOMER" | "SUPPLIER" } : {}),
+    },
+    include: { customer: true, supplier: true, journalEntry: true },
+    orderBy: [{ entryDate: "desc" }, { createdAt: "desc" }],
+    take: 100,
+  });
+}
+
+export async function getPartyLedgerSummary(companyId: string) {
+  const [customerTotals, supplierTotals] = await Promise.all([
+    prisma.partyLedgerEntry.aggregate({
+      where: { companyId, partyType: "CUSTOMER" },
+      _sum: { debitAmount: true, creditAmount: true },
+    }),
+    prisma.partyLedgerEntry.aggregate({
+      where: { companyId, partyType: "SUPPLIER" },
+      _sum: { debitAmount: true, creditAmount: true },
+    }),
+  ]);
+  const customerDebit = new Prisma.Decimal(customerTotals._sum.debitAmount ?? 0);
+  const customerCredit = new Prisma.Decimal(customerTotals._sum.creditAmount ?? 0);
+  const supplierDebit = new Prisma.Decimal(supplierTotals._sum.debitAmount ?? 0);
+  const supplierCredit = new Prisma.Decimal(supplierTotals._sum.creditAmount ?? 0);
+
+  return {
+    customerBalance: customerDebit.minus(customerCredit),
+    supplierBalance: supplierCredit.minus(supplierDebit),
+  };
+}
+
+export async function getGstSummary(companyId: string) {
+  const [purchaseTotals, salesTotals] = await Promise.all([
+    prisma.purchaseInvoice.aggregate({
+      where: { companyId, status: "POSTED" },
+      _sum: { cgstAmount: true, sgstAmount: true, igstAmount: true, totalTaxAmount: true },
+    }),
+    prisma.salesInvoice.aggregate({
+      where: { companyId, status: "POSTED" },
+      _sum: { cgstAmount: true, sgstAmount: true, igstAmount: true, totalTaxAmount: true },
+    }),
+  ]);
+  const inputTax = new Prisma.Decimal(purchaseTotals._sum.totalTaxAmount ?? 0);
+  const outputTax = new Prisma.Decimal(salesTotals._sum.totalTaxAmount ?? 0);
+
+  return {
+    inputCgst: purchaseTotals._sum.cgstAmount ?? 0,
+    inputSgst: purchaseTotals._sum.sgstAmount ?? 0,
+    inputIgst: purchaseTotals._sum.igstAmount ?? 0,
+    outputCgst: salesTotals._sum.cgstAmount ?? 0,
+    outputSgst: salesTotals._sum.sgstAmount ?? 0,
+    outputIgst: salesTotals._sum.igstAmount ?? 0,
+    inputTax,
+    outputTax,
+    netPayable: outputTax.minus(inputTax),
+  };
+}
+
 export async function postJournalEntry(context: AccountingContext, body: unknown) {
   const data = body as Record<string, unknown>;
   const rawLines = Array.isArray(data.lines) ? (data.lines as JournalLineInput[]) : [];

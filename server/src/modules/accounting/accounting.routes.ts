@@ -6,8 +6,11 @@ import { sendSuccess } from "../../utils/api-response";
 import {
   createAccount,
   getAccountingSummary,
+  getGstSummary,
+  getPartyLedgerSummary,
   listAccounts,
   listJournalEntries,
+  listPartyLedgerEntries,
   postJournalEntry,
   seedDefaultAccounts,
 } from "./accounting.service";
@@ -43,6 +46,18 @@ router.post("/accounting/accounts/seed-defaults", asyncHandler(async (req, res) 
 
 router.get("/accounting/journal-entries", asyncHandler(async (req, res) => {
   sendSuccess(res, await listJournalEntries(req.user!.companyId));
+}));
+
+router.get("/accounting/party-ledger-summary", asyncHandler(async (req, res) => {
+  sendSuccess(res, await getPartyLedgerSummary(req.user!.companyId));
+}));
+
+router.get("/accounting/party-ledger", asyncHandler(async (req, res) => {
+  sendSuccess(res, await listPartyLedgerEntries(req.user!.companyId, String(req.query.partyType ?? "")));
+}));
+
+router.get("/accounting/gst-summary", asyncHandler(async (req, res) => {
+  sendSuccess(res, await getGstSummary(req.user!.companyId));
 }));
 
 router.post("/accounting/journal-entries", asyncHandler(async (req, res) => {
