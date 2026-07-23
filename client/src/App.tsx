@@ -313,7 +313,7 @@ type PurchaseInvoice = {
   status: string;
   supplier: Supplier;
   warehouse: Warehouse;
-  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number }>;
+  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; lineTotal?: string | number }>;
 };
 
 type SalesInvoice = {
@@ -324,7 +324,27 @@ type SalesInvoice = {
   status: string;
   customer: Customer;
   warehouse: Warehouse;
-  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number }>;
+  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; lineTotal?: string | number }>;
+};
+
+type PurchaseReturn = {
+  id: string;
+  returnNumber: string;
+  returnDate: string;
+  grandTotal: string | number;
+  reason: string;
+  supplier: Supplier;
+  purchaseInvoice: PurchaseInvoice;
+};
+
+type SalesReturn = {
+  id: string;
+  returnNumber: string;
+  returnDate: string;
+  grandTotal: string | number;
+  reason: string;
+  customer: Customer;
+  salesInvoice: SalesInvoice;
 };
 
 type AuditLog = {
@@ -1102,8 +1122,10 @@ function TransactionsView({
   const variants = useMasterList<ProductVariant>("product-variants", "/masters/product-variants");
   const warehouses = useMasterList<Warehouse>("warehouses", "/masters/warehouses");
   const purchaseInvoices = useMasterList<PurchaseInvoice>("purchase-invoices", "/purchase/invoices");
+  const purchaseReturns = useMasterList<PurchaseReturn>("purchase-returns", "/purchase/returns");
   const customers = useMasterList<Customer>("customers", "/commercial-masters/customers");
   const salesInvoices = useMasterList<SalesInvoice>("sales-invoices", "/sales/invoices");
+  const salesReturns = useMasterList<SalesReturn>("sales-returns", "/sales/returns");
   const partyLedger = useMasterList<PartyLedgerEntry>("party-ledger", "/accounting/party-ledger");
   const paymentModes = useMasterList<PaymentMode>("payment-modes", "/commercial-masters/payment-modes");
   const payments = useMasterList<Payment>("payments", "/payments");
@@ -1148,6 +1170,8 @@ function TransactionsView({
           variants={variants.data ?? []}
           warehouses={warehouses.data ?? []}
         />
+        <PurchaseReturnPanel invoices={purchaseInvoices.data ?? []} items={purchaseReturns.data ?? []} />
+        <SalesReturnPanel invoices={salesInvoices.data ?? []} items={salesReturns.data ?? []} />
         <AccountPanel items={accounts.data ?? []} />
         <JournalPanel accounts={accounts.data ?? []} items={journalEntries.data ?? []} />
         <PaymentPanel
@@ -1979,6 +2003,130 @@ function InvoiceActionList({
   );
 }
 
+function PurchaseReturnPanel({ invoices, items }: { invoices: PurchaseInvoice[]; items: PurchaseReturn[] }) {
+  const [form, setForm] = useState({
+    purchaseInvoiceId: "",
+    purchaseInvoiceLineId: "",
+    quantity: "1",
+    returnDate: new Date().toISOString().slice(0, 10),
+    reason: "Purchase return",
+  });
+  const selectedInvoice = invoices.find((invoice) => invoice.id === form.purchaseInvoiceId);
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/purchase/returns", {
+        purchaseInvoiceId: form.purchaseInvoiceId,
+        returnDate: form.returnDate,
+        reason: form.reason,
+        lines: [{ purchaseInvoiceLineId: form.purchaseInvoiceLineId, quantity: form.quantity }],
+      });
+    },
+    onSuccess: async () => {
+      await invalidatePostingQueries(["purchase-returns"]);
+      setForm({ ...form, purchaseInvoiceLineId: "", quantity: "1", reason: "Purchase return" });
+    },
+  });
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Post Purchase Return</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate();
+      }}>
+        <select
+          value={form.purchaseInvoiceId}
+          onChange={(event) => setForm({ ...form, purchaseInvoiceId: event.target.value, purchaseInvoiceLineId: "" })}
+        >
+          <option value="">Purchase invoice</option>
+          {invoices.filter((invoice) => invoice.status === "POSTED").map((invoice) => (
+            <option key={invoice.id} value={invoice.id}>{`${invoice.invoiceNumber} - ${invoice.supplier.name}`}</option>
+          ))}
+        </select>
+        <select value={form.purchaseInvoiceLineId} onChange={(event) => setForm({ ...form, purchaseInvoiceLineId: event.target.value })}>
+          <option value="">Invoice line</option>
+          {(selectedInvoice?.lines ?? []).map((line) => (
+            <option key={line.id} value={line.id}>{`${line.productVariant.name} / Qty ${line.quantity}`}</option>
+          ))}
+        </select>
+        <input type="date" value={form.returnDate} onChange={(event) => setForm({ ...form, returnDate: event.target.value })} />
+        <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
+        <input placeholder="Reason" value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
+      </form>
+      <MasterList
+        items={items.map((item) => ({
+          id: item.id,
+          label: item.returnNumber,
+          meta: `${item.supplier.name} / ${item.grandTotal}`,
+        }))}
+      />
+    </article>
+  );
+}
+
+function SalesReturnPanel({ invoices, items }: { invoices: SalesInvoice[]; items: SalesReturn[] }) {
+  const [form, setForm] = useState({
+    salesInvoiceId: "",
+    salesInvoiceLineId: "",
+    quantity: "1",
+    returnDate: new Date().toISOString().slice(0, 10),
+    reason: "Sales return",
+  });
+  const selectedInvoice = invoices.find((invoice) => invoice.id === form.salesInvoiceId);
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/sales/returns", {
+        salesInvoiceId: form.salesInvoiceId,
+        returnDate: form.returnDate,
+        reason: form.reason,
+        lines: [{ salesInvoiceLineId: form.salesInvoiceLineId, quantity: form.quantity }],
+      });
+    },
+    onSuccess: async () => {
+      await invalidatePostingQueries(["sales-returns"]);
+      setForm({ ...form, salesInvoiceLineId: "", quantity: "1", reason: "Sales return" });
+    },
+  });
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Post Sales Return</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate();
+      }}>
+        <select
+          value={form.salesInvoiceId}
+          onChange={(event) => setForm({ ...form, salesInvoiceId: event.target.value, salesInvoiceLineId: "" })}
+        >
+          <option value="">Sales invoice</option>
+          {invoices.filter((invoice) => invoice.status === "POSTED").map((invoice) => (
+            <option key={invoice.id} value={invoice.id}>{`${invoice.invoiceNumber} - ${invoice.customer.name}`}</option>
+          ))}
+        </select>
+        <select value={form.salesInvoiceLineId} onChange={(event) => setForm({ ...form, salesInvoiceLineId: event.target.value })}>
+          <option value="">Invoice line</option>
+          {(selectedInvoice?.lines ?? []).map((line) => (
+            <option key={line.id} value={line.id}>{`${line.productVariant.name} / Qty ${line.quantity}`}</option>
+          ))}
+        </select>
+        <input type="date" value={form.returnDate} onChange={(event) => setForm({ ...form, returnDate: event.target.value })} />
+        <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
+        <input placeholder="Reason" value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
+      </form>
+      <MasterList
+        items={items.map((item) => ({
+          id: item.id,
+          label: item.returnNumber,
+          meta: `${item.customer.name} / ${item.grandTotal}`,
+        }))}
+      />
+    </article>
+  );
+}
+
 function PartyLedgerPanel({ items }: { items: PartyLedgerEntry[] }) {
   return (
     <article className="setup-panel master-panel wide-panel">
@@ -2468,6 +2616,25 @@ function useCreateMaster(path: string, queryKeys: string[], onSuccess?: () => vo
       onSuccess?.();
     },
   });
+}
+
+async function invalidatePostingQueries(extraKeys: string[] = []) {
+  await Promise.all([
+    ...extraKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey: [queryKey] })),
+    queryClient.invalidateQueries({ queryKey: ["purchase-invoices"] }),
+    queryClient.invalidateQueries({ queryKey: ["sales-invoices"] }),
+    queryClient.invalidateQueries({ queryKey: ["purchase-summary"] }),
+    queryClient.invalidateQueries({ queryKey: ["sales-summary"] }),
+    queryClient.invalidateQueries({ queryKey: ["inventory-summary"] }),
+    queryClient.invalidateQueries({ queryKey: ["stock-balances"] }),
+    queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
+    queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
+    queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
+    queryClient.invalidateQueries({ queryKey: ["party-ledger"] }),
+    queryClient.invalidateQueries({ queryKey: ["party-ledger-summary"] }),
+    queryClient.invalidateQueries({ queryKey: ["party-outstanding"] }),
+    queryClient.invalidateQueries({ queryKey: ["gst-summary"] }),
+  ]);
 }
 
 function ReadinessMetric({ label, value }: { label: string; value?: number | string }) {
