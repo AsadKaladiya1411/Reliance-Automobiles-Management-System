@@ -1,8 +1,6 @@
 import type { Request, Response } from "express";
+import { sendError } from "../utils/api-response";
 
-export function notFound(_req: Request, res: Response) {
-  res.status(404).json({
-    success: false,
-    message: "Route not found",
-  });
+export function notFound(req: Request, res: Response) {
+  sendError(res, 404, "ROUTE_NOT_FOUND", `Route not found: ${req.method} ${req.path}`);
 }

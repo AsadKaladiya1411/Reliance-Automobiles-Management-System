@@ -11,3 +11,212 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum RecordStatus {
+  ACTIVE
+  INACTIVE
+  DELETED
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  LOCKED
+}
+
+enum FinancialYearStatus {
+  OPEN
+  CLOSED
+  LOCKED
+}
+
+enum NumberSeriesReset {
+  NEVER
+  YEARLY
+  MONTHLY
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  RESTORE
+  LOGIN
+  LOGOUT
+  APPROVE
+  REJECT
+  POST
+  CANCEL
+  REVERSE
+}
+
+model Company {
+  id            String       @id @default(uuid()) @db.Uuid
+  code          String       @unique @db.VarChar(32)
+  name          String       @db.VarChar(160)
+  legalName     String?      @db.VarChar(200)
+  gstin         String?      @unique @db.VarChar(15)
+  pan           String?      @db.VarChar(10)
+  tan           String?      @db.VarChar(10)
+  phone         String?      @db.VarChar(32)
+  email         String?      @db.VarChar(160)
+  addressLine1  String?      @db.VarChar(240)
+  addressLine2  String?      @db.VarChar(240)
+  city          String?      @db.VarChar(120)
+  state         String?      @db.VarChar(120)
+  pincode       String?      @db.VarChar(12)
+  country       String       @default("India") @db.VarChar(80)
+  baseCurrency  String       @default("INR") @db.VarChar(3)
+  timezone      String       @default("Asia/Kolkata") @db.VarChar(80)
+  status        RecordStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  financialYears FinancialYear[]
+  users          User[]
+  roles          Role[]
+  permissions    Permission[]
+  numberSeries   NumberSeries[]
+  auditLogs      AuditLog[]
+}
+
+model FinancialYear {
+  id        String              @id @default(uuid()) @db.Uuid
+  companyId String              @db.Uuid
+  name      String              @db.VarChar(32)
+  startDate DateTime            @db.Date
+  endDate   DateTime            @db.Date
+  status    FinancialYearStatus @default(OPEN)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, name])
+  @@index([companyId, status])
+}
+
+model User {
+  id                   String     @id @default(uuid()) @db.Uuid
+  companyId            String     @db.Uuid
+  username             String     @db.VarChar(80)
+  email                String?    @db.VarChar(160)
+  passwordHash         String     @db.VarChar(255)
+  fullName             String     @db.VarChar(160)
+  phone                String?    @db.VarChar(32)
+  status               UserStatus @default(ACTIVE)
+  failedLoginAttempts  Int        @default(0)
+  lockedUntil          DateTime?
+  lastLoginAt          DateTime?
+  passwordChangedAt    DateTime?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  deletedAt            DateTime?
+
+  company   Company    @relation(fields: [companyId], references: [id])
+  userRoles UserRole[]
+  auditLogs AuditLog[] @relation("AuditActor")
+
+  @@unique([companyId, username])
+  @@unique([companyId, email])
+  @@index([companyId, status])
+}
+
+model Role {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  code        String       @db.VarChar(64)
+  name        String       @db.VarChar(120)
+  description String?      @db.VarChar(300)
+  isSystem    Boolean      @default(false)
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company         Company          @relation(fields: [companyId], references: [id])
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@unique([companyId, code])
+  @@unique([companyId, name])
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @db.Uuid
+  module      String   @db.VarChar(80)
+  action      String   @db.VarChar(80)
+  description String?  @db.VarChar(300)
+  createdAt   DateTime @default(now())
+
+  company         Company          @relation(fields: [companyId], references: [id])
+  rolePermissions RolePermission[]
+
+  @@unique([companyId, module, action])
+}
+
+model UserRole {
+  userId    String   @db.Uuid
+  roleId    String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId       String   @db.Uuid
+  permissionId String   @db.Uuid
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model NumberSeries {
+  id            String            @id @default(uuid()) @db.Uuid
+  companyId     String            @db.Uuid
+  documentType  String            @db.VarChar(80)
+  prefix        String            @default("") @db.VarChar(24)
+  suffix        String            @default("") @db.VarChar(24)
+  padding       Int               @default(5)
+  nextNumber    Int               @default(1)
+  resetPolicy   NumberSeriesReset @default(YEARLY)
+  financialYear String?           @db.VarChar(32)
+  isDefault     Boolean           @default(true)
+  status        RecordStatus      @default(ACTIVE)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, documentType, financialYear, prefix, suffix])
+  @@index([companyId, documentType, status])
+}
+
+model AuditLog {
+  id          String      @id @default(uuid()) @db.Uuid
+  companyId   String      @db.Uuid
+  actorUserId String?     @db.Uuid
+  module      String      @db.VarChar(80)
+  action      AuditAction
+  entityType  String      @db.VarChar(120)
+  entityId    String?     @db.VarChar(80)
+  description String?     @db.VarChar(500)
+  beforeData  Json?
+  afterData   Json?
+  ipAddress   String?     @db.VarChar(64)
+  userAgent   String?     @db.VarChar(300)
+  createdAt   DateTime    @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+  actor   User?   @relation("AuditActor", fields: [actorUserId], references: [id])
+
+  @@index([companyId, module, createdAt])
+  @@index([entityType, entityId])
+  @@index([actorUserId, createdAt])
+}
