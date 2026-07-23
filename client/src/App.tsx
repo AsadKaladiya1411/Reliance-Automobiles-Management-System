@@ -2451,10 +2451,28 @@ function NumberSeriesPanel({ numberSeries }: { numberSeries: NumberSeries[] }) {
       await queryClient.invalidateQueries({ queryKey: ["system-status"] });
     },
   });
+  const seedMutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/settings/seed-operational-defaults");
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["number-series"] }),
+        queryClient.invalidateQueries({ queryKey: ["system-status"] }),
+        queryClient.invalidateQueries({ queryKey: ["payment-modes"] }),
+        queryClient.invalidateQueries({ queryKey: ["commercial-master-summary"] }),
+      ]);
+    },
+  });
 
   return (
     <article className="setup-panel">
-      <h2>Number Series</h2>
+      <div className="panel-title-row">
+        <h2>Number Series</h2>
+        <Button type="button" variant="outline" disabled={seedMutation.isPending} onClick={() => seedMutation.mutate()}>
+          Seed Defaults
+        </Button>
+      </div>
       <form className="inline-form" onSubmit={(event) => {
         event.preventDefault();
         mutation.mutate();

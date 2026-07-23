@@ -2,7 +2,7 @@ import { Router } from "express";
 import { requireAuth } from "../auth/auth.middleware";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
-import { createNumberSeries, listNumberSeries } from "./number-series.service";
+import { createNumberSeries, listNumberSeries, seedOperationalDefaults } from "./number-series.service";
 
 const router = Router();
 
@@ -26,6 +26,20 @@ router.post(
     });
 
     sendSuccess(res, numberSeries, "Number series created.", 201);
+  }),
+);
+
+router.post(
+  "/settings/seed-operational-defaults",
+  asyncHandler(async (req, res) => {
+    const defaults = await seedOperationalDefaults(req.user!.companyId, {
+      companyId: req.user!.companyId,
+      userId: req.user!.id,
+      ipAddress: req.ip,
+      userAgent: req.get("user-agent"),
+    });
+
+    sendSuccess(res, defaults, "Operational defaults seeded.");
   }),
 );
 

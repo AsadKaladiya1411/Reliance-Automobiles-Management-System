@@ -12,6 +12,23 @@ type UpsertNumberSeriesInput = {
   financialYear?: string;
 };
 
+const defaultNumberSeries = [
+  { documentType: "OPENING_STOCK", prefix: "OS-", padding: 5 },
+  { documentType: "JOURNAL_ENTRY", prefix: "JV-", padding: 5 },
+  { documentType: "PURCHASE_INVOICE", prefix: "PI-", padding: 5 },
+  { documentType: "SALES_INVOICE", prefix: "SI-", padding: 5 },
+  { documentType: "PAYMENT_RECEIPT", prefix: "RCPT-", padding: 5 },
+  { documentType: "PAYMENT_VOUCHER", prefix: "PV-", padding: 5 },
+  { documentType: "JOB_CARD", prefix: "JC-", padding: 5 },
+] as const;
+
+const defaultPaymentModes = [
+  { code: "CASH", name: "Cash", paymentType: "Cash", requiresReference: false, isDefault: true },
+  { code: "BANK", name: "Bank Transfer", paymentType: "Bank", requiresReference: true, isDefault: false },
+  { code: "UPI", name: "UPI", paymentType: "UPI", requiresReference: true, isDefault: false },
+  { code: "CARD", name: "Card", paymentType: "Card", requiresReference: true, isDefault: false },
+] as const;
+
 export function formatDocumentNumber(input: {
   prefix: string;
   suffix: string;
@@ -75,4 +92,71 @@ export async function createNumberSeries(
     ...numberSeries,
     preview: formatDocumentNumber(numberSeries),
   };
+}
+
+export async function seedOperationalDefaults(companyId: string, context: RequestContext) {
+  const result = await prisma.$transaction(async (tx) => {
+    const numberSeries = [];
+    const paymentModes = [];
+
+    for (const series of defaultNumberSeries) {
+      numberSeries.push(
+        await tx.numberSeries.upsert({
+          where: {
+            companyId_documentType_financialYear_prefix_suffix: {
+              companyId,
+              documentType: series.documentType,
+              financialYear: "",
+              prefix: series.prefix,
+              suffix: "",
+            },
+          },
+          create: {
+            companyId,
+            documentType: series.documentType,
+            prefix: series.prefix,
+            suffix: "",
+            padding: series.padding,
+            nextNumber: 1,
+            financialYear: "",
+          },
+          update: { status: "ACTIVE" },
+        }),
+      );
+    }
+
+    for (const mode of defaultPaymentModes) {
+      paymentModes.push(
+        await tx.paymentMode.upsert({
+          where: { companyId_code: { companyId, code: mode.code } },
+          create: { companyId, ...mode },
+          update: {
+            name: mode.name,
+            paymentType: mode.paymentType,
+            requiresReference: mode.requiresReference,
+            isDefault: mode.isDefault,
+            status: "ACTIVE",
+          },
+        }),
+      );
+    }
+
+    await tx.auditLog.create({
+      data: {
+        companyId,
+        actorUserId: context.userId,
+        module: "settings",
+        action: "CREATE",
+        entityType: "OperationalDefaults",
+        description: "Operational defaults seeded.",
+        afterData: { numberSeries, paymentModes },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return { numberSeries, paymentModes };
+  });
+
+  return result;
 }
