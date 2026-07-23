@@ -17,6 +17,7 @@ const defaultNumberSeries = [
   { documentType: "STOCK_ADJUSTMENT", prefix: "SA-", padding: 5 },
   { documentType: "STOCK_TRANSFER", prefix: "ST-", padding: 5 },
   { documentType: "JOURNAL_ENTRY", prefix: "JV-", padding: 5 },
+  { documentType: "PURCHASE_ORDER", prefix: "PO-", padding: 5 },
   { documentType: "PURCHASE_INVOICE", prefix: "PI-", padding: 5 },
   { documentType: "SALES_INVOICE", prefix: "SI-", padding: 5 },
   { documentType: "PURCHASE_RETURN", prefix: "PR-", padding: 5 },

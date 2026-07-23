@@ -169,7 +169,8 @@ async function validateLineLocation(
 }
 
 export async function getPurchaseSummary(companyId: string) {
-  const [postedInvoices, postedReturns, invoiceTotals, returnTotals] = await Promise.all([
+  const [approvedOrders, postedInvoices, postedReturns, invoiceTotals, returnTotals] = await Promise.all([
+    prisma.purchaseOrder.count({ where: { companyId, status: "APPROVED" } }),
     prisma.purchaseInvoice.count({ where: { companyId, status: "POSTED" } }),
     prisma.purchaseReturn.count({ where: { companyId } }),
     prisma.purchaseInvoice.aggregate({
@@ -189,6 +190,7 @@ export async function getPurchaseSummary(companyId: string) {
   const returnGrandTotal = new Prisma.Decimal(returnTotals._sum.grandTotal ?? 0);
 
   return {
+    approvedOrders,
     postedInvoices,
     postedReturns,
     grossTaxableAmount,
@@ -203,6 +205,18 @@ export async function getPurchaseSummary(companyId: string) {
   };
 }
 
+export async function listPurchaseOrders(companyId: string) {
+  return prisma.purchaseOrder.findMany({
+    where: { companyId },
+    include: {
+      supplier: true,
+      lines: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } },
+    },
+    orderBy: [{ orderDate: "desc" }, { createdAt: "desc" }],
+    take: 50,
+  });
+}
+
 export async function listPurchaseInvoices(companyId: string) {
   return prisma.purchaseInvoice.findMany({
     where: { companyId },
@@ -213,6 +227,108 @@ export async function listPurchaseInvoices(companyId: string) {
     },
     orderBy: { invoiceDate: "desc" },
     take: 50,
+  });
+}
+
+export async function createPurchaseOrder(context: PurchaseContext, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const supplierId = requiredString(data.supplierId, "Supplier");
+  const orderDate = parseDate(data.orderDate);
+  const expectedDate = optionalString(data.expectedDate) ? parseDate(data.expectedDate) : undefined;
+  const rawLines = Array.isArray(data.lines) ? (data.lines as PurchaseLineInput[]) : [];
+
+  if (rawLines.length === 0) {
+    throw new ApiError(400, "PURCHASE_ORDER_LINES_REQUIRED", "At least one purchase order line is required.");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const supplier = await tx.supplier.findFirst({
+      where: { id: supplierId, companyId: context.companyId, status: "ACTIVE" },
+    });
+
+    if (!supplier) {
+      throw new ApiError(404, "SUPPLIER_NOT_FOUND", "Supplier not found or inactive.");
+    }
+
+    const orderNumber = await nextDocumentNumber(
+      tx,
+      context.companyId,
+      "PURCHASE_ORDER",
+      "Create a PURCHASE_ORDER number series before creating purchase orders.",
+    );
+    const preparedLines = [];
+
+    for (const [index, line] of rawLines.entries()) {
+      const productVariantId = requiredString(line.productVariantId, "Product variant");
+      const variant = await tx.productVariant.findFirst({
+        where: {
+          id: productVariantId,
+          companyId: context.companyId,
+          status: "ACTIVE",
+          product: { status: "ACTIVE" },
+        },
+        include: { product: { include: { taxRate: true } } },
+      });
+
+      if (!variant) {
+        throw new ApiError(404, "PRODUCT_VARIANT_NOT_FOUND", "Product variant not found or inactive.");
+      }
+
+      const quantity = positiveDecimal(line.quantity, "Quantity", 3);
+      const unitCost = positiveDecimal(line.unitCost, "Unit cost", 2);
+      const taxableAmount = quantity.mul(unitCost).toDecimalPlaces(2);
+      const taxRate = variant.product.taxRate;
+      const taxAmount = taxableAmount.mul(taxRate?.igstRate ?? new Prisma.Decimal(0)).div(100).toDecimalPlaces(2);
+
+      preparedLines.push({
+        companyId: context.companyId,
+        productVariantId,
+        quantity,
+        unitCost,
+        taxableAmount,
+        taxAmount,
+        lineTotal: taxableAmount.plus(taxAmount).toDecimalPlaces(2),
+        lineOrder: index + 1,
+      });
+    }
+
+    const taxableAmount = preparedLines.reduce((total, line) => total.plus(line.taxableAmount), new Prisma.Decimal(0));
+    const totalTaxAmount = preparedLines.reduce((total, line) => total.plus(line.taxAmount), new Prisma.Decimal(0));
+    const grandTotal = taxableAmount.plus(totalTaxAmount).toDecimalPlaces(2);
+    const order = await tx.purchaseOrder.create({
+      data: {
+        companyId: context.companyId,
+        supplierId,
+        orderNumber,
+        orderDate,
+        expectedDate,
+        taxableAmount,
+        totalTaxAmount,
+        grandTotal,
+        status: "APPROVED",
+        narration: optionalString(data.narration),
+        createdByUserId: context.userId,
+        lines: { create: preparedLines },
+      },
+      include: { supplier: true, lines: { include: { productVariant: true } } },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        module: "purchase",
+        action: "CREATE",
+        entityType: "PurchaseOrder",
+        entityId: order.id,
+        description: "Purchase order created.",
+        afterData: json(order),
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return order;
   });
 }
 

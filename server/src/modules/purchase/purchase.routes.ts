@@ -5,8 +5,10 @@ import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
 import {
   cancelPurchaseInvoice,
+  createPurchaseOrder,
   getPurchaseSummary,
   listPurchaseInvoices,
+  listPurchaseOrders,
   listPurchaseReturns,
   postPurchaseInvoice,
   postPurchaseReturn,
@@ -33,12 +35,20 @@ router.get("/purchase/invoices", asyncHandler(async (req, res) => {
   sendSuccess(res, await listPurchaseInvoices(req.user!.companyId));
 }));
 
+router.get("/purchase/orders", asyncHandler(async (req, res) => {
+  sendSuccess(res, await listPurchaseOrders(req.user!.companyId));
+}));
+
 router.get("/purchase/returns", asyncHandler(async (req, res) => {
   sendSuccess(res, await listPurchaseReturns(req.user!.companyId));
 }));
 
 router.post("/purchase/invoices", asyncHandler(async (req, res) => {
   sendSuccess(res, await postPurchaseInvoice(context(req), req.body), "Purchase invoice posted.", 201);
+}));
+
+router.post("/purchase/orders", asyncHandler(async (req, res) => {
+  sendSuccess(res, await createPurchaseOrder(context(req), req.body), "Purchase order created.", 201);
 }));
 
 router.post("/purchase/invoices/:id/cancel", asyncHandler(async (req, res) => {

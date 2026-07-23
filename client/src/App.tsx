@@ -90,6 +90,7 @@ type AccountingSummary = {
 };
 
 type PurchaseSummary = {
+  approvedOrders: number;
   postedInvoices: number;
   postedReturns: number;
   grossGrandTotal: string | number;
@@ -332,6 +333,17 @@ type PurchaseInvoice = {
   supplier: Supplier;
   warehouse: Warehouse;
   lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; lineTotal?: string | number }>;
+};
+
+type PurchaseOrder = {
+  id: string;
+  orderNumber: string;
+  orderDate: string;
+  expectedDate?: string | null;
+  grandTotal: string | number;
+  status: string;
+  supplier: Supplier;
+  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; lineTotal: string | number }>;
 };
 
 type SalesInvoice = {
@@ -1141,6 +1153,7 @@ function TransactionsView({
   const suppliers = useMasterList<Supplier>("suppliers", "/commercial-masters/suppliers");
   const variants = useMasterList<ProductVariant>("product-variants", "/masters/product-variants");
   const warehouses = useMasterList<Warehouse>("warehouses", "/masters/warehouses");
+  const purchaseOrders = useMasterList<PurchaseOrder>("purchase-orders", "/purchase/orders");
   const purchaseInvoices = useMasterList<PurchaseInvoice>("purchase-invoices", "/purchase/invoices");
   const purchaseReturns = useMasterList<PurchaseReturn>("purchase-returns", "/purchase/returns");
   const customers = useMasterList<Customer>("customers", "/commercial-masters/customers");
@@ -1179,6 +1192,11 @@ function TransactionsView({
         <PaymentReadinessGrid paymentSummary={paymentSummary} />
       </section>
       <section className="masters-grid">
+        <PurchaseOrderPanel
+          items={purchaseOrders.data ?? []}
+          suppliers={suppliers.data ?? []}
+          variants={variants.data ?? []}
+        />
         <PurchaseInvoicePanel
           invoices={purchaseInvoices.data ?? []}
           suppliers={suppliers.data ?? []}
@@ -1310,6 +1328,7 @@ function AccountingReadinessGrid({ accountingSummary }: { accountingSummary?: Ac
 function PurchaseReadinessGrid({ purchaseSummary }: { purchaseSummary?: PurchaseSummary }) {
   return (
     <div className="readiness-grid">
+      <ReadinessMetric label="Approved Orders" value={purchaseSummary?.approvedOrders} />
       <ReadinessMetric label="Posted Invoices" value={purchaseSummary?.postedInvoices} />
       <ReadinessMetric label="Posted Returns" value={purchaseSummary?.postedReturns} />
       <ReadinessMetric label="Gross Purchase" value={purchaseSummary?.grossGrandTotal} />
@@ -1471,6 +1490,77 @@ function OpeningStockPanel({
           Post
         </Button>
       </form>
+    </article>
+  );
+}
+
+function PurchaseOrderPanel({
+  items,
+  suppliers,
+  variants,
+}: {
+  items: PurchaseOrder[];
+  suppliers: Supplier[];
+  variants: ProductVariant[];
+}) {
+  const [form, setForm] = useState({
+    supplierId: "",
+    productVariantId: "",
+    orderDate: new Date().toISOString().slice(0, 10),
+    expectedDate: "",
+    quantity: "1",
+    unitCost: "0",
+    narration: "Purchase order",
+  });
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/purchase/orders", {
+        supplierId: form.supplierId,
+        orderDate: form.orderDate,
+        expectedDate: form.expectedDate,
+        narration: form.narration,
+        lines: [{ productVariantId: form.productVariantId, quantity: form.quantity, unitCost: form.unitCost }],
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["purchase-orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["purchase-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
+      ]);
+      setForm({ ...form, productVariantId: "", quantity: "1", unitCost: "0", narration: "Purchase order" });
+    },
+  });
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Create Purchase Order</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate();
+      }}>
+        <select value={form.supplierId} onChange={(event) => setForm({ ...form, supplierId: event.target.value })}>
+          <option value="">Supplier</option>
+          {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+        </select>
+        <select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
+          <option value="">Product variant</option>
+          {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
+        </select>
+        <input type="date" value={form.orderDate} onChange={(event) => setForm({ ...form, orderDate: event.target.value })} />
+        <input type="date" value={form.expectedDate} onChange={(event) => setForm({ ...form, expectedDate: event.target.value })} />
+        <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
+        <input placeholder="Unit cost" value={form.unitCost} onChange={(event) => setForm({ ...form, unitCost: event.target.value })} />
+        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Create</Button>
+      </form>
+      <MasterList
+        items={items.map((order) => ({
+          id: order.id,
+          label: order.orderNumber,
+          meta: `${order.supplier.name} / ${order.status} / ${order.grandTotal}`,
+        }))}
+      />
     </article>
   );
 }

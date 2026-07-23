@@ -162,6 +162,7 @@ model Company {
   partyLedgerEntries PartyLedgerEntry[]
   payments       Payment[]
   financialNotes FinancialNote[]
+  purchaseOrders PurchaseOrder[]
   purchaseInvoices PurchaseInvoice[]
   purchaseReturns PurchaseReturn[]
   salesInvoices SalesInvoice[]
@@ -474,6 +475,7 @@ model ProductVariant {
   product Product @relation(fields: [productId], references: [id])
   stockBalances StockBalance[]
   stockMovements StockMovement[]
+  purchaseOrderLines PurchaseOrderLine[]
   purchaseInvoiceLines PurchaseInvoiceLine[]
   purchaseReturnLines PurchaseReturnLine[]
   salesInvoiceLines SalesInvoiceLine[]
@@ -682,6 +684,7 @@ model Supplier {
 
   company       Company            @relation(fields: [companyId], references: [id])
   ledgerEntries PartyLedgerEntry[]
+  purchaseOrders PurchaseOrder[]
   purchaseInvoices PurchaseInvoice[]
   purchaseReturns PurchaseReturn[]
   payments Payment[]
@@ -882,6 +885,49 @@ model FinancialNote {
   @@unique([companyId, noteNumber])
   @@index([companyId, partyType, noteDate])
   @@index([companyId, noteType, noteDate])
+}
+
+model PurchaseOrder {
+  id              String         @id @default(uuid()) @db.Uuid
+  companyId       String         @db.Uuid
+  supplierId      String         @db.Uuid
+  orderNumber     String         @db.VarChar(80)
+  orderDate       DateTime       @db.Date
+  expectedDate    DateTime?      @db.Date
+  taxableAmount   Decimal        @default(0) @db.Decimal(14, 2)
+  totalTaxAmount  Decimal        @default(0) @db.Decimal(14, 2)
+  grandTotal      Decimal        @default(0) @db.Decimal(14, 2)
+  status          DocumentStatus @default(APPROVED)
+  narration       String?        @db.VarChar(500)
+  createdByUserId String?        @db.Uuid
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  company  Company             @relation(fields: [companyId], references: [id])
+  supplier Supplier            @relation(fields: [supplierId], references: [id])
+  lines    PurchaseOrderLine[]
+
+  @@unique([companyId, orderNumber])
+  @@index([companyId, supplierId, orderDate])
+  @@index([companyId, status, orderDate])
+}
+
+model PurchaseOrderLine {
+  id               String  @id @default(uuid()) @db.Uuid
+  purchaseOrderId  String  @db.Uuid
+  companyId        String  @db.Uuid
+  productVariantId String  @db.Uuid
+  quantity         Decimal @db.Decimal(14, 3)
+  unitCost         Decimal @db.Decimal(14, 2)
+  taxableAmount    Decimal @db.Decimal(14, 2)
+  taxAmount        Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal        Decimal @db.Decimal(14, 2)
+  lineOrder        Int     @default(0)
+
+  purchaseOrder  PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@index([companyId, productVariantId])
 }
 
 model PurchaseInvoice {
