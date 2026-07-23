@@ -7,7 +7,9 @@ import {
   cancelPurchaseInvoice,
   getPurchaseSummary,
   listPurchaseInvoices,
+  listPurchaseReturns,
   postPurchaseInvoice,
+  postPurchaseReturn,
 } from "./purchase.service";
 
 const router = Router();
@@ -31,12 +33,20 @@ router.get("/purchase/invoices", asyncHandler(async (req, res) => {
   sendSuccess(res, await listPurchaseInvoices(req.user!.companyId));
 }));
 
+router.get("/purchase/returns", asyncHandler(async (req, res) => {
+  sendSuccess(res, await listPurchaseReturns(req.user!.companyId));
+}));
+
 router.post("/purchase/invoices", asyncHandler(async (req, res) => {
   sendSuccess(res, await postPurchaseInvoice(context(req), req.body), "Purchase invoice posted.", 201);
 }));
 
 router.post("/purchase/invoices/:id/cancel", asyncHandler(async (req, res) => {
   sendSuccess(res, await cancelPurchaseInvoice(context(req), String(req.params.id), req.body), "Purchase invoice cancelled.");
+}));
+
+router.post("/purchase/returns", asyncHandler(async (req, res) => {
+  sendSuccess(res, await postPurchaseReturn(context(req), req.body), "Purchase return posted.", 201);
 }));
 
 export default router;

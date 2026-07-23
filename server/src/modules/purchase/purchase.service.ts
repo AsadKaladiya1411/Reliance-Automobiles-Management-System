@@ -18,6 +18,11 @@ type PurchaseLineInput = {
   unitCost?: unknown;
 };
 
+type ReturnLineInput = {
+  purchaseInvoiceLineId?: unknown;
+  quantity?: unknown;
+};
+
 function requiredString(value: unknown, field: string) {
   if (typeof value !== "string" || value.trim() === "") {
     throw new ApiError(400, "INVALID_PURCHASE_INPUT", `${field} is required.`);
@@ -189,6 +194,20 @@ export async function listPurchaseInvoices(companyId: string) {
       lines: { include: { product: true, productVariant: true }, orderBy: { lineOrder: "asc" } },
     },
     orderBy: { invoiceDate: "desc" },
+    take: 50,
+  });
+}
+
+export async function listPurchaseReturns(companyId: string) {
+  return prisma.purchaseReturn.findMany({
+    where: { companyId },
+    include: {
+      supplier: true,
+      warehouse: true,
+      purchaseInvoice: true,
+      lines: { include: { product: true, productVariant: true }, orderBy: { lineOrder: "asc" } },
+    },
+    orderBy: { returnDate: "desc" },
     take: 50,
   });
 }
@@ -613,5 +632,234 @@ export async function cancelPurchaseInvoice(context: PurchaseContext, invoiceId:
     });
 
     return cancelled;
+  });
+}
+
+export async function postPurchaseReturn(context: PurchaseContext, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const purchaseInvoiceId = requiredString(data.purchaseInvoiceId, "Purchase invoice");
+  const returnDate = parseDate(data.returnDate);
+  const reason = requiredString(data.reason, "Reason");
+  const rawLines = Array.isArray(data.lines) ? (data.lines as ReturnLineInput[]) : [];
+
+  if (rawLines.length === 0) {
+    throw new ApiError(400, "RETURN_LINES_REQUIRED", "At least one return line is required.");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const invoice = await tx.purchaseInvoice.findFirst({
+      where: { id: purchaseInvoiceId, companyId: context.companyId, status: "POSTED" },
+      include: { lines: true, supplier: true },
+    });
+
+    if (!invoice) {
+      throw new ApiError(404, "PURCHASE_INVOICE_NOT_FOUND", "Posted purchase invoice not found.");
+    }
+
+    const inventoryAccount = await requireAccount(tx, context.companyId, "1200");
+    const gstInputAccount = await requireAccount(tx, context.companyId, "2200");
+    const payableAccount = await requireAccount(tx, context.companyId, "2000");
+    const returnNumber = await nextDocumentNumber(
+      tx,
+      context.companyId,
+      "PURCHASE_RETURN",
+      "Create a PURCHASE_RETURN number series before posting purchase returns.",
+    );
+    const journalNumber = await nextDocumentNumber(
+      tx,
+      context.companyId,
+      "JOURNAL_ENTRY",
+      "Create a JOURNAL_ENTRY number series before posting purchase returns.",
+    );
+    const preparedLines = [];
+
+    for (const [index, line] of rawLines.entries()) {
+      const purchaseInvoiceLineId = requiredString(line.purchaseInvoiceLineId, "Purchase invoice line");
+      const invoiceLine = invoice.lines.find((item) => item.id === purchaseInvoiceLineId);
+
+      if (!invoiceLine) {
+        throw new ApiError(400, "INVALID_RETURN_LINE", "Return line does not belong to the selected invoice.");
+      }
+
+      const quantity = positiveDecimal(line.quantity, "Return quantity", 3);
+
+      if (quantity.gt(invoiceLine.quantity)) {
+        throw new ApiError(400, "RETURN_QUANTITY_EXCEEDS_INVOICE", "Return quantity cannot exceed invoice quantity.");
+      }
+
+      const key = locationKey({
+        warehouseId: invoice.warehouseId,
+        blockId: invoiceLine.blockId ?? undefined,
+        rackId: invoiceLine.rackId ?? undefined,
+        shelfId: invoiceLine.shelfId ?? undefined,
+      });
+      const balance = await tx.stockBalance.findUnique({
+        where: {
+          companyId_productVariantId_warehouseId_locationKey: {
+            companyId: context.companyId,
+            productVariantId: invoiceLine.productVariantId,
+            warehouseId: invoice.warehouseId,
+            locationKey: key,
+          },
+        },
+      });
+
+      if (!balance || new Prisma.Decimal(balance.quantity).lt(quantity)) {
+        throw new ApiError(400, "PURCHASE_RETURN_STOCK_SHORTAGE", "Purchase return quantity exceeds available stock.");
+      }
+
+      const ratio = quantity.div(invoiceLine.quantity);
+      preparedLines.push({
+        companyId: context.companyId,
+        productId: invoiceLine.productId,
+        productVariantId: invoiceLine.productVariantId,
+        blockId: invoiceLine.blockId,
+        rackId: invoiceLine.rackId,
+        shelfId: invoiceLine.shelfId,
+        locationKey: key,
+        hsnCode: invoiceLine.hsnCode,
+        quantity,
+        unitCost: invoiceLine.unitCost,
+        taxableAmount: invoiceLine.taxableAmount.mul(ratio).toDecimalPlaces(2),
+        cgstAmount: invoiceLine.cgstAmount.mul(ratio).toDecimalPlaces(2),
+        sgstAmount: invoiceLine.sgstAmount.mul(ratio).toDecimalPlaces(2),
+        igstAmount: invoiceLine.igstAmount.mul(ratio).toDecimalPlaces(2),
+        lineTotal: invoiceLine.lineTotal.mul(ratio).toDecimalPlaces(2),
+        lineOrder: index + 1,
+      });
+    }
+
+    const taxableAmount = preparedLines.reduce((total, line) => total.plus(line.taxableAmount), new Prisma.Decimal(0));
+    const cgstAmount = preparedLines.reduce((total, line) => total.plus(line.cgstAmount), new Prisma.Decimal(0));
+    const sgstAmount = preparedLines.reduce((total, line) => total.plus(line.sgstAmount), new Prisma.Decimal(0));
+    const igstAmount = preparedLines.reduce((total, line) => total.plus(line.igstAmount), new Prisma.Decimal(0));
+    const totalTaxAmount = cgstAmount.plus(sgstAmount).plus(igstAmount).toDecimalPlaces(2);
+    const grandTotal = taxableAmount.plus(totalTaxAmount).toDecimalPlaces(2);
+
+    const journalEntry = await tx.journalEntry.create({
+      data: {
+        companyId: context.companyId,
+        entryNumber: journalNumber,
+        entryDate: returnDate,
+        sourceModule: "purchase",
+        sourceType: "PURCHASE_RETURN",
+        narration: `Purchase return ${returnNumber}`,
+        status: "POSTED",
+        postedByUserId: context.userId,
+        postedAt: new Date(),
+        lines: {
+          create: [
+            { accountId: payableAccount.id, debitAmount: grandTotal, narration: returnNumber, lineOrder: 1 },
+            { accountId: inventoryAccount.id, creditAmount: taxableAmount, narration: returnNumber, lineOrder: 2 },
+            ...(totalTaxAmount.gt(0)
+              ? [{ accountId: gstInputAccount.id, creditAmount: totalTaxAmount, narration: returnNumber, lineOrder: 3 }]
+              : []),
+          ],
+        },
+      },
+    });
+
+    const purchaseReturn = await tx.purchaseReturn.create({
+      data: {
+        companyId: context.companyId,
+        purchaseInvoiceId: invoice.id,
+        supplierId: invoice.supplierId,
+        warehouseId: invoice.warehouseId,
+        returnNumber,
+        returnDate,
+        reason,
+        taxableAmount,
+        cgstAmount,
+        sgstAmount,
+        igstAmount,
+        totalTaxAmount,
+        grandTotal,
+        journalEntryId: journalEntry.id,
+        postedByUserId: context.userId,
+        postedAt: new Date(),
+        lines: { create: preparedLines.map(({ locationKey: _locationKey, ...line }) => line) },
+      },
+      include: { supplier: true, warehouse: true, purchaseInvoice: true, lines: { include: { product: true, productVariant: true } } },
+    });
+
+    for (const line of preparedLines) {
+      const balance = await tx.stockBalance.findUniqueOrThrow({
+        where: {
+          companyId_productVariantId_warehouseId_locationKey: {
+            companyId: context.companyId,
+            productVariantId: line.productVariantId,
+            warehouseId: invoice.warehouseId,
+            locationKey: line.locationKey,
+          },
+        },
+      });
+      const newQuantity = new Prisma.Decimal(balance.quantity).minus(line.quantity);
+      const newValue = new Prisma.Decimal(balance.stockValue).minus(line.taxableAmount).toDecimalPlaces(2);
+
+      if (newQuantity.lt(0)) {
+        throw new ApiError(400, "NEGATIVE_STOCK_BLOCKED", "Purchase return posting would create negative stock.");
+      }
+
+      await tx.stockBalance.update({
+        where: { id: balance.id },
+        data: { quantity: newQuantity, stockValue: newValue.lt(0) ? 0 : newValue },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          companyId: context.companyId,
+          productId: line.productId,
+          productVariantId: line.productVariantId,
+          warehouseId: invoice.warehouseId,
+          blockId: line.blockId,
+          rackId: line.rackId,
+          shelfId: line.shelfId,
+          locationKey: line.locationKey,
+          movementType: "PURCHASE_RETURN",
+          documentType: "PURCHASE_RETURN",
+          documentNumber: returnNumber,
+          documentDate: returnDate,
+          quantityOut: line.quantity,
+          unitCost: line.unitCost,
+          totalValue: line.taxableAmount,
+          narration: reason,
+          createdByUserId: context.userId,
+        },
+      });
+    }
+
+    await tx.partyLedgerEntry.create({
+      data: {
+        companyId: context.companyId,
+        partyType: "SUPPLIER",
+        supplierId: invoice.supplierId,
+        journalEntryId: journalEntry.id,
+        entryType: "DEBIT_NOTE",
+        documentType: "PURCHASE_RETURN",
+        documentId: purchaseReturn.id,
+        documentNumber: returnNumber,
+        entryDate: returnDate,
+        debitAmount: grandTotal,
+        narration: reason,
+      },
+    });
+
+    await tx.journalEntry.update({ where: { id: journalEntry.id }, data: { sourceId: purchaseReturn.id } });
+    await tx.auditLog.create({
+      data: {
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        module: "purchase",
+        action: "POST",
+        entityType: "PurchaseReturn",
+        entityId: purchaseReturn.id,
+        description: "Purchase return posted.",
+        afterData: json(purchaseReturn),
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return purchaseReturn;
   });
 }
