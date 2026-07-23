@@ -23,6 +23,11 @@ type ReturnLineInput = {
   quantity?: unknown;
 };
 
+type ChallanLineInput = {
+  productVariantId?: unknown;
+  quantity?: unknown;
+};
+
 function requiredString(value: unknown, field: string) {
   if (typeof value !== "string" || value.trim() === "") {
     throw new ApiError(400, "INVALID_SALES_INPUT", `${field} is required.`);
@@ -126,9 +131,10 @@ async function validateLineLocation(
 }
 
 export async function getSalesSummary(companyId: string) {
-  const [approvedQuotations, approvedOrders, postedInvoices, postedReturns, invoiceTotals, returnTotals] = await Promise.all([
+  const [approvedQuotations, approvedOrders, approvedChallans, postedInvoices, postedReturns, invoiceTotals, returnTotals] = await Promise.all([
     prisma.salesQuotation.count({ where: { companyId, status: "APPROVED" } }),
     prisma.salesOrder.count({ where: { companyId, status: "APPROVED" } }),
+    prisma.deliveryChallan.count({ where: { companyId, status: "APPROVED" } }),
     prisma.salesInvoice.count({ where: { companyId, status: "POSTED" } }),
     prisma.salesReturn.count({ where: { companyId } }),
     prisma.salesInvoice.aggregate({
@@ -152,6 +158,7 @@ export async function getSalesSummary(companyId: string) {
   return {
     approvedQuotations,
     approvedOrders,
+    approvedChallans,
     postedInvoices,
     postedReturns,
     grossTaxableAmount,
@@ -190,6 +197,20 @@ export async function listSalesOrders(companyId: string) {
       lines: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } },
     },
     orderBy: [{ orderDate: "desc" }, { createdAt: "desc" }],
+    take: 50,
+  });
+}
+
+export async function listDeliveryChallans(companyId: string) {
+  return prisma.deliveryChallan.findMany({
+    where: { companyId },
+    include: {
+      customer: true,
+      warehouse: true,
+      salesOrder: true,
+      lines: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } },
+    },
+    orderBy: [{ challanDate: "desc" }, { createdAt: "desc" }],
     take: 50,
   });
 }
@@ -373,6 +394,98 @@ export async function createSalesOrder(context: SalesContext, body: unknown) {
     });
 
     return order;
+  });
+}
+
+export async function createDeliveryChallan(context: SalesContext, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const customerId = requiredString(data.customerId, "Customer");
+  const warehouseId = requiredString(data.warehouseId, "Warehouse");
+  const salesOrderId = optionalString(data.salesOrderId);
+  const challanDate = parseDate(data.challanDate);
+  const rawLines = Array.isArray(data.lines) ? (data.lines as ChallanLineInput[]) : [];
+
+  if (rawLines.length === 0) {
+    throw new ApiError(400, "DELIVERY_CHALLAN_LINES_REQUIRED", "At least one delivery challan line is required.");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const customer = await tx.customer.findFirst({
+      where: { id: customerId, companyId: context.companyId, status: "ACTIVE" },
+    });
+    const warehouse = await tx.warehouse.findFirst({
+      where: { id: warehouseId, companyId: context.companyId, status: "ACTIVE" },
+    });
+
+    if (!customer) {
+      throw new ApiError(404, "CUSTOMER_NOT_FOUND", "Customer not found or inactive.");
+    }
+    if (!warehouse) {
+      throw new ApiError(404, "WAREHOUSE_NOT_FOUND", "Warehouse not found or inactive.");
+    }
+
+    if (salesOrderId) {
+      const salesOrder = await tx.salesOrder.findFirst({
+        where: { id: salesOrderId, companyId: context.companyId, customerId, status: "APPROVED" },
+      });
+      if (!salesOrder) {
+        throw new ApiError(404, "SALES_ORDER_NOT_FOUND", "Approved sales order not found for this customer.");
+      }
+    }
+
+    const challanNumber = await nextDocumentNumber(tx, context.companyId, "DELIVERY_CHALLAN");
+    const preparedLines = [];
+
+    for (const [index, line] of rawLines.entries()) {
+      const productVariantId = requiredString(line.productVariantId, "Product variant");
+      const variant = await tx.productVariant.findFirst({
+        where: { id: productVariantId, companyId: context.companyId, status: "ACTIVE", product: { status: "ACTIVE" } },
+      });
+
+      if (!variant) {
+        throw new ApiError(404, "PRODUCT_VARIANT_NOT_FOUND", "Product variant not found or inactive.");
+      }
+
+      preparedLines.push({
+        companyId: context.companyId,
+        productVariantId,
+        quantity: positiveDecimal(line.quantity, "Quantity", 3),
+        lineOrder: index + 1,
+      });
+    }
+
+    const challan = await tx.deliveryChallan.create({
+      data: {
+        companyId: context.companyId,
+        customerId,
+        warehouseId,
+        salesOrderId,
+        challanNumber,
+        challanDate,
+        status: "APPROVED",
+        narration: optionalString(data.narration),
+        createdByUserId: context.userId,
+        lines: { create: preparedLines },
+      },
+      include: { customer: true, warehouse: true, salesOrder: true, lines: { include: { productVariant: true } } },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        module: "sales",
+        action: "CREATE",
+        entityType: "DeliveryChallan",
+        entityId: challan.id,
+        description: "Delivery challan created without stock impact.",
+        afterData: json(challan),
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return challan;
   });
 }
 

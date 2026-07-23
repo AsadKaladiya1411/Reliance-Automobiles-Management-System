@@ -167,6 +167,7 @@ model Company {
   purchaseReturns PurchaseReturn[]
   salesQuotations SalesQuotation[]
   salesOrders SalesOrder[]
+  deliveryChallans DeliveryChallan[]
   salesInvoices SalesInvoice[]
   salesReturns SalesReturn[]
   jobCards      JobCard[]
@@ -482,6 +483,7 @@ model ProductVariant {
   purchaseReturnLines PurchaseReturnLine[]
   salesQuotationLines SalesQuotationLine[]
   salesOrderLines SalesOrderLine[]
+  deliveryChallanLines DeliveryChallanLine[]
   salesInvoiceLines SalesInvoiceLine[]
   salesReturnLines SalesReturnLine[]
   jobCardParts JobCardPart[]
@@ -507,6 +509,7 @@ model Warehouse {
   stockMovements StockMovement[]
   purchaseInvoices PurchaseInvoice[]
   purchaseReturns PurchaseReturn[]
+  deliveryChallans DeliveryChallan[]
   salesInvoices SalesInvoice[]
   salesReturns SalesReturn[]
 
@@ -662,6 +665,7 @@ model Customer {
   ledgerEntries PartyLedgerEntry[]
   salesQuotations SalesQuotation[]
   salesOrders SalesOrder[]
+  deliveryChallans DeliveryChallan[]
   salesInvoices SalesInvoice[]
   salesReturns SalesReturn[]
   payments Payment[]
@@ -1131,6 +1135,7 @@ model SalesOrder {
   customer  Customer         @relation(fields: [customerId], references: [id])
   quotation SalesQuotation?  @relation(fields: [quotationId], references: [id])
   lines     SalesOrderLine[]
+  deliveryChallans DeliveryChallan[]
 
   @@unique([companyId, orderNumber])
   @@index([companyId, customerId, orderDate])
@@ -1151,6 +1156,45 @@ model SalesOrderLine {
 
   salesOrder     SalesOrder     @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@index([companyId, productVariantId])
+}
+
+model DeliveryChallan {
+  id              String         @id @default(uuid()) @db.Uuid
+  companyId       String         @db.Uuid
+  customerId      String         @db.Uuid
+  warehouseId     String         @db.Uuid
+  salesOrderId    String?        @db.Uuid
+  challanNumber   String         @db.VarChar(80)
+  challanDate     DateTime       @db.Date
+  status          DocumentStatus @default(APPROVED)
+  narration       String?        @db.VarChar(500)
+  createdByUserId String?        @db.Uuid
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  company    Company               @relation(fields: [companyId], references: [id])
+  customer   Customer              @relation(fields: [customerId], references: [id])
+  warehouse  Warehouse             @relation(fields: [warehouseId], references: [id])
+  salesOrder SalesOrder?           @relation(fields: [salesOrderId], references: [id])
+  lines      DeliveryChallanLine[]
+
+  @@unique([companyId, challanNumber])
+  @@index([companyId, customerId, challanDate])
+  @@index([companyId, status, challanDate])
+}
+
+model DeliveryChallanLine {
+  id                 String  @id @default(uuid()) @db.Uuid
+  deliveryChallanId  String  @db.Uuid
+  companyId          String  @db.Uuid
+  productVariantId   String  @db.Uuid
+  quantity           Decimal @db.Decimal(14, 3)
+  lineOrder          Int     @default(0)
+
+  deliveryChallan DeliveryChallan @relation(fields: [deliveryChallanId], references: [id], onDelete: Cascade)
+  productVariant  ProductVariant  @relation(fields: [productVariantId], references: [id])
 
   @@index([companyId, productVariantId])
 }

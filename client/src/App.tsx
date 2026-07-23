@@ -103,6 +103,7 @@ type PurchaseSummary = {
 type SalesSummary = {
   approvedQuotations: number;
   approvedOrders: number;
+  approvedChallans: number;
   postedInvoices: number;
   postedReturns: number;
   grossGrandTotal: string | number;
@@ -380,6 +381,17 @@ type SalesOrder = {
   customer: Customer;
   quotation?: SalesQuotation | null;
   lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; lineTotal: string | number }>;
+};
+
+type DeliveryChallan = {
+  id: string;
+  challanNumber: string;
+  challanDate: string;
+  status: string;
+  customer: Customer;
+  warehouse: Warehouse;
+  salesOrder?: SalesOrder | null;
+  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number }>;
 };
 
 type PurchaseReturn = {
@@ -1184,6 +1196,7 @@ function TransactionsView({
   const customers = useMasterList<Customer>("customers", "/commercial-masters/customers");
   const salesQuotations = useMasterList<SalesQuotation>("sales-quotations", "/sales/quotations");
   const salesOrders = useMasterList<SalesOrder>("sales-orders", "/sales/orders");
+  const deliveryChallans = useMasterList<DeliveryChallan>("delivery-challans", "/sales/delivery-challans");
   const salesInvoices = useMasterList<SalesInvoice>("sales-invoices", "/sales/invoices");
   const salesReturns = useMasterList<SalesReturn>("sales-returns", "/sales/returns");
   const partyLedger = useMasterList<PartyLedgerEntry>("party-ledger", "/accounting/party-ledger");
@@ -1242,6 +1255,13 @@ function TransactionsView({
           items={salesOrders.data ?? []}
           quotations={salesQuotations.data ?? []}
           variants={variants.data ?? []}
+        />
+        <DeliveryChallanPanel
+          customers={customers.data ?? []}
+          items={deliveryChallans.data ?? []}
+          orders={salesOrders.data ?? []}
+          variants={variants.data ?? []}
+          warehouses={warehouses.data ?? []}
         />
         <PurchaseReturnPanel invoices={purchaseInvoices.data ?? []} items={purchaseReturns.data ?? []} />
         <SalesReturnPanel invoices={salesInvoices.data ?? []} items={salesReturns.data ?? []} />
@@ -1378,6 +1398,7 @@ function SalesReadinessGrid({ salesSummary }: { salesSummary?: SalesSummary }) {
     <div className="readiness-grid">
       <ReadinessMetric label="Approved Quotes" value={salesSummary?.approvedQuotations} />
       <ReadinessMetric label="Approved Orders" value={salesSummary?.approvedOrders} />
+      <ReadinessMetric label="Approved Challans" value={salesSummary?.approvedChallans} />
       <ReadinessMetric label="Posted Invoices" value={salesSummary?.postedInvoices} />
       <ReadinessMetric label="Posted Returns" value={salesSummary?.postedReturns} />
       <ReadinessMetric label="Gross Sales" value={salesSummary?.grossGrandTotal} />
@@ -2290,6 +2311,89 @@ function SalesOrderPanel({
           id: order.id,
           label: order.orderNumber,
           meta: `${order.customer.name} / ${order.status} / ${order.grandTotal}`,
+        }))}
+      />
+    </article>
+  );
+}
+
+function DeliveryChallanPanel({
+  customers,
+  items,
+  orders,
+  variants,
+  warehouses,
+}: {
+  customers: Customer[];
+  items: DeliveryChallan[];
+  orders: SalesOrder[];
+  variants: ProductVariant[];
+  warehouses: Warehouse[];
+}) {
+  const [form, setForm] = useState({
+    customerId: "",
+    salesOrderId: "",
+    warehouseId: "",
+    productVariantId: "",
+    challanDate: new Date().toISOString().slice(0, 10),
+    quantity: "1",
+    narration: "Delivery challan",
+  });
+  const customerOrders = orders.filter((order) => !form.customerId || order.customer.id === form.customerId);
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/sales/delivery-challans", {
+        customerId: form.customerId,
+        salesOrderId: form.salesOrderId,
+        warehouseId: form.warehouseId,
+        challanDate: form.challanDate,
+        narration: form.narration,
+        lines: [{ productVariantId: form.productVariantId, quantity: form.quantity }],
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["delivery-challans"] }),
+        queryClient.invalidateQueries({ queryKey: ["sales-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
+      ]);
+      setForm({ ...form, salesOrderId: "", productVariantId: "", quantity: "1", narration: "Delivery challan" });
+    },
+  });
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Create Delivery Challan</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate();
+      }}>
+        <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value, salesOrderId: "" })}>
+          <option value="">Customer</option>
+          {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+        </select>
+        <select value={form.salesOrderId} onChange={(event) => setForm({ ...form, salesOrderId: event.target.value })}>
+          <option value="">No sales order</option>
+          {customerOrders.map((order) => <option key={order.id} value={order.id}>{`${order.orderNumber} / ${order.grandTotal}`}</option>)}
+        </select>
+        <select value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value })}>
+          <option value="">Warehouse</option>
+          {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
+        </select>
+        <select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
+          <option value="">Product variant</option>
+          {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
+        </select>
+        <input type="date" value={form.challanDate} onChange={(event) => setForm({ ...form, challanDate: event.target.value })} />
+        <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
+        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Create</Button>
+      </form>
+      <MasterList
+        items={items.map((challan) => ({
+          id: challan.id,
+          label: challan.challanNumber,
+          meta: `${challan.customer.name} / ${challan.warehouse.name} / ${challan.status}`,
         }))}
       />
     </article>

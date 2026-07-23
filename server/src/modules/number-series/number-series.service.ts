@@ -23,6 +23,7 @@ const defaultNumberSeries = [
   { documentType: "PURCHASE_RETURN", prefix: "PR-", padding: 5 },
   { documentType: "SALES_QUOTATION", prefix: "SQ-", padding: 5 },
   { documentType: "SALES_ORDER", prefix: "SO-", padding: 5 },
+  { documentType: "DELIVERY_CHALLAN", prefix: "DC-", padding: 5 },
   { documentType: "SALES_RETURN", prefix: "SR-", padding: 5 },
   { documentType: "CREDIT_NOTE", prefix: "CN-", padding: 5 },
   { documentType: "DEBIT_NOTE", prefix: "DN-", padding: 5 },
