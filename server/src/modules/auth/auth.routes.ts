@@ -1,0 +1,101 @@
+import { Router } from "express";
+import type { Request } from "express";
+import { env } from "../../config/env";
+import { ApiError } from "../../utils/api-error";
+import { asyncHandler } from "../../utils/async-handler";
+import { sendSuccess } from "../../utils/api-response";
+import { bootstrapSystem, getSetupStatus, login, signAuthToken } from "./auth.service";
+import { requireAuth } from "./auth.middleware";
+
+const router = Router();
+
+function requestContext(req: Request) {
+  return {
+    ipAddress: req.ip,
+    userAgent: req.get("user-agent"),
+  };
+}
+
+router.get(
+  "/setup/status",
+  asyncHandler(async (_req, res) => {
+    sendSuccess(res, await getSetupStatus());
+  }),
+);
+
+router.post(
+  "/setup/bootstrap",
+  asyncHandler(async (req, res) => {
+    const { companyName, adminFullName, adminUsername, adminEmail, adminPassword } = req.body;
+
+    if (!companyName || !adminFullName || !adminUsername || !adminPassword) {
+      throw new ApiError(
+        400,
+        "INVALID_BOOTSTRAP_REQUEST",
+        "Company name, admin name, username, and password are required.",
+      );
+    }
+
+    const result = await bootstrapSystem(
+      {
+        companyName,
+        adminFullName,
+        adminUsername,
+        adminEmail,
+        adminPassword,
+      },
+      requestContext(req),
+    );
+    const token = signAuthToken(result.user);
+
+    res.cookie(env.cookieName, token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.nodeEnv === "production",
+      maxAge: 8 * 60 * 60 * 1000,
+    });
+
+    sendSuccess(res, result, "System setup complete.", 201);
+  }),
+);
+
+router.post(
+  "/auth/login",
+  asyncHandler(async (req, res) => {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      throw new ApiError(400, "INVALID_LOGIN_REQUEST", "Username and password are required.");
+    }
+
+    const user = await login({ username, password }, requestContext(req));
+    const token = signAuthToken(user);
+
+    res.cookie(env.cookieName, token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.nodeEnv === "production",
+      maxAge: 8 * 60 * 60 * 1000,
+    });
+
+    sendSuccess(res, { user }, "Login successful.");
+  }),
+);
+
+router.post(
+  "/auth/logout",
+  asyncHandler(async (_req, res) => {
+    res.clearCookie(env.cookieName);
+    sendSuccess(res, null, "Logout successful.");
+  }),
+);
+
+router.get(
+  "/auth/me",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    sendSuccess(res, { user: req.user }, "Authenticated user.");
+  }),
+);
+
+export default router;

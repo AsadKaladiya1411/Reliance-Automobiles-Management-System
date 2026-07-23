@@ -8,6 +8,7 @@ export type AppEnv = {
   jwtSecret: string;
   jwtExpiresIn: string;
   cookieName: string;
+  passwordSaltRounds: number;
 };
 
 function requireEnv(name: string) {
@@ -38,6 +39,16 @@ function parseNodeEnv(value: string | undefined): NodeEnv {
   return "development";
 }
 
+function parseSaltRounds(value: string | undefined) {
+  const rounds = Number(value ?? "12");
+
+  if (!Number.isInteger(rounds) || rounds < 10 || rounds > 14) {
+    throw new Error("PASSWORD_SALT_ROUNDS must be an integer between 10 and 14.");
+  }
+
+  return rounds;
+}
+
 export const env: AppEnv = {
   nodeEnv: parseNodeEnv(process.env.NODE_ENV),
   port: parsePort(process.env.PORT),
@@ -46,4 +57,5 @@ export const env: AppEnv = {
   jwtSecret: requireEnv("JWT_SECRET"),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "8h",
   cookieName: process.env.AUTH_COOKIE_NAME || "rams_session",
+  passwordSaltRounds: parseSaltRounds(process.env.PASSWORD_SALT_ROUNDS),
 };

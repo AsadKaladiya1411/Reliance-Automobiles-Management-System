@@ -1,4 +1,6 @@
-import { QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import type { FormEvent, ReactNode } from "react";
+import { QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
 import { api, type ApiEnvelope } from "@/lib/api";
 import { queryClient } from "@/lib/query-client";
 import { Button } from "@/components/ui/button";
@@ -9,6 +11,19 @@ type SystemStatus = {
   companyConfigured: boolean;
   openFinancialYears: number;
   timestamp: string;
+};
+
+type SetupStatus = {
+  requiresBootstrap: boolean;
+};
+
+type AuthUser = {
+  id: string;
+  companyId: string;
+  username: string;
+  fullName: string;
+  roles: string[];
+  permissions: string[];
 };
 
 const modules = [
@@ -32,8 +47,192 @@ function useSystemStatus() {
   });
 }
 
-function DashboardShell() {
+function useSetupStatus() {
+  return useQuery({
+    queryKey: ["setup-status"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<SetupStatus>>("/setup/status");
+      return response.data.data;
+    },
+  });
+}
+
+function useCurrentUser() {
+  return useQuery({
+    queryKey: ["current-user"],
+    retry: false,
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<{ user: AuthUser }>>("/auth/me");
+      return response.data.data.user;
+    },
+  });
+}
+
+function SetupForm() {
+  const [form, setForm] = useState({
+    companyName: "Reliance Automobiles",
+    adminFullName: "",
+    adminUsername: "",
+    adminEmail: "",
+    adminPassword: "",
+  });
+  const [error, setError] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/setup/bootstrap", form);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries();
+    },
+    onError: () => {
+      setError("Setup failed. Check required fields and password length.");
+    },
+  });
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    mutation.mutate();
+  }
+
+  return (
+    <AuthPanel title="Initial System Setup" subtitle="Create the company record and first Super Admin user.">
+      <form className="auth-form" onSubmit={submit}>
+        <label>
+          Company name
+          <input
+            value={form.companyName}
+            onChange={(event) => setForm({ ...form, companyName: event.target.value })}
+          />
+        </label>
+        <label>
+          Admin full name
+          <input
+            value={form.adminFullName}
+            onChange={(event) => setForm({ ...form, adminFullName: event.target.value })}
+          />
+        </label>
+        <label>
+          Username
+          <input
+            value={form.adminUsername}
+            onChange={(event) => setForm({ ...form, adminUsername: event.target.value })}
+          />
+        </label>
+        <label>
+          Email
+          <input
+            type="email"
+            value={form.adminEmail}
+            onChange={(event) => setForm({ ...form, adminEmail: event.target.value })}
+          />
+        </label>
+        <label>
+          Password
+          <input
+            type="password"
+            value={form.adminPassword}
+            onChange={(event) => setForm({ ...form, adminPassword: event.target.value })}
+          />
+        </label>
+        {error ? <p className="form-error">{error}</p> : null}
+        <Button type="submit" disabled={mutation.isPending}>
+          {mutation.isPending ? "Creating..." : "Create Super Admin"}
+        </Button>
+      </form>
+    </AuthPanel>
+  );
+}
+
+function LoginForm() {
+  const [form, setForm] = useState({ username: "", password: "" });
+  const [error, setError] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/auth/login", form);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries();
+    },
+    onError: () => {
+      setError("Invalid username or password.");
+    },
+  });
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    mutation.mutate();
+  }
+
+  return (
+    <AuthPanel title="Sign in to RAMS" subtitle="Use your assigned ERP user account.">
+      <form className="auth-form" onSubmit={submit}>
+        <label>
+          Username
+          <input
+            autoComplete="username"
+            value={form.username}
+            onChange={(event) => setForm({ ...form, username: event.target.value })}
+          />
+        </label>
+        <label>
+          Password
+          <input
+            autoComplete="current-password"
+            type="password"
+            value={form.password}
+            onChange={(event) => setForm({ ...form, password: event.target.value })}
+          />
+        </label>
+        {error ? <p className="form-error">{error}</p> : null}
+        <Button type="submit" disabled={mutation.isPending}>
+          {mutation.isPending ? "Signing in..." : "Sign In"}
+        </Button>
+      </form>
+    </AuthPanel>
+  );
+}
+
+function AuthPanel({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: ReactNode;
+}) {
+  return (
+    <main className="auth-screen">
+      <section className="auth-card">
+        <div className="brand-lockup">
+          <div className="brand-mark">R</div>
+          <div>
+            <strong>RAMS</strong>
+            <span>Automobile ERP</span>
+          </div>
+        </div>
+        <h1>{title}</h1>
+        <p>{subtitle}</p>
+        {children}
+      </section>
+    </main>
+  );
+}
+
+function DashboardShell({ user }: { user: AuthUser }) {
   const status = useSystemStatus();
+  const logout = useMutation({
+    mutationFn: async () => {
+      await api.post("/auth/logout");
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries();
+    },
+  });
 
   return (
     <main className="app-shell">
@@ -76,7 +275,12 @@ function DashboardShell() {
             <p className="eyebrow">Foundation milestone</p>
             <h1>Reliance Automobiles Management System</h1>
           </div>
-          <Button variant="outline">System Setup</Button>
+          <div className="user-actions">
+            <span>{user.fullName}</span>
+            <Button variant="outline" onClick={() => logout.mutate()}>
+              Sign Out
+            </Button>
+          </div>
         </header>
 
         <section className="status-strip" aria-label="System status">
@@ -116,9 +320,28 @@ function DashboardShell() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <DashboardShell />
+      <AppContent />
     </QueryClientProvider>
   );
+}
+
+function AppContent() {
+  const setup = useSetupStatus();
+  const currentUser = useCurrentUser();
+
+  if (setup.isLoading) {
+    return <AuthPanel title="Loading RAMS" subtitle="Checking system setup.">{null}</AuthPanel>;
+  }
+
+  if (setup.data?.requiresBootstrap) {
+    return <SetupForm />;
+  }
+
+  if (!currentUser.data) {
+    return <LoginForm />;
+  }
+
+  return <DashboardShell user={currentUser.data} />;
 }
 
 export default App;
