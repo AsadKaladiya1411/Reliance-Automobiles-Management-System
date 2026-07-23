@@ -21,15 +21,19 @@ router.get(
 router.get(
   "/status",
   asyncHandler(async (_req, res) => {
-    const [companyCount, openFinancialYears] = await Promise.all([
+    const [companyCount, openFinancialYears, numberSeriesCount, userCount] = await Promise.all([
       prisma.company.count(),
       prisma.financialYear.count({ where: { status: "OPEN" } }),
+      prisma.numberSeries.count({ where: { status: "ACTIVE" } }),
+      prisma.user.count({ where: { status: "ACTIVE" } }),
     ]);
 
     sendSuccess(res, {
       service: "RAMS API",
       companyConfigured: companyCount > 0,
       openFinancialYears,
+      numberSeriesCount,
+      activeUsers: userCount,
       timestamp: new Date().toISOString(),
     });
   }),

@@ -10,6 +10,8 @@ type SystemStatus = {
   service: string;
   companyConfigured: boolean;
   openFinancialYears: number;
+  numberSeriesCount: number;
+  activeUsers: number;
   timestamp: string;
 };
 
@@ -24,6 +26,33 @@ type AuthUser = {
   fullName: string;
   roles: string[];
   permissions: string[];
+};
+
+type Company = {
+  id: string;
+  name: string;
+  legalName?: string | null;
+  gstin?: string | null;
+  pan?: string | null;
+  city?: string | null;
+  state?: string | null;
+};
+
+type FinancialYear = {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+};
+
+type NumberSeries = {
+  id: string;
+  documentType: string;
+  prefix: string;
+  suffix: string;
+  padding: number;
+  nextNumber: number;
 };
 
 const modules = [
@@ -64,6 +93,36 @@ function useCurrentUser() {
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<{ user: AuthUser }>>("/auth/me");
       return response.data.data.user;
+    },
+  });
+}
+
+function useCompany() {
+  return useQuery({
+    queryKey: ["company"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<Company>>("/company");
+      return response.data.data;
+    },
+  });
+}
+
+function useFinancialYears() {
+  return useQuery({
+    queryKey: ["financial-years"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<FinancialYear[]>>("/financial-years");
+      return response.data.data;
+    },
+  });
+}
+
+function useNumberSeries() {
+  return useQuery({
+    queryKey: ["number-series"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<NumberSeries[]>>("/number-series");
+      return response.data.data;
     },
   });
 }
@@ -225,6 +284,9 @@ function AuthPanel({
 
 function DashboardShell({ user }: { user: AuthUser }) {
   const status = useSystemStatus();
+  const company = useCompany();
+  const financialYears = useFinancialYears();
+  const numberSeries = useNumberSeries();
   const logout = useMutation({
     mutationFn: async () => {
       await api.post("/auth/logout");
@@ -296,6 +358,33 @@ function DashboardShell({ user }: { user: AuthUser }) {
             <span>Financial Year</span>
             <strong>{status.data ? `${status.data.openFinancialYears} open` : "Checking"}</strong>
           </div>
+          <div>
+            <span>Number Series</span>
+            <strong>{status.data ? status.data.numberSeriesCount : "Checking"}</strong>
+          </div>
+        </section>
+
+        <section className="foundation-grid" aria-label="Foundation setup">
+          <article className="setup-panel">
+            <h2>Company Profile</h2>
+            <dl>
+              <div>
+                <dt>Name</dt>
+                <dd>{company.data?.name ?? "Loading"}</dd>
+              </div>
+              <div>
+                <dt>GSTIN</dt>
+                <dd>{company.data?.gstin ?? "Not configured"}</dd>
+              </div>
+              <div>
+                <dt>Location</dt>
+                <dd>{[company.data?.city, company.data?.state].filter(Boolean).join(", ") || "Not configured"}</dd>
+              </div>
+            </dl>
+          </article>
+
+          <FinancialYearPanel financialYears={financialYears.data ?? []} />
+          <NumberSeriesPanel numberSeries={numberSeries.data ?? []} />
         </section>
 
         <section className="module-grid" aria-label="RAMS modules">
@@ -314,6 +403,89 @@ function DashboardShell({ user }: { user: AuthUser }) {
         </section>
       </section>
     </main>
+  );
+}
+
+function FinancialYearPanel({ financialYears }: { financialYears: FinancialYear[] }) {
+  const [form, setForm] = useState({
+    name: "2026-2027",
+    startDate: "2026-04-01",
+    endDate: "2027-03-31",
+  });
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/financial-years", form);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["financial-years"] });
+      await queryClient.invalidateQueries({ queryKey: ["system-status"] });
+    },
+  });
+
+  return (
+    <article className="setup-panel">
+      <h2>Financial Years</h2>
+      <form className="inline-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate();
+      }}>
+        <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        <input type="date" value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} />
+        <input type="date" value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+      </form>
+      <ul className="compact-list">
+        {financialYears.map((year) => (
+          <li key={year.id}>
+            <span>{year.name}</span>
+            <strong>{year.status}</strong>
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
+function NumberSeriesPanel({ numberSeries }: { numberSeries: NumberSeries[] }) {
+  const [form, setForm] = useState({
+    documentType: "SALES_INVOICE",
+    prefix: "SI-",
+    suffix: "",
+    padding: 5,
+  });
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/number-series", form);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["number-series"] });
+      await queryClient.invalidateQueries({ queryKey: ["system-status"] });
+    },
+  });
+
+  return (
+    <article className="setup-panel">
+      <h2>Number Series</h2>
+      <form className="inline-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate();
+      }}>
+        <input value={form.documentType} onChange={(event) => setForm({ ...form, documentType: event.target.value })} />
+        <input value={form.prefix} onChange={(event) => setForm({ ...form, prefix: event.target.value })} />
+        <input value={form.suffix} onChange={(event) => setForm({ ...form, suffix: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+      </form>
+      <ul className="compact-list">
+        {numberSeries.map((series) => (
+          <li key={series.id}>
+            <span>{series.documentType}</span>
+            <strong>{`${series.prefix}${String(series.nextNumber).padStart(series.padding, "0")}${series.suffix}`}</strong>
+          </li>
+        ))}
+      </ul>
+    </article>
   );
 }
 
