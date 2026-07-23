@@ -1360,6 +1360,7 @@ function TransactionsView({
         <SalesReturnPanel invoices={salesInvoices.data ?? []} items={salesReturns.data ?? []} />
         <AccountPanel items={accounts.data ?? []} />
         <JournalPanel accounts={accounts.data ?? []} items={journalEntries.data ?? []} />
+        <ContraVoucherPanel accounts={accounts.data ?? []} />
         <TrialBalancePanel trialBalance={trialBalance.data} />
         <GeneralLedgerPanel items={generalLedger.data ?? []} />
         <ProfitAndLossPanel statement={profitAndLoss.data} />
@@ -2226,6 +2227,57 @@ function JournalPanel({ accounts, items }: { accounts: Account[]; items: Journal
           meta: item.narration ?? `${item.lines.length} lines`,
         }))}
       />
+    </article>
+  );
+}
+
+function ContraVoucherPanel({ accounts }: { accounts: Account[] }) {
+  const assetAccounts = accounts.filter((account) => account.accountType === "ASSET");
+  const [form, setForm] = useState({
+    voucherDate: new Date().toISOString().slice(0, 10),
+    fromAccountId: "",
+    toAccountId: "",
+    amount: "0",
+    narration: "Contra voucher",
+  });
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/accounting/contra-vouchers", form);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
+        queryClient.invalidateQueries({ queryKey: ["trial-balance"] }),
+        queryClient.invalidateQueries({ queryKey: ["general-ledger"] }),
+        queryClient.invalidateQueries({ queryKey: ["profit-and-loss"] }),
+        queryClient.invalidateQueries({ queryKey: ["balance-sheet"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
+      ]);
+      setForm({ ...form, amount: "0", narration: "Contra voucher" });
+    },
+  });
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Post Contra Voucher</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate();
+      }}>
+        <input type="date" value={form.voucherDate} onChange={(event) => setForm({ ...form, voucherDate: event.target.value })} />
+        <select value={form.fromAccountId} onChange={(event) => setForm({ ...form, fromAccountId: event.target.value })}>
+          <option value="">From account</option>
+          {assetAccounts.map((account) => <option key={account.id} value={account.id}>{`${account.code} - ${account.name}`}</option>)}
+        </select>
+        <select value={form.toAccountId} onChange={(event) => setForm({ ...form, toAccountId: event.target.value })}>
+          <option value="">To account</option>
+          {assetAccounts.map((account) => <option key={account.id} value={account.id}>{`${account.code} - ${account.name}`}</option>)}
+        </select>
+        <input placeholder="Amount" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} />
+        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
+      </form>
     </article>
   );
 }

@@ -16,6 +16,7 @@ import {
   listGeneralLedger,
   listJournalEntries,
   listPartyLedgerEntries,
+  postContraVoucher,
   postJournalEntry,
   seedDefaultAccounts,
 } from "./accounting.service";
@@ -87,6 +88,10 @@ router.get("/accounting/party-outstanding", asyncHandler(async (req, res) => {
 
 router.post("/accounting/journal-entries", asyncHandler(async (req, res) => {
   sendSuccess(res, await postJournalEntry(context(req), req.body), "Journal entry posted.", 201);
+}));
+
+router.post("/accounting/contra-vouchers", asyncHandler(async (req, res) => {
+  sendSuccess(res, await postContraVoucher(context(req), req.body), "Contra voucher posted.", 201);
 }));
 
 export default router;

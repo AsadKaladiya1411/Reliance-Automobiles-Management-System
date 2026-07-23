@@ -16,6 +16,14 @@ type JournalLineInput = {
   narration?: unknown;
 };
 
+type ContraVoucherInput = {
+  voucherDate?: unknown;
+  fromAccountId?: unknown;
+  toAccountId?: unknown;
+  amount?: unknown;
+  narration?: unknown;
+};
+
 const defaultAccounts = [
   { code: "1000", name: "Cash", accountType: "ASSET" },
   { code: "1010", name: "Bank", accountType: "ASSET" },
@@ -519,6 +527,75 @@ export async function postJournalEntry(context: AccountingContext, body: unknown
         entityType: "JournalEntry",
         entityId: journalEntry.id,
         description: "Journal entry posted.",
+        afterData: toJsonInput(journalEntry),
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return journalEntry;
+  });
+}
+
+export async function postContraVoucher(context: AccountingContext, body: unknown) {
+  const data = body as ContraVoucherInput;
+  const fromAccountId = requiredString(data.fromAccountId, "From account");
+  const toAccountId = requiredString(data.toAccountId, "To account");
+  const voucherAmount = amount(data.amount);
+  const voucherDate = entryDate(data.voucherDate);
+
+  if (fromAccountId === toAccountId) {
+    throw new ApiError(400, "INVALID_CONTRA_ACCOUNTS", "From and to accounts must be different.");
+  }
+
+  if (!voucherAmount.gt(0)) {
+    throw new ApiError(400, "INVALID_CONTRA_AMOUNT", "Contra amount must be greater than zero.");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const accounts = await tx.account.findMany({
+      where: {
+        companyId: context.companyId,
+        id: { in: [fromAccountId, toAccountId] },
+        status: "ACTIVE",
+        accountType: "ASSET",
+      },
+    });
+
+    if (accounts.length !== 2) {
+      throw new ApiError(400, "INVALID_CONTRA_ACCOUNT", "Contra accounts must be active asset accounts.");
+    }
+
+    const journalEntry = await tx.journalEntry.create({
+      data: {
+        companyId: context.companyId,
+        entryNumber: await nextJournalNumber(tx, context.companyId),
+        entryDate: voucherDate,
+        sourceModule: "accounting",
+        sourceType: "CONTRA_VOUCHER",
+        narration: optionalString(data.narration) ?? "Contra voucher",
+        status: "POSTED",
+        postedByUserId: context.userId,
+        postedAt: new Date(),
+        lines: {
+          create: [
+            { accountId: toAccountId, debitAmount: voucherAmount, narration: "Contra transfer in", lineOrder: 1 },
+            { accountId: fromAccountId, creditAmount: voucherAmount, narration: "Contra transfer out", lineOrder: 2 },
+          ],
+        },
+      },
+      include: { lines: { include: { account: true }, orderBy: { lineOrder: "asc" } } },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        module: "accounting",
+        action: "POST",
+        entityType: "ContraVoucher",
+        entityId: journalEntry.id,
+        description: "Contra voucher posted.",
         afterData: toJsonInput(journalEntry),
         ipAddress: context.ipAddress,
         userAgent: context.userAgent,
