@@ -68,6 +68,35 @@ enum StockMovementType {
   TRANSFER_OUT
 }
 
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum JournalStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+}
+
+enum PartyType {
+  CUSTOMER
+  SUPPLIER
+}
+
+enum LedgerEntryType {
+  INVOICE
+  PAYMENT
+  CREDIT_NOTE
+  DEBIT_NOTE
+  JOURNAL
+  OPENING_BALANCE
+  ADJUSTMENT
+}
+
 model Company {
   id            String       @id @default(uuid()) @db.Uuid
   code          String       @unique @db.VarChar(32)
@@ -112,6 +141,9 @@ model Company {
   employees      Employee[]
   vehicles       Vehicle[]
   paymentModes   PaymentMode[]
+  accounts       Account[]
+  journalEntries JournalEntry[]
+  partyLedgerEntries PartyLedgerEntry[]
 }
 
 model FinancialYear {
@@ -579,6 +611,7 @@ model Customer {
 
   company  Company  @relation(fields: [companyId], references: [id])
   vehicles Vehicle[]
+  ledgerEntries PartyLedgerEntry[]
 
   @@unique([companyId, code])
   @@index([companyId, name])
@@ -600,7 +633,8 @@ model Supplier {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id])
+  company       Company            @relation(fields: [companyId], references: [id])
+  ledgerEntries PartyLedgerEntry[]
 
   @@unique([companyId, code])
   @@index([companyId, name])
@@ -669,4 +703,94 @@ model PaymentMode {
 
   @@unique([companyId, code])
   @@unique([companyId, name])
+}
+
+model Account {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  parentId    String?      @db.Uuid
+  code        String       @db.VarChar(40)
+  name        String       @db.VarChar(180)
+  accountType AccountType
+  isSystem    Boolean      @default(false)
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+  parent  Account? @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children Account[] @relation("AccountHierarchy")
+  journalLines JournalLine[]
+
+  @@unique([companyId, code])
+  @@unique([companyId, name])
+  @@index([companyId, accountType, status])
+}
+
+model JournalEntry {
+  id             String        @id @default(uuid()) @db.Uuid
+  companyId      String        @db.Uuid
+  entryNumber    String        @db.VarChar(80)
+  entryDate      DateTime      @db.Date
+  sourceModule   String        @db.VarChar(80)
+  sourceType     String        @db.VarChar(80)
+  sourceId       String?       @db.VarChar(80)
+  narration      String?       @db.VarChar(500)
+  status         JournalStatus @default(POSTED)
+  postedByUserId String?       @db.Uuid
+  postedAt       DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+  lines   JournalLine[]
+  partyLedgerEntries PartyLedgerEntry[]
+
+  @@unique([companyId, entryNumber])
+  @@index([companyId, entryDate])
+  @@index([companyId, sourceModule, sourceType, sourceId])
+}
+
+model JournalLine {
+  id             String   @id @default(uuid()) @db.Uuid
+  journalEntryId String   @db.Uuid
+  accountId      String   @db.Uuid
+  debitAmount    Decimal  @default(0) @db.Decimal(14, 2)
+  creditAmount   Decimal  @default(0) @db.Decimal(14, 2)
+  narration      String?  @db.VarChar(500)
+  lineOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      Account      @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
+}
+
+model PartyLedgerEntry {
+  id             String          @id @default(uuid()) @db.Uuid
+  companyId      String          @db.Uuid
+  partyType      PartyType
+  customerId     String?         @db.Uuid
+  supplierId     String?         @db.Uuid
+  journalEntryId String?         @db.Uuid
+  entryType      LedgerEntryType
+  documentType   String          @db.VarChar(80)
+  documentId     String?         @db.VarChar(80)
+  documentNumber String          @db.VarChar(80)
+  entryDate      DateTime        @db.Date
+  debitAmount    Decimal         @default(0) @db.Decimal(14, 2)
+  creditAmount   Decimal         @default(0) @db.Decimal(14, 2)
+  narration      String?         @db.VarChar(500)
+  createdAt      DateTime        @default(now())
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  customer     Customer?     @relation(fields: [customerId], references: [id])
+  supplier     Supplier?     @relation(fields: [supplierId], references: [id])
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  @@index([companyId, partyType, entryDate])
+  @@index([customerId, entryDate])
+  @@index([supplierId, entryDate])
+  @@index([companyId, documentType, documentNumber])
 }

@@ -193,6 +193,18 @@ h1 {
   font-size: 15px;
 }
 
+.panel-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.panel-title-row h2 {
+  margin: 0;
+}
+
 .setup-panel dl {
   display: grid;
   gap: 12px;
@@ -235,7 +247,8 @@ h1 {
 }
 
 .compact-form input,
-.compact-form select {
+.compact-form select,
+.checkbox-field {
   min-width: 0;
   height: 34px;
   border: 1px solid #cbd5e1;
@@ -244,6 +257,18 @@ h1 {
   color: #111827;
   padding: 0 8px;
   font-size: 13px;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-field input {
+  width: 14px;
+  height: 14px;
+  padding: 0;
 }
 
 .product-form {

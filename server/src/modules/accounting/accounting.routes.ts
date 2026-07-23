@@ -1,0 +1,52 @@
+import { Router } from "express";
+import type { Request } from "express";
+import { requireAuth } from "../auth/auth.middleware";
+import { asyncHandler } from "../../utils/async-handler";
+import { sendSuccess } from "../../utils/api-response";
+import {
+  createAccount,
+  getAccountingSummary,
+  listAccounts,
+  listJournalEntries,
+  postJournalEntry,
+  seedDefaultAccounts,
+} from "./accounting.service";
+
+const router = Router();
+
+router.use(requireAuth);
+
+function context(req: Request) {
+  return {
+    companyId: req.user!.companyId,
+    userId: req.user!.id,
+    ipAddress: req.ip,
+    userAgent: req.get("user-agent"),
+  };
+}
+
+router.get("/accounting/summary", asyncHandler(async (req, res) => {
+  sendSuccess(res, await getAccountingSummary(req.user!.companyId));
+}));
+
+router.get("/accounting/accounts", asyncHandler(async (req, res) => {
+  sendSuccess(res, await listAccounts(req.user!.companyId));
+}));
+
+router.post("/accounting/accounts", asyncHandler(async (req, res) => {
+  sendSuccess(res, await createAccount(context(req), req.body), "Account created.", 201);
+}));
+
+router.post("/accounting/accounts/seed-defaults", asyncHandler(async (req, res) => {
+  sendSuccess(res, await seedDefaultAccounts(context(req)), "Default accounts seeded.");
+}));
+
+router.get("/accounting/journal-entries", asyncHandler(async (req, res) => {
+  sendSuccess(res, await listJournalEntries(req.user!.companyId));
+}));
+
+router.post("/accounting/journal-entries", asyncHandler(async (req, res) => {
+  sendSuccess(res, await postJournalEntry(context(req), req.body), "Journal entry posted.", 201);
+}));
+
+export default router;

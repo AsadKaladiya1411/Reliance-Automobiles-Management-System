@@ -82,6 +82,13 @@ type CommercialMasterSummary = {
   paymentModes: number;
 };
 
+type AccountingSummary = {
+  accounts: number;
+  postedJournals: number;
+  debitTotal: string | number;
+  creditTotal: string | number;
+};
+
 type Unit = {
   id: string;
   code: string;
@@ -179,6 +186,26 @@ type PaymentMode = {
   code: string;
   name: string;
   paymentType: string;
+};
+
+type Account = {
+  id: string;
+  code: string;
+  name: string;
+  accountType: string;
+};
+
+type JournalEntry = {
+  id: string;
+  entryNumber: string;
+  entryDate: string;
+  narration?: string | null;
+  lines: Array<{
+    id: string;
+    debitAmount: string | number;
+    creditAmount: string | number;
+    account: Account;
+  }>;
 };
 
 type AppView = "dashboard" | "masters" | "inventory" | "transactions" | "settings";
@@ -288,6 +315,16 @@ function useCommercialMasterSummary() {
     queryKey: ["commercial-master-summary"],
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<CommercialMasterSummary>>("/commercial-masters/summary");
+      return response.data.data;
+    },
+  });
+}
+
+function useAccountingSummary() {
+  return useQuery({
+    queryKey: ["accounting-summary"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<AccountingSummary>>("/accounting/summary");
       return response.data.data;
     },
   });
@@ -467,6 +504,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
   const masterSummary = useMasterSummary();
   const inventorySummary = useInventorySummary();
   const commercialMasterSummary = useCommercialMasterSummary();
+  const accountingSummary = useAccountingSummary();
   const logout = useMutation({
     mutationFn: async () => {
       await api.post("/auth/logout");
@@ -518,6 +556,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
 
         {activeView === "dashboard" ? (
           <DashboardView
+            accountingSummary={accountingSummary.data}
             commercialMasterSummary={commercialMasterSummary.data}
             inventorySummary={inventorySummary.data}
             masterSummary={masterSummary.data}
@@ -536,7 +575,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
           <InventoryView inventorySummary={inventorySummary.data} />
         ) : null}
 
-        {activeView === "transactions" ? <TransactionsView /> : null}
+        {activeView === "transactions" ? <TransactionsView accountingSummary={accountingSummary.data} /> : null}
 
         {activeView === "settings" ? (
           <SettingsView
@@ -551,11 +590,13 @@ function DashboardShell({ user }: { user: AuthUser }) {
 }
 
 function DashboardView({
+  accountingSummary,
   commercialMasterSummary,
   status,
   masterSummary,
   inventorySummary,
 }: {
+  accountingSummary?: AccountingSummary;
   commercialMasterSummary?: CommercialMasterSummary;
   status: ReturnType<typeof useSystemStatus>;
   masterSummary?: MasterSummary;
@@ -595,6 +636,11 @@ function DashboardView({
       <section className="setup-panel" aria-label="Inventory foundation">
         <h2>Inventory Foundation</h2>
         <InventoryReadinessGrid inventorySummary={inventorySummary} />
+      </section>
+
+      <section className="setup-panel" aria-label="Accounting foundation">
+        <h2>Accounting Foundation</h2>
+        <AccountingReadinessGrid accountingSummary={accountingSummary} />
       </section>
 
       <ModuleGrid />
@@ -709,12 +755,23 @@ function InventoryView({ inventorySummary }: { inventorySummary?: InventorySumma
   );
 }
 
-function TransactionsView() {
+function TransactionsView({ accountingSummary }: { accountingSummary?: AccountingSummary }) {
+  const accounts = useMasterList<Account>("accounts", "/accounting/accounts");
+  const journalEntries = useMasterList<JournalEntry>("journal-entries", "/accounting/journal-entries");
+
   return (
     <>
       <section className="view-header">
         <h2>Transactions</h2>
         <p>Purchase, sales, workshop, accounting, and GST posting workflows will be added here incrementally.</p>
+      </section>
+      <section className="setup-panel">
+        <h2>Accounting Foundation</h2>
+        <AccountingReadinessGrid accountingSummary={accountingSummary} />
+      </section>
+      <section className="masters-grid">
+        <AccountPanel items={accounts.data ?? []} />
+        <JournalPanel accounts={accounts.data ?? []} items={journalEntries.data ?? []} />
       </section>
       <ModuleGrid filter={["Purchase", "Sales", "Workshop", "Accounting"]} />
     </>
@@ -800,6 +857,17 @@ function CommercialReadinessGrid({
       <ReadinessMetric label="Employees" value={commercialMasterSummary?.employees} />
       <ReadinessMetric label="Vehicles" value={commercialMasterSummary?.vehicles} />
       <ReadinessMetric label="Payment Modes" value={commercialMasterSummary?.paymentModes} />
+    </div>
+  );
+}
+
+function AccountingReadinessGrid({ accountingSummary }: { accountingSummary?: AccountingSummary }) {
+  return (
+    <div className="readiness-grid">
+      <ReadinessMetric label="Accounts" value={accountingSummary?.accounts} />
+      <ReadinessMetric label="Posted Journals" value={accountingSummary?.postedJournals} />
+      <ReadinessMetric label="Debit Total" value={accountingSummary?.debitTotal} />
+      <ReadinessMetric label="Credit Total" value={accountingSummary?.creditTotal} />
     </div>
   );
 }
@@ -1086,6 +1154,110 @@ function VehiclePanel({ customers, items }: { customers: Customer[]; items: Vehi
           id: item.id,
           label: item.registrationNumber,
           meta: `${item.brand} ${item.model}${item.customer ? ` / ${item.customer.name}` : ""}`,
+        }))}
+      />
+    </article>
+  );
+}
+
+function AccountPanel({ items }: { items: Account[] }) {
+  const [form, setForm] = useState({ code: "", name: "", accountType: "ASSET" });
+  const createMutation = useCreateMaster("/accounting/accounts", ["accounts", "accounting-summary"], () =>
+    setForm({ code: "", name: "", accountType: "ASSET" }),
+  );
+  const seedMutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/accounting/accounts/seed-defaults");
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["accounts"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
+      ]);
+    },
+  });
+
+  return (
+    <article className="setup-panel master-panel">
+      <div className="panel-title-row">
+        <h2>Chart of Accounts</h2>
+        <Button type="button" variant="outline" disabled={seedMutation.isPending} onClick={() => seedMutation.mutate()}>
+          Seed Defaults
+        </Button>
+      </div>
+      <form className="compact-form" onSubmit={(event) => {
+        event.preventDefault();
+        createMutation.mutate(form);
+      }}>
+        <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
+        <input placeholder="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        <select value={form.accountType} onChange={(event) => setForm({ ...form, accountType: event.target.value })}>
+          <option>ASSET</option>
+          <option>LIABILITY</option>
+          <option>EQUITY</option>
+          <option>INCOME</option>
+          <option>EXPENSE</option>
+        </select>
+        <Button type="submit" variant="outline" disabled={createMutation.isPending}>Add</Button>
+      </form>
+      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.accountType}` }))} />
+    </article>
+  );
+}
+
+function JournalPanel({ accounts, items }: { accounts: Account[]; items: JournalEntry[] }) {
+  const [form, setForm] = useState({
+    entryDate: new Date().toISOString().slice(0, 10),
+    narration: "Manual journal",
+    debitAccountId: "",
+    creditAccountId: "",
+    amount: "0",
+  });
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/accounting/journal-entries", {
+        entryDate: form.entryDate,
+        narration: form.narration,
+        lines: [
+          { accountId: form.debitAccountId, debitAmount: form.amount },
+          { accountId: form.creditAccountId, creditAmount: form.amount },
+        ],
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
+      ]);
+      setForm({ ...form, amount: "0", narration: "Manual journal" });
+    },
+  });
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Post Journal Entry</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate();
+      }}>
+        <input type="date" value={form.entryDate} onChange={(event) => setForm({ ...form, entryDate: event.target.value })} />
+        <select value={form.debitAccountId} onChange={(event) => setForm({ ...form, debitAccountId: event.target.value })}>
+          <option value="">Debit account</option>
+          {accounts.map((account) => <option key={account.id} value={account.id}>{`${account.code} - ${account.name}`}</option>)}
+        </select>
+        <select value={form.creditAccountId} onChange={(event) => setForm({ ...form, creditAccountId: event.target.value })}>
+          <option value="">Credit account</option>
+          {accounts.map((account) => <option key={account.id} value={account.id}>{`${account.code} - ${account.name}`}</option>)}
+        </select>
+        <input placeholder="Amount" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} />
+        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
+      </form>
+      <MasterList
+        items={items.map((item) => ({
+          id: item.id,
+          label: item.entryNumber,
+          meta: item.narration ?? `${item.lines.length} lines`,
         }))}
       />
     </article>

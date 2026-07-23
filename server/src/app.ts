@@ -6,6 +6,7 @@ import cookieParser from "cookie-parser";
 import { env } from "./config/env";
 import { notFound } from "./middleware/not-found";
 import { errorHandler } from "./middleware/error-handler";
+import accountingRoutes from "./modules/accounting/accounting.routes";
 import authRoutes from "./modules/auth/auth.routes";
 import companyRoutes from "./modules/company/company.routes";
 import commercialMasterRoutes from "./modules/commercial-masters/commercial-masters.routes";
@@ -29,6 +30,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(cookieParser());
 
+app.use("/api", accountingRoutes);
 app.use("/api", authRoutes);
 app.use("/api", companyRoutes);
 app.use("/api", commercialMasterRoutes);
