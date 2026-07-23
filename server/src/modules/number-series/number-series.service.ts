@@ -18,6 +18,7 @@ const defaultNumberSeries = [
   { documentType: "STOCK_TRANSFER", prefix: "ST-", padding: 5 },
   { documentType: "JOURNAL_ENTRY", prefix: "JV-", padding: 5 },
   { documentType: "PURCHASE_ORDER", prefix: "PO-", padding: 5 },
+  { documentType: "GOODS_RECEIPT_NOTE", prefix: "GRN-", padding: 5 },
   { documentType: "PURCHASE_INVOICE", prefix: "PI-", padding: 5 },
   { documentType: "SALES_INVOICE", prefix: "SI-", padding: 5 },
   { documentType: "PURCHASE_RETURN", prefix: "PR-", padding: 5 },

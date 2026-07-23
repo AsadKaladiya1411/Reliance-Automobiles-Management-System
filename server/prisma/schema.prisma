@@ -163,6 +163,7 @@ model Company {
   payments       Payment[]
   financialNotes FinancialNote[]
   purchaseOrders PurchaseOrder[]
+  goodsReceiptNotes GoodsReceiptNote[]
   purchaseInvoices PurchaseInvoice[]
   purchaseReturns PurchaseReturn[]
   salesQuotations SalesQuotation[]
@@ -479,6 +480,7 @@ model ProductVariant {
   stockBalances StockBalance[]
   stockMovements StockMovement[]
   purchaseOrderLines PurchaseOrderLine[]
+  goodsReceiptNoteLines GoodsReceiptNoteLine[]
   purchaseInvoiceLines PurchaseInvoiceLine[]
   purchaseReturnLines PurchaseReturnLine[]
   salesQuotationLines SalesQuotationLine[]
@@ -507,6 +509,7 @@ model Warehouse {
   blocks  WarehouseBlock[]
   stockBalances StockBalance[]
   stockMovements StockMovement[]
+  goodsReceiptNotes GoodsReceiptNote[]
   purchaseInvoices PurchaseInvoice[]
   purchaseReturns PurchaseReturn[]
   deliveryChallans DeliveryChallan[]
@@ -695,6 +698,7 @@ model Supplier {
   company       Company            @relation(fields: [companyId], references: [id])
   ledgerEntries PartyLedgerEntry[]
   purchaseOrders PurchaseOrder[]
+  goodsReceiptNotes GoodsReceiptNote[]
   purchaseInvoices PurchaseInvoice[]
   purchaseReturns PurchaseReturn[]
   payments Payment[]
@@ -916,6 +920,7 @@ model PurchaseOrder {
   company  Company             @relation(fields: [companyId], references: [id])
   supplier Supplier            @relation(fields: [supplierId], references: [id])
   lines    PurchaseOrderLine[]
+  goodsReceiptNotes GoodsReceiptNote[]
 
   @@unique([companyId, orderNumber])
   @@index([companyId, supplierId, orderDate])
@@ -936,6 +941,45 @@ model PurchaseOrderLine {
 
   purchaseOrder  PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@index([companyId, productVariantId])
+}
+
+model GoodsReceiptNote {
+  id              String         @id @default(uuid()) @db.Uuid
+  companyId       String         @db.Uuid
+  supplierId      String         @db.Uuid
+  warehouseId     String         @db.Uuid
+  purchaseOrderId String?        @db.Uuid
+  grnNumber       String         @db.VarChar(80)
+  grnDate         DateTime       @db.Date
+  status          DocumentStatus @default(APPROVED)
+  narration       String?        @db.VarChar(500)
+  createdByUserId String?        @db.Uuid
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  company       Company                @relation(fields: [companyId], references: [id])
+  supplier      Supplier               @relation(fields: [supplierId], references: [id])
+  warehouse     Warehouse              @relation(fields: [warehouseId], references: [id])
+  purchaseOrder PurchaseOrder?         @relation(fields: [purchaseOrderId], references: [id])
+  lines         GoodsReceiptNoteLine[]
+
+  @@unique([companyId, grnNumber])
+  @@index([companyId, supplierId, grnDate])
+  @@index([companyId, status, grnDate])
+}
+
+model GoodsReceiptNoteLine {
+  id                 String  @id @default(uuid()) @db.Uuid
+  goodsReceiptNoteId String  @db.Uuid
+  companyId          String  @db.Uuid
+  productVariantId   String  @db.Uuid
+  quantity           Decimal @db.Decimal(14, 3)
+  lineOrder          Int     @default(0)
+
+  goodsReceiptNote GoodsReceiptNote @relation(fields: [goodsReceiptNoteId], references: [id], onDelete: Cascade)
+  productVariant   ProductVariant   @relation(fields: [productVariantId], references: [id])
 
   @@index([companyId, productVariantId])
 }

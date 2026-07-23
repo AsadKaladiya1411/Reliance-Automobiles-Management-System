@@ -5,8 +5,10 @@ import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
 import {
   cancelPurchaseInvoice,
+  createGoodsReceiptNote,
   createPurchaseOrder,
   getPurchaseSummary,
+  listGoodsReceiptNotes,
   listPurchaseInvoices,
   listPurchaseOrders,
   listPurchaseReturns,
@@ -39,6 +41,10 @@ router.get("/purchase/orders", asyncHandler(async (req, res) => {
   sendSuccess(res, await listPurchaseOrders(req.user!.companyId));
 }));
 
+router.get("/purchase/grns", asyncHandler(async (req, res) => {
+  sendSuccess(res, await listGoodsReceiptNotes(req.user!.companyId));
+}));
+
 router.get("/purchase/returns", asyncHandler(async (req, res) => {
   sendSuccess(res, await listPurchaseReturns(req.user!.companyId));
 }));
@@ -49,6 +55,10 @@ router.post("/purchase/invoices", asyncHandler(async (req, res) => {
 
 router.post("/purchase/orders", asyncHandler(async (req, res) => {
   sendSuccess(res, await createPurchaseOrder(context(req), req.body), "Purchase order created.", 201);
+}));
+
+router.post("/purchase/grns", asyncHandler(async (req, res) => {
+  sendSuccess(res, await createGoodsReceiptNote(context(req), req.body), "GRN created.", 201);
 }));
 
 router.post("/purchase/invoices/:id/cancel", asyncHandler(async (req, res) => {

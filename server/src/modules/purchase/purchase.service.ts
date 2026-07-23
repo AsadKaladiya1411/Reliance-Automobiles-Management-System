@@ -23,6 +23,11 @@ type ReturnLineInput = {
   quantity?: unknown;
 };
 
+type GrnLineInput = {
+  productVariantId?: unknown;
+  quantity?: unknown;
+};
+
 function requiredString(value: unknown, field: string) {
   if (typeof value !== "string" || value.trim() === "") {
     throw new ApiError(400, "INVALID_PURCHASE_INPUT", `${field} is required.`);
@@ -169,8 +174,9 @@ async function validateLineLocation(
 }
 
 export async function getPurchaseSummary(companyId: string) {
-  const [approvedOrders, postedInvoices, postedReturns, invoiceTotals, returnTotals] = await Promise.all([
+  const [approvedOrders, approvedGrns, postedInvoices, postedReturns, invoiceTotals, returnTotals] = await Promise.all([
     prisma.purchaseOrder.count({ where: { companyId, status: "APPROVED" } }),
+    prisma.goodsReceiptNote.count({ where: { companyId, status: "APPROVED" } }),
     prisma.purchaseInvoice.count({ where: { companyId, status: "POSTED" } }),
     prisma.purchaseReturn.count({ where: { companyId } }),
     prisma.purchaseInvoice.aggregate({
@@ -191,6 +197,7 @@ export async function getPurchaseSummary(companyId: string) {
 
   return {
     approvedOrders,
+    approvedGrns,
     postedInvoices,
     postedReturns,
     grossTaxableAmount,
@@ -213,6 +220,20 @@ export async function listPurchaseOrders(companyId: string) {
       lines: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } },
     },
     orderBy: [{ orderDate: "desc" }, { createdAt: "desc" }],
+    take: 50,
+  });
+}
+
+export async function listGoodsReceiptNotes(companyId: string) {
+  return prisma.goodsReceiptNote.findMany({
+    where: { companyId },
+    include: {
+      supplier: true,
+      warehouse: true,
+      purchaseOrder: true,
+      lines: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } },
+    },
+    orderBy: [{ grnDate: "desc" }, { createdAt: "desc" }],
     take: 50,
   });
 }
@@ -329,6 +350,104 @@ export async function createPurchaseOrder(context: PurchaseContext, body: unknow
     });
 
     return order;
+  });
+}
+
+export async function createGoodsReceiptNote(context: PurchaseContext, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const supplierId = requiredString(data.supplierId, "Supplier");
+  const warehouseId = requiredString(data.warehouseId, "Warehouse");
+  const purchaseOrderId = optionalString(data.purchaseOrderId);
+  const grnDate = parseDate(data.grnDate);
+  const rawLines = Array.isArray(data.lines) ? (data.lines as GrnLineInput[]) : [];
+
+  if (rawLines.length === 0) {
+    throw new ApiError(400, "GRN_LINES_REQUIRED", "At least one GRN line is required.");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const supplier = await tx.supplier.findFirst({
+      where: { id: supplierId, companyId: context.companyId, status: "ACTIVE" },
+    });
+
+    if (!supplier) {
+      throw new ApiError(404, "SUPPLIER_NOT_FOUND", "Supplier not found or inactive.");
+    }
+
+    await validateWarehouse(tx, context.companyId, warehouseId);
+
+    if (purchaseOrderId) {
+      const purchaseOrder = await tx.purchaseOrder.findFirst({
+        where: { id: purchaseOrderId, companyId: context.companyId, supplierId, status: "APPROVED" },
+      });
+      if (!purchaseOrder) {
+        throw new ApiError(404, "PURCHASE_ORDER_NOT_FOUND", "Approved purchase order not found for this supplier.");
+      }
+    }
+
+    const grnNumber = await nextDocumentNumber(
+      tx,
+      context.companyId,
+      "GOODS_RECEIPT_NOTE",
+      "Create a GOODS_RECEIPT_NOTE number series before creating GRNs.",
+    );
+    const preparedLines = [];
+
+    for (const [index, line] of rawLines.entries()) {
+      const productVariantId = requiredString(line.productVariantId, "Product variant");
+      const variant = await tx.productVariant.findFirst({
+        where: {
+          id: productVariantId,
+          companyId: context.companyId,
+          status: "ACTIVE",
+          product: { status: "ACTIVE" },
+        },
+      });
+
+      if (!variant) {
+        throw new ApiError(404, "PRODUCT_VARIANT_NOT_FOUND", "Product variant not found or inactive.");
+      }
+
+      preparedLines.push({
+        companyId: context.companyId,
+        productVariantId,
+        quantity: positiveDecimal(line.quantity, "Quantity", 3),
+        lineOrder: index + 1,
+      });
+    }
+
+    const grn = await tx.goodsReceiptNote.create({
+      data: {
+        companyId: context.companyId,
+        supplierId,
+        warehouseId,
+        purchaseOrderId,
+        grnNumber,
+        grnDate,
+        status: "APPROVED",
+        narration: optionalString(data.narration),
+        createdByUserId: context.userId,
+        lines: { create: preparedLines },
+      },
+      include: { supplier: true, warehouse: true, purchaseOrder: true, lines: { include: { productVariant: true } } },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        module: "purchase",
+        action: "CREATE",
+        entityType: "GoodsReceiptNote",
+        entityId: grn.id,
+        description: "GRN created without stock impact.",
+        afterData: json(grn),
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return grn;
   });
 }
 
