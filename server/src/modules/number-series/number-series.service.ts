@@ -19,6 +19,8 @@ const defaultNumberSeries = [
   { documentType: "SALES_INVOICE", prefix: "SI-", padding: 5 },
   { documentType: "PURCHASE_RETURN", prefix: "PR-", padding: 5 },
   { documentType: "SALES_RETURN", prefix: "SR-", padding: 5 },
+  { documentType: "CREDIT_NOTE", prefix: "CN-", padding: 5 },
+  { documentType: "DEBIT_NOTE", prefix: "DN-", padding: 5 },
   { documentType: "PAYMENT_RECEIPT", prefix: "RCPT-", padding: 5 },
   { documentType: "PAYMENT_VOUCHER", prefix: "PV-", padding: 5 },
   { documentType: "JOB_CARD", prefix: "JC-", padding: 5 },

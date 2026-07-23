@@ -161,6 +161,7 @@ model Company {
   journalEntries JournalEntry[]
   partyLedgerEntries PartyLedgerEntry[]
   payments       Payment[]
+  financialNotes FinancialNote[]
   purchaseInvoices PurchaseInvoice[]
   purchaseReturns PurchaseReturn[]
   salesInvoices SalesInvoice[]
@@ -656,6 +657,7 @@ model Customer {
   salesInvoices SalesInvoice[]
   salesReturns SalesReturn[]
   payments Payment[]
+  financialNotes FinancialNote[]
   jobCards JobCard[]
 
   @@unique([companyId, code])
@@ -683,6 +685,7 @@ model Supplier {
   purchaseInvoices PurchaseInvoice[]
   purchaseReturns PurchaseReturn[]
   payments Payment[]
+  financialNotes FinancialNote[]
 
   @@unique([companyId, code])
   @@index([companyId, name])
@@ -802,6 +805,7 @@ model JournalEntry {
   salesInvoices SalesInvoice[]
   salesReturns SalesReturn[]
   payments Payment[]
+  financialNotes FinancialNote[]
 
   @@unique([companyId, entryNumber])
   @@index([companyId, entryDate])
@@ -850,6 +854,34 @@ model PartyLedgerEntry {
   @@index([customerId, entryDate])
   @@index([supplierId, entryDate])
   @@index([companyId, documentType, documentNumber])
+}
+
+model FinancialNote {
+  id             String         @id @default(uuid()) @db.Uuid
+  companyId      String         @db.Uuid
+  partyType      PartyType
+  noteType       LedgerEntryType
+  customerId     String?        @db.Uuid
+  supplierId     String?        @db.Uuid
+  journalEntryId String?        @db.Uuid
+  noteNumber     String         @db.VarChar(80)
+  noteDate       DateTime       @db.Date
+  amount         Decimal        @db.Decimal(14, 2)
+  reason         String         @db.VarChar(500)
+  status         DocumentStatus @default(POSTED)
+  postedByUserId String?        @db.Uuid
+  postedAt       DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  customer     Customer?     @relation(fields: [customerId], references: [id])
+  supplier     Supplier?     @relation(fields: [supplierId], references: [id])
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  @@unique([companyId, noteNumber])
+  @@index([companyId, partyType, noteDate])
+  @@index([companyId, noteType, noteDate])
 }
 
 model PurchaseInvoice {

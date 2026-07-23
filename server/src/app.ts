@@ -14,6 +14,7 @@ import commercialMasterRoutes from "./modules/commercial-masters/commercial-mast
 import financialYearRoutes from "./modules/financial-year/financial-year.routes";
 import inventoryRoutes from "./modules/inventory/inventory.routes";
 import mastersRoutes from "./modules/masters/masters.routes";
+import notesRoutes from "./modules/notes/notes.routes";
 import numberSeriesRoutes from "./modules/number-series/number-series.routes";
 import paymentRoutes from "./modules/payments/payments.routes";
 import purchaseRoutes from "./modules/purchase/purchase.routes";
@@ -43,6 +44,7 @@ app.use("/api", commercialMasterRoutes);
 app.use("/api", financialYearRoutes);
 app.use("/api", inventoryRoutes);
 app.use("/api", mastersRoutes);
+app.use("/api", notesRoutes);
 app.use("/api", numberSeriesRoutes);
 app.use("/api", paymentRoutes);
 app.use("/api", purchaseRoutes);

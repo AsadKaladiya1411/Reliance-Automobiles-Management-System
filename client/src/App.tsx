@@ -311,6 +311,18 @@ type Payment = {
   paymentMode: PaymentMode;
 };
 
+type FinancialNote = {
+  id: string;
+  partyType: string;
+  noteType: string;
+  noteNumber: string;
+  noteDate: string;
+  amount: string | number;
+  reason: string;
+  customer?: Customer | null;
+  supplier?: Supplier | null;
+};
+
 type PurchaseInvoice = {
   id: string;
   invoiceNumber: string;
@@ -1135,6 +1147,7 @@ function TransactionsView({
   const partyLedger = useMasterList<PartyLedgerEntry>("party-ledger", "/accounting/party-ledger");
   const paymentModes = useMasterList<PaymentMode>("payment-modes", "/commercial-masters/payment-modes");
   const payments = useMasterList<Payment>("payments", "/payments");
+  const notes = useMasterList<FinancialNote>("notes", "/notes");
   const outstanding = usePartyOutstanding();
 
   return (
@@ -1186,6 +1199,7 @@ function TransactionsView({
           paymentModes={paymentModes.data ?? []}
           suppliers={suppliers.data ?? []}
         />
+        <FinancialNotePanel customers={customers.data ?? []} items={notes.data ?? []} suppliers={suppliers.data ?? []} />
         <OutstandingPanel outstanding={outstanding.data} />
         <PartyLedgerPanel items={partyLedger.data ?? []} />
       </section>
@@ -2252,6 +2266,76 @@ function PaymentPanel({
           id: payment.id,
           label: payment.paymentNumber,
           meta: `${payment.customer?.name ?? payment.supplier?.name ?? payment.partyType} / ${payment.amount}`,
+        }))}
+      />
+    </article>
+  );
+}
+
+function FinancialNotePanel({
+  customers,
+  items,
+  suppliers,
+}: {
+  customers: Customer[];
+  items: FinancialNote[];
+  suppliers: Supplier[];
+}) {
+  const [form, setForm] = useState({
+    partyType: "CUSTOMER",
+    noteType: "CREDIT_NOTE",
+    partyId: "",
+    noteDate: new Date().toISOString().slice(0, 10),
+    amount: "0",
+    reason: "Financial adjustment",
+  });
+  const parties = form.partyType === "CUSTOMER" ? customers : suppliers;
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/notes", form);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["notes"] }),
+        queryClient.invalidateQueries({ queryKey: ["party-ledger"] }),
+        queryClient.invalidateQueries({ queryKey: ["party-ledger-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["party-outstanding"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
+      ]);
+      setForm({ ...form, partyId: "", amount: "0", reason: "Financial adjustment" });
+    },
+  });
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Post Credit / Debit Note</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate();
+      }}>
+        <select value={form.partyType} onChange={(event) => setForm({ ...form, partyType: event.target.value, partyId: "" })}>
+          <option value="CUSTOMER">Customer</option>
+          <option value="SUPPLIER">Supplier</option>
+        </select>
+        <select value={form.noteType} onChange={(event) => setForm({ ...form, noteType: event.target.value })}>
+          <option value="CREDIT_NOTE">Credit note</option>
+          <option value="DEBIT_NOTE">Debit note</option>
+        </select>
+        <select value={form.partyId} onChange={(event) => setForm({ ...form, partyId: event.target.value })}>
+          <option value="">{form.partyType === "CUSTOMER" ? "Customer" : "Supplier"}</option>
+          {parties.map((party) => <option key={party.id} value={party.id}>{party.name}</option>)}
+        </select>
+        <input type="date" value={form.noteDate} onChange={(event) => setForm({ ...form, noteDate: event.target.value })} />
+        <input placeholder="Amount" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} />
+        <input placeholder="Reason" value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
+      </form>
+      <MasterList
+        items={items.map((note) => ({
+          id: note.id,
+          label: note.noteNumber,
+          meta: `${note.noteType} / ${note.customer?.name ?? note.supplier?.name ?? note.partyType} / ${note.amount}`,
         }))}
       />
     </article>
