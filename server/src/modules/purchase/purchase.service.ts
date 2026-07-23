@@ -464,3 +464,154 @@ export async function postPurchaseInvoice(context: PurchaseContext, body: unknow
     return invoice;
   });
 }
+
+export async function cancelPurchaseInvoice(context: PurchaseContext, invoiceId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const reason = requiredString(data.reason, "Cancellation reason");
+
+  return prisma.$transaction(async (tx) => {
+    const invoice = await tx.purchaseInvoice.findFirst({
+      where: { id: invoiceId, companyId: context.companyId },
+      include: {
+        lines: true,
+        journalEntry: { include: { lines: true } },
+      },
+    });
+
+    if (!invoice) {
+      throw new ApiError(404, "PURCHASE_INVOICE_NOT_FOUND", "Purchase invoice not found.");
+    }
+
+    if (invoice.status !== "POSTED") {
+      throw new ApiError(400, "PURCHASE_INVOICE_NOT_POSTED", "Only posted purchase invoices can be cancelled.");
+    }
+
+    const journalNumber = await nextDocumentNumber(
+      tx,
+      context.companyId,
+      "JOURNAL_ENTRY",
+      "Create a JOURNAL_ENTRY number series before cancelling purchase invoices.",
+    );
+
+    for (const line of invoice.lines) {
+      const key = locationKey({
+        warehouseId: invoice.warehouseId,
+        blockId: line.blockId ?? undefined,
+        rackId: line.rackId ?? undefined,
+        shelfId: line.shelfId ?? undefined,
+      });
+      const balance = await tx.stockBalance.findUnique({
+        where: {
+          companyId_productVariantId_warehouseId_locationKey: {
+            companyId: context.companyId,
+            productVariantId: line.productVariantId,
+            warehouseId: invoice.warehouseId,
+            locationKey: key,
+          },
+        },
+      });
+
+      if (!balance || new Prisma.Decimal(balance.quantity).lt(line.quantity)) {
+        throw new ApiError(400, "PURCHASE_CANCEL_STOCK_SHORTAGE", "Purchase invoice cannot be cancelled because stock has already been consumed.");
+      }
+
+      const newQuantity = new Prisma.Decimal(balance.quantity).minus(line.quantity);
+      const newValue = new Prisma.Decimal(balance.stockValue).minus(line.taxableAmount).toDecimalPlaces(2);
+
+      await tx.stockBalance.update({
+        where: { id: balance.id },
+        data: { quantity: newQuantity, stockValue: newValue.lt(0) ? 0 : newValue },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          companyId: context.companyId,
+          productId: line.productId,
+          productVariantId: line.productVariantId,
+          warehouseId: invoice.warehouseId,
+          blockId: line.blockId,
+          rackId: line.rackId,
+          shelfId: line.shelfId,
+          locationKey: key,
+          movementType: "PURCHASE_RETURN",
+          documentType: "PURCHASE_INVOICE_CANCEL",
+          documentNumber: invoice.invoiceNumber,
+          documentDate: new Date(),
+          quantityOut: line.quantity,
+          unitCost: line.unitCost,
+          totalValue: line.taxableAmount,
+          narration: reason,
+          createdByUserId: context.userId,
+        },
+      });
+    }
+
+    const reversalJournal = await tx.journalEntry.create({
+      data: {
+        companyId: context.companyId,
+        entryNumber: journalNumber,
+        entryDate: new Date(),
+        sourceModule: "purchase",
+        sourceType: "PURCHASE_INVOICE_CANCEL",
+        sourceId: invoice.id,
+        narration: `Cancel purchase invoice ${invoice.invoiceNumber}`,
+        status: "POSTED",
+        postedByUserId: context.userId,
+        postedAt: new Date(),
+        lines: {
+          create: (invoice.journalEntry?.lines ?? []).map((line, index) => ({
+            accountId: line.accountId,
+            debitAmount: line.creditAmount,
+            creditAmount: line.debitAmount,
+            narration: `Reversal ${invoice.invoiceNumber}`,
+            lineOrder: index + 1,
+          })),
+        },
+      },
+    });
+
+    await tx.partyLedgerEntry.create({
+      data: {
+        companyId: context.companyId,
+        partyType: "SUPPLIER",
+        supplierId: invoice.supplierId,
+        journalEntryId: reversalJournal.id,
+        entryType: "ADJUSTMENT",
+        documentType: "PURCHASE_INVOICE_CANCEL",
+        documentId: invoice.id,
+        documentNumber: invoice.invoiceNumber,
+        entryDate: new Date(),
+        debitAmount: invoice.grandTotal,
+        narration: reason,
+      },
+    });
+
+    const cancelled = await tx.purchaseInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        status: "CANCELLED",
+        cancelledByUserId: context.userId,
+        cancelledAt: new Date(),
+        cancellationReason: reason,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        module: "purchase",
+        action: "CANCEL",
+        entityType: "PurchaseInvoice",
+        entityId: invoice.id,
+        description: "Purchase invoice cancelled.",
+        beforeData: json(invoice),
+        afterData: json(cancelled),
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return cancelled;
+  });
+}

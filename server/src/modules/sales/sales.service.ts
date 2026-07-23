@@ -395,3 +395,165 @@ export async function postSalesInvoice(context: SalesContext, body: unknown) {
     return invoice;
   });
 }
+
+export async function cancelSalesInvoice(context: SalesContext, invoiceId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const reason = requiredString(data.reason, "Cancellation reason");
+
+  return prisma.$transaction(async (tx) => {
+    const invoice = await tx.salesInvoice.findFirst({
+      where: { id: invoiceId, companyId: context.companyId },
+      include: {
+        lines: true,
+        journalEntry: { include: { lines: true } },
+      },
+    });
+
+    if (!invoice) {
+      throw new ApiError(404, "SALES_INVOICE_NOT_FOUND", "Sales invoice not found.");
+    }
+
+    if (invoice.status !== "POSTED") {
+      throw new ApiError(400, "SALES_INVOICE_NOT_POSTED", "Only posted sales invoices can be cancelled.");
+    }
+
+    const journalNumber = await nextDocumentNumber(tx, context.companyId, "JOURNAL_ENTRY");
+
+    for (const line of invoice.lines) {
+      const key = locationKey({
+        warehouseId: invoice.warehouseId,
+        blockId: line.blockId ?? undefined,
+        rackId: line.rackId ?? undefined,
+        shelfId: line.shelfId ?? undefined,
+      });
+      const balance = await tx.stockBalance.findUnique({
+        where: {
+          companyId_productVariantId_warehouseId_locationKey: {
+            companyId: context.companyId,
+            productVariantId: line.productVariantId,
+            warehouseId: invoice.warehouseId,
+            locationKey: key,
+          },
+        },
+      });
+      const newQuantity = new Prisma.Decimal(balance?.quantity ?? 0).plus(line.quantity);
+      const newValue = new Prisma.Decimal(balance?.stockValue ?? 0).plus(line.costAmount).toDecimalPlaces(2);
+      const averageCost = newValue.div(newQuantity).toDecimalPlaces(2);
+
+      await tx.stockBalance.upsert({
+        where: {
+          companyId_productVariantId_warehouseId_locationKey: {
+            companyId: context.companyId,
+            productVariantId: line.productVariantId,
+            warehouseId: invoice.warehouseId,
+            locationKey: key,
+          },
+        },
+        create: {
+          companyId: context.companyId,
+          productId: line.productId,
+          productVariantId: line.productVariantId,
+          warehouseId: invoice.warehouseId,
+          blockId: line.blockId,
+          rackId: line.rackId,
+          shelfId: line.shelfId,
+          locationKey: key,
+          quantity: line.quantity,
+          averageCost: line.unitCost,
+          stockValue: line.costAmount,
+        },
+        update: { quantity: newQuantity, averageCost, stockValue: newValue },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          companyId: context.companyId,
+          productId: line.productId,
+          productVariantId: line.productVariantId,
+          warehouseId: invoice.warehouseId,
+          blockId: line.blockId,
+          rackId: line.rackId,
+          shelfId: line.shelfId,
+          locationKey: key,
+          movementType: "SALES_RETURN",
+          documentType: "SALES_INVOICE_CANCEL",
+          documentNumber: invoice.invoiceNumber,
+          documentDate: new Date(),
+          quantityIn: line.quantity,
+          unitCost: line.unitCost,
+          totalValue: line.costAmount,
+          narration: reason,
+          createdByUserId: context.userId,
+        },
+      });
+    }
+
+    const reversalJournal = await tx.journalEntry.create({
+      data: {
+        companyId: context.companyId,
+        entryNumber: journalNumber,
+        entryDate: new Date(),
+        sourceModule: "sales",
+        sourceType: "SALES_INVOICE_CANCEL",
+        sourceId: invoice.id,
+        narration: `Cancel sales invoice ${invoice.invoiceNumber}`,
+        status: "POSTED",
+        postedByUserId: context.userId,
+        postedAt: new Date(),
+        lines: {
+          create: (invoice.journalEntry?.lines ?? []).map((line, index) => ({
+            accountId: line.accountId,
+            debitAmount: line.creditAmount,
+            creditAmount: line.debitAmount,
+            narration: `Reversal ${invoice.invoiceNumber}`,
+            lineOrder: index + 1,
+          })),
+        },
+      },
+    });
+
+    await tx.partyLedgerEntry.create({
+      data: {
+        companyId: context.companyId,
+        partyType: "CUSTOMER",
+        customerId: invoice.customerId,
+        journalEntryId: reversalJournal.id,
+        entryType: "ADJUSTMENT",
+        documentType: "SALES_INVOICE_CANCEL",
+        documentId: invoice.id,
+        documentNumber: invoice.invoiceNumber,
+        entryDate: new Date(),
+        creditAmount: invoice.grandTotal,
+        narration: reason,
+      },
+    });
+
+    const cancelled = await tx.salesInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        status: "CANCELLED",
+        cancelledByUserId: context.userId,
+        cancelledAt: new Date(),
+        cancellationReason: reason,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        module: "sales",
+        action: "CANCEL",
+        entityType: "SalesInvoice",
+        entityId: invoice.id,
+        description: "Sales invoice cancelled.",
+        beforeData: json(invoice),
+        afterData: json(cancelled),
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return cancelled;
+  });
+}
