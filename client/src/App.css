@@ -296,6 +296,7 @@ h1 {
 .compact-list li {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 8px;
   border-top: 1px solid #eef2f6;
   padding-top: 8px;
@@ -305,6 +306,11 @@ h1 {
 
 .compact-list strong {
   color: #0f766e;
+}
+
+.action-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, auto) auto;
 }
 
 .readiness-grid {

@@ -270,6 +270,7 @@ type PurchaseInvoice = {
   invoiceNumber: string;
   invoiceDate: string;
   grandTotal: string | number;
+  status: string;
   supplier: Supplier;
   warehouse: Warehouse;
   lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number }>;
@@ -280,6 +281,7 @@ type SalesInvoice = {
   invoiceNumber: string;
   invoiceDate: string;
   grandTotal: string | number;
+  status: string;
   customer: Customer;
   warehouse: Warehouse;
   lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number }>;
@@ -1568,6 +1570,29 @@ function PurchaseInvoicePanel({
       setForm({ ...form, productVariantId: "", quantity: "1", unitCost: "0", supplierBillNumber: "" });
     },
   });
+  const cancelMutation = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const reason = window.prompt("Cancellation reason");
+      if (!reason) {
+        return;
+      }
+      await api.post(`/purchase/invoices/${invoiceId}/cancel`, { reason });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["purchase-invoices"] }),
+        queryClient.invalidateQueries({ queryKey: ["purchase-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-balances"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
+        queryClient.invalidateQueries({ queryKey: ["party-ledger"] }),
+        queryClient.invalidateQueries({ queryKey: ["party-ledger-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["gst-summary"] }),
+      ]);
+    },
+  });
 
   return (
     <article className="setup-panel master-panel wide-panel">
@@ -1599,12 +1624,14 @@ function PurchaseInvoicePanel({
         <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
         <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
       </form>
-      <MasterList
+      <InvoiceActionList
         items={invoices.map((invoice) => ({
           id: invoice.id,
           label: invoice.invoiceNumber,
           meta: `${invoice.supplier.name} / ${invoice.grandTotal}`,
+          status: invoice.status,
         }))}
+        onCancel={(invoiceId) => cancelMutation.mutate(invoiceId)}
       />
     </article>
   );
@@ -1660,6 +1687,29 @@ function SalesInvoicePanel({
       setForm({ ...form, productVariantId: "", quantity: "1", unitPrice: "0" });
     },
   });
+  const cancelMutation = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const reason = window.prompt("Cancellation reason");
+      if (!reason) {
+        return;
+      }
+      await api.post(`/sales/invoices/${invoiceId}/cancel`, { reason });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["sales-invoices"] }),
+        queryClient.invalidateQueries({ queryKey: ["sales-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-balances"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
+        queryClient.invalidateQueries({ queryKey: ["party-ledger"] }),
+        queryClient.invalidateQueries({ queryKey: ["party-ledger-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["gst-summary"] }),
+      ]);
+    },
+  });
 
   return (
     <article className="setup-panel master-panel wide-panel">
@@ -1690,14 +1740,44 @@ function SalesInvoicePanel({
         <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
         <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
       </form>
-      <MasterList
+      <InvoiceActionList
         items={invoices.map((invoice) => ({
           id: invoice.id,
           label: invoice.invoiceNumber,
           meta: `${invoice.customer.name} / ${invoice.grandTotal}`,
+          status: invoice.status,
         }))}
+        onCancel={(invoiceId) => cancelMutation.mutate(invoiceId)}
       />
     </article>
+  );
+}
+
+function InvoiceActionList({
+  items,
+  onCancel,
+}: {
+  items: Array<{ id: string; label: string; meta: string; status: string }>;
+  onCancel: (id: string) => void;
+}) {
+  if (items.length === 0) {
+    return <p className="empty-text">No records yet.</p>;
+  }
+
+  return (
+    <ul className="compact-list action-list">
+      {items.slice(0, 6).map((item) => (
+        <li key={item.id}>
+          <span>{item.label}</span>
+          <strong>{`${item.meta} / ${item.status}`}</strong>
+          {item.status === "POSTED" ? (
+            <Button type="button" variant="outline" onClick={() => onCancel(item.id)}>
+              Cancel
+            </Button>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }
 
