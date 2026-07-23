@@ -5,8 +5,12 @@ import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
 import {
   cancelSalesInvoice,
+  createSalesOrder,
+  createSalesQuotation,
   getSalesSummary,
   listSalesInvoices,
+  listSalesOrders,
+  listSalesQuotations,
   listSalesReturns,
   postSalesInvoice,
   postSalesReturn,
@@ -33,12 +37,28 @@ router.get("/sales/invoices", asyncHandler(async (req, res) => {
   sendSuccess(res, await listSalesInvoices(req.user!.companyId));
 }));
 
+router.get("/sales/quotations", asyncHandler(async (req, res) => {
+  sendSuccess(res, await listSalesQuotations(req.user!.companyId));
+}));
+
+router.get("/sales/orders", asyncHandler(async (req, res) => {
+  sendSuccess(res, await listSalesOrders(req.user!.companyId));
+}));
+
 router.get("/sales/returns", asyncHandler(async (req, res) => {
   sendSuccess(res, await listSalesReturns(req.user!.companyId));
 }));
 
 router.post("/sales/invoices", asyncHandler(async (req, res) => {
   sendSuccess(res, await postSalesInvoice(context(req), req.body), "Sales invoice posted.", 201);
+}));
+
+router.post("/sales/quotations", asyncHandler(async (req, res) => {
+  sendSuccess(res, await createSalesQuotation(context(req), req.body), "Sales quotation created.", 201);
+}));
+
+router.post("/sales/orders", asyncHandler(async (req, res) => {
+  sendSuccess(res, await createSalesOrder(context(req), req.body), "Sales order created.", 201);
 }));
 
 router.post("/sales/invoices/:id/cancel", asyncHandler(async (req, res) => {

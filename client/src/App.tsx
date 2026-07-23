@@ -101,6 +101,8 @@ type PurchaseSummary = {
 };
 
 type SalesSummary = {
+  approvedQuotations: number;
+  approvedOrders: number;
   postedInvoices: number;
   postedReturns: number;
   grossGrandTotal: string | number;
@@ -355,6 +357,29 @@ type SalesInvoice = {
   customer: Customer;
   warehouse: Warehouse;
   lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; lineTotal?: string | number }>;
+};
+
+type SalesQuotation = {
+  id: string;
+  quotationNumber: string;
+  quotationDate: string;
+  validUntil?: string | null;
+  grandTotal: string | number;
+  status: string;
+  customer: Customer;
+  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; lineTotal: string | number }>;
+};
+
+type SalesOrder = {
+  id: string;
+  orderNumber: string;
+  orderDate: string;
+  expectedDate?: string | null;
+  grandTotal: string | number;
+  status: string;
+  customer: Customer;
+  quotation?: SalesQuotation | null;
+  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; lineTotal: string | number }>;
 };
 
 type PurchaseReturn = {
@@ -1157,6 +1182,8 @@ function TransactionsView({
   const purchaseInvoices = useMasterList<PurchaseInvoice>("purchase-invoices", "/purchase/invoices");
   const purchaseReturns = useMasterList<PurchaseReturn>("purchase-returns", "/purchase/returns");
   const customers = useMasterList<Customer>("customers", "/commercial-masters/customers");
+  const salesQuotations = useMasterList<SalesQuotation>("sales-quotations", "/sales/quotations");
+  const salesOrders = useMasterList<SalesOrder>("sales-orders", "/sales/orders");
   const salesInvoices = useMasterList<SalesInvoice>("sales-invoices", "/sales/invoices");
   const salesReturns = useMasterList<SalesReturn>("sales-returns", "/sales/returns");
   const partyLedger = useMasterList<PartyLedgerEntry>("party-ledger", "/accounting/party-ledger");
@@ -1208,6 +1235,13 @@ function TransactionsView({
           invoices={salesInvoices.data ?? []}
           variants={variants.data ?? []}
           warehouses={warehouses.data ?? []}
+        />
+        <SalesQuotationPanel customers={customers.data ?? []} items={salesQuotations.data ?? []} variants={variants.data ?? []} />
+        <SalesOrderPanel
+          customers={customers.data ?? []}
+          items={salesOrders.data ?? []}
+          quotations={salesQuotations.data ?? []}
+          variants={variants.data ?? []}
         />
         <PurchaseReturnPanel invoices={purchaseInvoices.data ?? []} items={purchaseReturns.data ?? []} />
         <SalesReturnPanel invoices={salesInvoices.data ?? []} items={salesReturns.data ?? []} />
@@ -1342,6 +1376,8 @@ function PurchaseReadinessGrid({ purchaseSummary }: { purchaseSummary?: Purchase
 function SalesReadinessGrid({ salesSummary }: { salesSummary?: SalesSummary }) {
   return (
     <div className="readiness-grid">
+      <ReadinessMetric label="Approved Quotes" value={salesSummary?.approvedQuotations} />
+      <ReadinessMetric label="Approved Orders" value={salesSummary?.approvedOrders} />
       <ReadinessMetric label="Posted Invoices" value={salesSummary?.postedInvoices} />
       <ReadinessMetric label="Posted Returns" value={salesSummary?.postedReturns} />
       <ReadinessMetric label="Gross Sales" value={salesSummary?.grossGrandTotal} />
@@ -2102,6 +2138,159 @@ function PurchaseInvoicePanel({
           status: invoice.status,
         }))}
         onCancel={(invoiceId) => cancelMutation.mutate(invoiceId)}
+      />
+    </article>
+  );
+}
+
+function SalesQuotationPanel({
+  customers,
+  items,
+  variants,
+}: {
+  customers: Customer[];
+  items: SalesQuotation[];
+  variants: ProductVariant[];
+}) {
+  const [form, setForm] = useState({
+    customerId: "",
+    productVariantId: "",
+    quotationDate: new Date().toISOString().slice(0, 10),
+    validUntil: "",
+    quantity: "1",
+    unitPrice: "0",
+    narration: "Sales quotation",
+  });
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/sales/quotations", {
+        customerId: form.customerId,
+        quotationDate: form.quotationDate,
+        validUntil: form.validUntil,
+        narration: form.narration,
+        lines: [{ productVariantId: form.productVariantId, quantity: form.quantity, unitPrice: form.unitPrice }],
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["sales-quotations"] }),
+        queryClient.invalidateQueries({ queryKey: ["sales-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
+      ]);
+      setForm({ ...form, productVariantId: "", quantity: "1", unitPrice: "0", narration: "Sales quotation" });
+    },
+  });
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Create Sales Quotation</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate();
+      }}>
+        <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value })}>
+          <option value="">Customer</option>
+          {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+        </select>
+        <select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
+          <option value="">Product variant</option>
+          {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
+        </select>
+        <input type="date" value={form.quotationDate} onChange={(event) => setForm({ ...form, quotationDate: event.target.value })} />
+        <input type="date" value={form.validUntil} onChange={(event) => setForm({ ...form, validUntil: event.target.value })} />
+        <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
+        <input placeholder="Unit price" value={form.unitPrice} onChange={(event) => setForm({ ...form, unitPrice: event.target.value })} />
+        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Create</Button>
+      </form>
+      <MasterList
+        items={items.map((quotation) => ({
+          id: quotation.id,
+          label: quotation.quotationNumber,
+          meta: `${quotation.customer.name} / ${quotation.status} / ${quotation.grandTotal}`,
+        }))}
+      />
+    </article>
+  );
+}
+
+function SalesOrderPanel({
+  customers,
+  items,
+  quotations,
+  variants,
+}: {
+  customers: Customer[];
+  items: SalesOrder[];
+  quotations: SalesQuotation[];
+  variants: ProductVariant[];
+}) {
+  const [form, setForm] = useState({
+    customerId: "",
+    quotationId: "",
+    productVariantId: "",
+    orderDate: new Date().toISOString().slice(0, 10),
+    expectedDate: "",
+    quantity: "1",
+    unitPrice: "0",
+    narration: "Sales order",
+  });
+  const customerQuotations = quotations.filter((quotation) => !form.customerId || quotation.customer.id === form.customerId);
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/sales/orders", {
+        customerId: form.customerId,
+        quotationId: form.quotationId,
+        orderDate: form.orderDate,
+        expectedDate: form.expectedDate,
+        narration: form.narration,
+        lines: [{ productVariantId: form.productVariantId, quantity: form.quantity, unitPrice: form.unitPrice }],
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["sales-orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["sales-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
+      ]);
+      setForm({ ...form, quotationId: "", productVariantId: "", quantity: "1", unitPrice: "0", narration: "Sales order" });
+    },
+  });
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Create Sales Order</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate();
+      }}>
+        <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value, quotationId: "" })}>
+          <option value="">Customer</option>
+          {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+        </select>
+        <select value={form.quotationId} onChange={(event) => setForm({ ...form, quotationId: event.target.value })}>
+          <option value="">No quotation</option>
+          {customerQuotations.map((quotation) => (
+            <option key={quotation.id} value={quotation.id}>{`${quotation.quotationNumber} / ${quotation.grandTotal}`}</option>
+          ))}
+        </select>
+        <select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
+          <option value="">Product variant</option>
+          {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
+        </select>
+        <input type="date" value={form.orderDate} onChange={(event) => setForm({ ...form, orderDate: event.target.value })} />
+        <input type="date" value={form.expectedDate} onChange={(event) => setForm({ ...form, expectedDate: event.target.value })} />
+        <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
+        <input placeholder="Unit price" value={form.unitPrice} onChange={(event) => setForm({ ...form, unitPrice: event.target.value })} />
+        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Create</Button>
+      </form>
+      <MasterList
+        items={items.map((order) => ({
+          id: order.id,
+          label: order.orderNumber,
+          meta: `${order.customer.name} / ${order.status} / ${order.grandTotal}`,
+        }))}
       />
     </article>
   );

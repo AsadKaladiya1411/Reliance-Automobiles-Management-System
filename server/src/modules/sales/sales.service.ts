@@ -126,7 +126,9 @@ async function validateLineLocation(
 }
 
 export async function getSalesSummary(companyId: string) {
-  const [postedInvoices, postedReturns, invoiceTotals, returnTotals] = await Promise.all([
+  const [approvedQuotations, approvedOrders, postedInvoices, postedReturns, invoiceTotals, returnTotals] = await Promise.all([
+    prisma.salesQuotation.count({ where: { companyId, status: "APPROVED" } }),
+    prisma.salesOrder.count({ where: { companyId, status: "APPROVED" } }),
     prisma.salesInvoice.count({ where: { companyId, status: "POSTED" } }),
     prisma.salesReturn.count({ where: { companyId } }),
     prisma.salesInvoice.aggregate({
@@ -148,6 +150,8 @@ export async function getSalesSummary(companyId: string) {
   const returnCostOfGoodsSold = new Prisma.Decimal(returnTotals._sum.costOfGoodsSold ?? 0);
 
   return {
+    approvedQuotations,
+    approvedOrders,
     postedInvoices,
     postedReturns,
     grossTaxableAmount,
@@ -165,6 +169,31 @@ export async function getSalesSummary(companyId: string) {
   };
 }
 
+export async function listSalesQuotations(companyId: string) {
+  return prisma.salesQuotation.findMany({
+    where: { companyId },
+    include: {
+      customer: true,
+      lines: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } },
+    },
+    orderBy: [{ quotationDate: "desc" }, { createdAt: "desc" }],
+    take: 50,
+  });
+}
+
+export async function listSalesOrders(companyId: string) {
+  return prisma.salesOrder.findMany({
+    where: { companyId },
+    include: {
+      customer: true,
+      quotation: true,
+      lines: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } },
+    },
+    orderBy: [{ orderDate: "desc" }, { createdAt: "desc" }],
+    take: 50,
+  });
+}
+
 export async function listSalesInvoices(companyId: string) {
   return prisma.salesInvoice.findMany({
     where: { companyId },
@@ -175,6 +204,175 @@ export async function listSalesInvoices(companyId: string) {
     },
     orderBy: { invoiceDate: "desc" },
     take: 50,
+  });
+}
+
+async function preparePlanningLines(tx: Prisma.TransactionClient, companyId: string, rawLines: SalesLineInput[]) {
+  const preparedLines = [];
+
+  for (const [index, line] of rawLines.entries()) {
+    const productVariantId = requiredString(line.productVariantId, "Product variant");
+    const variant = await tx.productVariant.findFirst({
+      where: { id: productVariantId, companyId, status: "ACTIVE", product: { status: "ACTIVE" } },
+      include: { product: { include: { taxRate: true } } },
+    });
+
+    if (!variant) {
+      throw new ApiError(404, "PRODUCT_VARIANT_NOT_FOUND", "Product variant not found or inactive.");
+    }
+
+    const quantity = positiveDecimal(line.quantity, "Quantity", 3);
+    const unitPrice = positiveDecimal(line.unitPrice, "Unit price", 2);
+    const taxableAmount = quantity.mul(unitPrice).toDecimalPlaces(2);
+    const taxAmount = taxableAmount.mul(variant.product.taxRate?.igstRate ?? new Prisma.Decimal(0)).div(100).toDecimalPlaces(2);
+
+    preparedLines.push({
+      companyId,
+      productVariantId,
+      quantity,
+      unitPrice,
+      taxableAmount,
+      taxAmount,
+      lineTotal: taxableAmount.plus(taxAmount).toDecimalPlaces(2),
+      lineOrder: index + 1,
+    });
+  }
+
+  return preparedLines;
+}
+
+export async function createSalesQuotation(context: SalesContext, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const customerId = requiredString(data.customerId, "Customer");
+  const quotationDate = parseDate(data.quotationDate);
+  const validUntil = optionalString(data.validUntil) ? parseDate(data.validUntil) : undefined;
+  const rawLines = Array.isArray(data.lines) ? (data.lines as SalesLineInput[]) : [];
+
+  if (rawLines.length === 0) {
+    throw new ApiError(400, "SALES_QUOTATION_LINES_REQUIRED", "At least one quotation line is required.");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const customer = await tx.customer.findFirst({
+      where: { id: customerId, companyId: context.companyId, status: "ACTIVE" },
+    });
+
+    if (!customer) {
+      throw new ApiError(404, "CUSTOMER_NOT_FOUND", "Customer not found or inactive.");
+    }
+
+    const quotationNumber = await nextDocumentNumber(tx, context.companyId, "SALES_QUOTATION");
+    const preparedLines = await preparePlanningLines(tx, context.companyId, rawLines);
+    const taxableAmount = preparedLines.reduce((total, line) => total.plus(line.taxableAmount), new Prisma.Decimal(0));
+    const totalTaxAmount = preparedLines.reduce((total, line) => total.plus(line.taxAmount), new Prisma.Decimal(0));
+    const grandTotal = taxableAmount.plus(totalTaxAmount).toDecimalPlaces(2);
+    const quotation = await tx.salesQuotation.create({
+      data: {
+        companyId: context.companyId,
+        customerId,
+        quotationNumber,
+        quotationDate,
+        validUntil,
+        taxableAmount,
+        totalTaxAmount,
+        grandTotal,
+        status: "APPROVED",
+        narration: optionalString(data.narration),
+        createdByUserId: context.userId,
+        lines: { create: preparedLines },
+      },
+      include: { customer: true, lines: { include: { productVariant: true } } },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        module: "sales",
+        action: "CREATE",
+        entityType: "SalesQuotation",
+        entityId: quotation.id,
+        description: "Sales quotation created.",
+        afterData: json(quotation),
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return quotation;
+  });
+}
+
+export async function createSalesOrder(context: SalesContext, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const customerId = requiredString(data.customerId, "Customer");
+  const quotationId = optionalString(data.quotationId);
+  const orderDate = parseDate(data.orderDate);
+  const expectedDate = optionalString(data.expectedDate) ? parseDate(data.expectedDate) : undefined;
+  const rawLines = Array.isArray(data.lines) ? (data.lines as SalesLineInput[]) : [];
+
+  if (rawLines.length === 0) {
+    throw new ApiError(400, "SALES_ORDER_LINES_REQUIRED", "At least one sales order line is required.");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const customer = await tx.customer.findFirst({
+      where: { id: customerId, companyId: context.companyId, status: "ACTIVE" },
+    });
+
+    if (!customer) {
+      throw new ApiError(404, "CUSTOMER_NOT_FOUND", "Customer not found or inactive.");
+    }
+
+    if (quotationId) {
+      const quotation = await tx.salesQuotation.findFirst({
+        where: { id: quotationId, companyId: context.companyId, customerId, status: "APPROVED" },
+      });
+      if (!quotation) {
+        throw new ApiError(404, "SALES_QUOTATION_NOT_FOUND", "Approved quotation not found for this customer.");
+      }
+    }
+
+    const orderNumber = await nextDocumentNumber(tx, context.companyId, "SALES_ORDER");
+    const preparedLines = await preparePlanningLines(tx, context.companyId, rawLines);
+    const taxableAmount = preparedLines.reduce((total, line) => total.plus(line.taxableAmount), new Prisma.Decimal(0));
+    const totalTaxAmount = preparedLines.reduce((total, line) => total.plus(line.taxAmount), new Prisma.Decimal(0));
+    const grandTotal = taxableAmount.plus(totalTaxAmount).toDecimalPlaces(2);
+    const order = await tx.salesOrder.create({
+      data: {
+        companyId: context.companyId,
+        customerId,
+        quotationId,
+        orderNumber,
+        orderDate,
+        expectedDate,
+        taxableAmount,
+        totalTaxAmount,
+        grandTotal,
+        status: "APPROVED",
+        narration: optionalString(data.narration),
+        createdByUserId: context.userId,
+        lines: { create: preparedLines },
+      },
+      include: { customer: true, quotation: true, lines: { include: { productVariant: true } } },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        module: "sales",
+        action: "CREATE",
+        entityType: "SalesOrder",
+        entityId: order.id,
+        description: "Sales order created.",
+        afterData: json(order),
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return order;
   });
 }
 

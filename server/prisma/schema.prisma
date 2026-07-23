@@ -165,6 +165,8 @@ model Company {
   purchaseOrders PurchaseOrder[]
   purchaseInvoices PurchaseInvoice[]
   purchaseReturns PurchaseReturn[]
+  salesQuotations SalesQuotation[]
+  salesOrders SalesOrder[]
   salesInvoices SalesInvoice[]
   salesReturns SalesReturn[]
   jobCards      JobCard[]
@@ -478,6 +480,8 @@ model ProductVariant {
   purchaseOrderLines PurchaseOrderLine[]
   purchaseInvoiceLines PurchaseInvoiceLine[]
   purchaseReturnLines PurchaseReturnLine[]
+  salesQuotationLines SalesQuotationLine[]
+  salesOrderLines SalesOrderLine[]
   salesInvoiceLines SalesInvoiceLine[]
   salesReturnLines SalesReturnLine[]
   jobCardParts JobCardPart[]
@@ -656,6 +660,8 @@ model Customer {
   company  Company  @relation(fields: [companyId], references: [id])
   vehicles Vehicle[]
   ledgerEntries PartyLedgerEntry[]
+  salesQuotations SalesQuotation[]
+  salesOrders SalesOrder[]
   salesInvoices SalesInvoice[]
   salesReturns SalesReturn[]
   payments Payment[]
@@ -1055,6 +1061,95 @@ model PurchaseReturnLine {
 
   purchaseReturn PurchaseReturn @relation(fields: [purchaseReturnId], references: [id], onDelete: Cascade)
   product        Product        @relation(fields: [productId], references: [id])
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@index([companyId, productVariantId])
+}
+
+model SalesQuotation {
+  id              String         @id @default(uuid()) @db.Uuid
+  companyId       String         @db.Uuid
+  customerId      String         @db.Uuid
+  quotationNumber String         @db.VarChar(80)
+  quotationDate   DateTime       @db.Date
+  validUntil      DateTime?      @db.Date
+  taxableAmount   Decimal        @default(0) @db.Decimal(14, 2)
+  totalTaxAmount  Decimal        @default(0) @db.Decimal(14, 2)
+  grandTotal      Decimal        @default(0) @db.Decimal(14, 2)
+  status          DocumentStatus @default(APPROVED)
+  narration       String?        @db.VarChar(500)
+  createdByUserId String?        @db.Uuid
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  company  Company              @relation(fields: [companyId], references: [id])
+  customer Customer             @relation(fields: [customerId], references: [id])
+  lines    SalesQuotationLine[]
+  orders   SalesOrder[]
+
+  @@unique([companyId, quotationNumber])
+  @@index([companyId, customerId, quotationDate])
+  @@index([companyId, status, quotationDate])
+}
+
+model SalesQuotationLine {
+  id               String  @id @default(uuid()) @db.Uuid
+  salesQuotationId String  @db.Uuid
+  companyId        String  @db.Uuid
+  productVariantId String  @db.Uuid
+  quantity         Decimal @db.Decimal(14, 3)
+  unitPrice        Decimal @db.Decimal(14, 2)
+  taxableAmount    Decimal @db.Decimal(14, 2)
+  taxAmount        Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal        Decimal @db.Decimal(14, 2)
+  lineOrder        Int     @default(0)
+
+  salesQuotation SalesQuotation @relation(fields: [salesQuotationId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@index([companyId, productVariantId])
+}
+
+model SalesOrder {
+  id              String         @id @default(uuid()) @db.Uuid
+  companyId       String         @db.Uuid
+  customerId      String         @db.Uuid
+  quotationId     String?        @db.Uuid
+  orderNumber     String         @db.VarChar(80)
+  orderDate       DateTime       @db.Date
+  expectedDate    DateTime?      @db.Date
+  taxableAmount   Decimal        @default(0) @db.Decimal(14, 2)
+  totalTaxAmount  Decimal        @default(0) @db.Decimal(14, 2)
+  grandTotal      Decimal        @default(0) @db.Decimal(14, 2)
+  status          DocumentStatus @default(APPROVED)
+  narration       String?        @db.VarChar(500)
+  createdByUserId String?        @db.Uuid
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  company   Company          @relation(fields: [companyId], references: [id])
+  customer  Customer         @relation(fields: [customerId], references: [id])
+  quotation SalesQuotation?  @relation(fields: [quotationId], references: [id])
+  lines     SalesOrderLine[]
+
+  @@unique([companyId, orderNumber])
+  @@index([companyId, customerId, orderDate])
+  @@index([companyId, status, orderDate])
+}
+
+model SalesOrderLine {
+  id               String  @id @default(uuid()) @db.Uuid
+  salesOrderId     String  @db.Uuid
+  companyId        String  @db.Uuid
+  productVariantId String  @db.Uuid
+  quantity         Decimal @db.Decimal(14, 3)
+  unitPrice        Decimal @db.Decimal(14, 2)
+  taxableAmount    Decimal @db.Decimal(14, 2)
+  taxAmount        Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal        Decimal @db.Decimal(14, 2)
+  lineOrder        Int     @default(0)
+
+  salesOrder     SalesOrder     @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
 
   @@index([companyId, productVariantId])
