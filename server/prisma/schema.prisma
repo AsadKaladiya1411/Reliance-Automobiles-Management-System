@@ -105,6 +105,14 @@ enum DocumentStatus {
   CANCELLED
 }
 
+enum JobCardStatus {
+  OPEN
+  IN_PROGRESS
+  READY
+  DELIVERED
+  CANCELLED
+}
+
 model Company {
   id            String       @id @default(uuid()) @db.Uuid
   code          String       @unique @db.VarChar(32)
@@ -155,6 +163,7 @@ model Company {
   payments       Payment[]
   purchaseInvoices PurchaseInvoice[]
   salesInvoices SalesInvoice[]
+  jobCards      JobCard[]
 }
 
 model FinancialYear {
@@ -462,6 +471,7 @@ model ProductVariant {
   stockMovements StockMovement[]
   purchaseInvoiceLines PurchaseInvoiceLine[]
   salesInvoiceLines SalesInvoiceLine[]
+  jobCardParts JobCardPart[]
 
   @@unique([companyId, code])
   @@unique([companyId, barcode])
@@ -637,6 +647,7 @@ model Customer {
   ledgerEntries PartyLedgerEntry[]
   salesInvoices SalesInvoice[]
   payments Payment[]
+  jobCards JobCard[]
 
   @@unique([companyId, code])
   @@index([companyId, name])
@@ -683,6 +694,8 @@ model Employee {
   updatedAt   DateTime     @updatedAt
 
   company Company @relation(fields: [companyId], references: [id])
+  advisorJobCards JobCard[] @relation("JobCardAdvisor")
+  technicianJobCards JobCard[] @relation("JobCardTechnician")
 
   @@unique([companyId, code])
   @@index([companyId, name])
@@ -707,6 +720,7 @@ model Vehicle {
 
   company  Company   @relation(fields: [companyId], references: [id])
   customer Customer? @relation(fields: [customerId], references: [id])
+  jobCards JobCard[]
 
   @@unique([companyId, registrationNumber])
   @@unique([companyId, chassisNumber])
@@ -993,4 +1007,67 @@ model Payment {
 
   @@unique([companyId, paymentNumber])
   @@index([companyId, partyType, paymentDate])
+}
+
+model JobCard {
+  id                String        @id @default(uuid()) @db.Uuid
+  companyId         String        @db.Uuid
+  customerId        String        @db.Uuid
+  vehicleId         String        @db.Uuid
+  advisorEmployeeId String?       @db.Uuid
+  technicianEmployeeId String?    @db.Uuid
+  jobCardNumber     String        @db.VarChar(80)
+  jobDate           DateTime      @db.Date
+  expectedDeliveryAt DateTime?
+  odometerReading   Int           @default(0)
+  fuelLevel         String?       @db.VarChar(40)
+  complaint         String        @db.VarChar(800)
+  diagnosis         String?       @db.VarChar(800)
+  workNotes         String?       @db.VarChar(800)
+  status            JobCardStatus @default(OPEN)
+  estimatedPartsTotal Decimal     @default(0) @db.Decimal(14, 2)
+  estimatedLaborTotal Decimal     @default(0) @db.Decimal(14, 2)
+  estimatedTotal    Decimal       @default(0) @db.Decimal(14, 2)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  company    Company   @relation(fields: [companyId], references: [id])
+  customer   Customer  @relation(fields: [customerId], references: [id])
+  vehicle    Vehicle   @relation(fields: [vehicleId], references: [id])
+  advisor    Employee? @relation("JobCardAdvisor", fields: [advisorEmployeeId], references: [id])
+  technician Employee? @relation("JobCardTechnician", fields: [technicianEmployeeId], references: [id])
+  parts      JobCardPart[]
+  laborLines JobCardLabor[]
+
+  @@unique([companyId, jobCardNumber])
+  @@index([companyId, status, jobDate])
+  @@index([companyId, customerId, jobDate])
+  @@index([companyId, vehicleId, jobDate])
+}
+
+model JobCardPart {
+  id               String  @id @default(uuid()) @db.Uuid
+  jobCardId        String  @db.Uuid
+  productVariantId String  @db.Uuid
+  quantity         Decimal @db.Decimal(14, 3)
+  estimatedRate    Decimal @default(0) @db.Decimal(14, 2)
+  estimatedAmount  Decimal @default(0) @db.Decimal(14, 2)
+  lineOrder        Int     @default(0)
+
+  jobCard        JobCard        @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@index([jobCardId])
+}
+
+model JobCardLabor {
+  id              String  @id @default(uuid()) @db.Uuid
+  jobCardId       String  @db.Uuid
+  description     String  @db.VarChar(240)
+  estimatedAmount Decimal @default(0) @db.Decimal(14, 2)
+  lineOrder       Int     @default(0)
+
+  jobCard JobCard @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+
+  @@index([jobCardId])
 }

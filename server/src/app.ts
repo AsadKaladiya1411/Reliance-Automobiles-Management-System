@@ -18,6 +18,7 @@ import paymentRoutes from "./modules/payments/payments.routes";
 import purchaseRoutes from "./modules/purchase/purchase.routes";
 import salesRoutes from "./modules/sales/sales.routes";
 import systemRoutes from "./modules/system/system.routes";
+import workshopRoutes from "./modules/workshop/workshop.routes";
 
 const app = express();
 
@@ -46,6 +47,7 @@ app.use("/api", purchaseRoutes);
 app.use("/api", salesRoutes);
 app.use("/api", systemRoutes);
 app.use("/api/system", systemRoutes);
+app.use("/api", workshopRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -313,6 +313,17 @@ h1 {
   grid-template-columns: minmax(0, 1fr) minmax(140px, auto) auto;
 }
 
+.action-list select {
+  min-width: 128px;
+  height: 32px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #111827;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
 .readiness-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -394,7 +405,7 @@ h1 {
   }
 
   .nav-list {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
   .module-grid {

@@ -116,6 +116,13 @@ type PaymentSummary = {
   paymentTotal: string | number;
 };
 
+type WorkshopSummary = {
+  open: number;
+  inProgress: number;
+  ready: number;
+  delivered: number;
+};
+
 type GstSummary = {
   inputCgst: string | number;
   inputSgst: string | number;
@@ -305,12 +312,24 @@ type SalesInvoice = {
   lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number }>;
 };
 
-type AppView = "dashboard" | "masters" | "inventory" | "transactions" | "settings";
+type JobCard = {
+  id: string;
+  jobCardNumber: string;
+  jobDate: string;
+  status: string;
+  complaint: string;
+  estimatedTotal: string | number;
+  customer: Customer;
+  vehicle: Vehicle;
+};
+
+type AppView = "dashboard" | "masters" | "inventory" | "workshop" | "transactions" | "settings";
 
 const navItems: Array<{ id: AppView; label: string; icon: string }> = [
   { id: "dashboard", label: "Dashboard", icon: "DB" },
   { id: "masters", label: "Masters", icon: "MS" },
   { id: "inventory", label: "Inventory", icon: "IN" },
+  { id: "workshop", label: "Workshop", icon: "WS" },
   { id: "transactions", label: "Transactions", icon: "TR" },
   { id: "settings", label: "Settings", icon: "ST" },
 ];
@@ -472,6 +491,16 @@ function usePaymentSummary() {
     queryKey: ["payment-summary"],
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<PaymentSummary>>("/payments/summary");
+      return response.data.data;
+    },
+  });
+}
+
+function useWorkshopSummary() {
+  return useQuery({
+    queryKey: ["workshop-summary"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<WorkshopSummary>>("/workshop/summary");
       return response.data.data;
     },
   });
@@ -657,6 +686,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
   const partyLedgerSummary = usePartyLedgerSummary();
   const gstSummary = useGstSummary();
   const paymentSummary = usePaymentSummary();
+  const workshopSummary = useWorkshopSummary();
   const logout = useMutation({
     mutationFn: async () => {
       await api.post("/auth/logout");
@@ -717,6 +747,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
             partyLedgerSummary={partyLedgerSummary.data}
             paymentSummary={paymentSummary.data}
             gstSummary={gstSummary.data}
+            workshopSummary={workshopSummary.data}
             status={status}
           />
         ) : null}
@@ -731,6 +762,8 @@ function DashboardShell({ user }: { user: AuthUser }) {
         {activeView === "inventory" ? (
           <InventoryView inventorySummary={inventorySummary.data} />
         ) : null}
+
+        {activeView === "workshop" ? <WorkshopView workshopSummary={workshopSummary.data} /> : null}
 
         {activeView === "transactions" ? (
           <TransactionsView
@@ -766,6 +799,7 @@ function DashboardView({
   partyLedgerSummary,
   paymentSummary,
   gstSummary,
+  workshopSummary,
 }: {
   accountingSummary?: AccountingSummary;
   commercialMasterSummary?: CommercialMasterSummary;
@@ -777,6 +811,7 @@ function DashboardView({
   partyLedgerSummary?: PartyLedgerSummary;
   paymentSummary?: PaymentSummary;
   gstSummary?: GstSummary;
+  workshopSummary?: WorkshopSummary;
 }) {
   return (
     <>
@@ -839,7 +874,43 @@ function DashboardView({
         <PaymentReadinessGrid paymentSummary={paymentSummary} />
       </section>
 
+      <section className="setup-panel" aria-label="Workshop">
+        <h2>Workshop</h2>
+        <WorkshopReadinessGrid workshopSummary={workshopSummary} />
+      </section>
+
       <ModuleGrid />
+    </>
+  );
+}
+
+function WorkshopView({ workshopSummary }: { workshopSummary?: WorkshopSummary }) {
+  const customers = useMasterList<Customer>("customers", "/commercial-masters/customers");
+  const vehicles = useMasterList<Vehicle>("vehicles", "/commercial-masters/vehicles");
+  const employees = useMasterList<Employee>("employees", "/commercial-masters/employees");
+  const variants = useMasterList<ProductVariant>("product-variants", "/masters/product-variants");
+  const jobCards = useMasterList<JobCard>("job-cards", "/workshop/job-cards");
+
+  return (
+    <>
+      <section className="view-header">
+        <h2>Workshop</h2>
+        <p>Job cards, vehicle complaints, service status, estimated parts, and labor tracking.</p>
+      </section>
+      <section className="setup-panel">
+        <h2>Workshop Readiness</h2>
+        <WorkshopReadinessGrid workshopSummary={workshopSummary} />
+      </section>
+      <section className="masters-grid">
+        <JobCardPanel
+          customers={customers.data ?? []}
+          employees={employees.data ?? []}
+          items={jobCards.data ?? []}
+          variants={variants.data ?? []}
+          vehicles={vehicles.data ?? []}
+        />
+      </section>
+      <ModuleGrid filter={["Workshop"]} />
     </>
   );
 }
@@ -1185,6 +1256,17 @@ function PaymentReadinessGrid({ paymentSummary }: { paymentSummary?: PaymentSumm
       <ReadinessMetric label="Payments" value={paymentSummary?.payments} />
       <ReadinessMetric label="Receipt Total" value={paymentSummary?.receiptTotal} />
       <ReadinessMetric label="Payment Total" value={paymentSummary?.paymentTotal} />
+    </div>
+  );
+}
+
+function WorkshopReadinessGrid({ workshopSummary }: { workshopSummary?: WorkshopSummary }) {
+  return (
+    <div className="readiness-grid">
+      <ReadinessMetric label="Open" value={workshopSummary?.open} />
+      <ReadinessMetric label="In Progress" value={workshopSummary?.inProgress} />
+      <ReadinessMetric label="Ready" value={workshopSummary?.ready} />
+      <ReadinessMetric label="Delivered" value={workshopSummary?.delivered} />
     </div>
   );
 }
@@ -1930,6 +2012,154 @@ function PaymentPanel({
         }))}
       />
     </article>
+  );
+}
+
+function JobCardPanel({
+  customers,
+  employees,
+  items,
+  variants,
+  vehicles,
+}: {
+  customers: Customer[];
+  employees: Employee[];
+  items: JobCard[];
+  variants: ProductVariant[];
+  vehicles: Vehicle[];
+}) {
+  const [form, setForm] = useState({
+    customerId: "",
+    vehicleId: "",
+    advisorEmployeeId: "",
+    technicianEmployeeId: "",
+    jobDate: new Date().toISOString().slice(0, 10),
+    odometerReading: "0",
+    fuelLevel: "",
+    complaint: "",
+    partVariantId: "",
+    partQuantity: "1",
+    partRate: "0",
+    laborDescription: "",
+    laborAmount: "0",
+  });
+  const customerVehicles = vehicles.filter((vehicle) => !form.customerId || vehicle.customer?.id === form.customerId);
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/workshop/job-cards", {
+        customerId: form.customerId,
+        vehicleId: form.vehicleId,
+        advisorEmployeeId: form.advisorEmployeeId,
+        technicianEmployeeId: form.technicianEmployeeId,
+        jobDate: form.jobDate,
+        odometerReading: form.odometerReading,
+        fuelLevel: form.fuelLevel,
+        complaint: form.complaint,
+        parts: form.partVariantId
+          ? [{ productVariantId: form.partVariantId, quantity: form.partQuantity, estimatedRate: form.partRate }]
+          : [],
+        laborLines: form.laborDescription
+          ? [{ description: form.laborDescription, estimatedAmount: form.laborAmount }]
+          : [],
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["job-cards"] }),
+        queryClient.invalidateQueries({ queryKey: ["workshop-summary"] }),
+      ]);
+      setForm({
+        ...form,
+        complaint: "",
+        partVariantId: "",
+        partQuantity: "1",
+        partRate: "0",
+        laborDescription: "",
+        laborAmount: "0",
+      });
+    },
+  });
+  const statusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      await api.patch(`/workshop/job-cards/${id}/status`, { status });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["job-cards"] }),
+        queryClient.invalidateQueries({ queryKey: ["workshop-summary"] }),
+      ]);
+    },
+  });
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Create Job Card</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        createMutation.mutate();
+      }}>
+        <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value, vehicleId: "" })}>
+          <option value="">Customer</option>
+          {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+        </select>
+        <select value={form.vehicleId} onChange={(event) => setForm({ ...form, vehicleId: event.target.value })}>
+          <option value="">Vehicle</option>
+          {customerVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.registrationNumber}</option>)}
+        </select>
+        <select value={form.advisorEmployeeId} onChange={(event) => setForm({ ...form, advisorEmployeeId: event.target.value })}>
+          <option value="">Advisor</option>
+          {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
+        </select>
+        <select value={form.technicianEmployeeId} onChange={(event) => setForm({ ...form, technicianEmployeeId: event.target.value })}>
+          <option value="">Technician</option>
+          {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
+        </select>
+        <input type="date" value={form.jobDate} onChange={(event) => setForm({ ...form, jobDate: event.target.value })} />
+        <input placeholder="Odometer" value={form.odometerReading} onChange={(event) => setForm({ ...form, odometerReading: event.target.value })} />
+        <input placeholder="Fuel level" value={form.fuelLevel} onChange={(event) => setForm({ ...form, fuelLevel: event.target.value })} />
+        <input placeholder="Complaint" value={form.complaint} onChange={(event) => setForm({ ...form, complaint: event.target.value })} />
+        <select value={form.partVariantId} onChange={(event) => setForm({ ...form, partVariantId: event.target.value })}>
+          <option value="">Estimated part</option>
+          {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
+        </select>
+        <input placeholder="Part qty" value={form.partQuantity} onChange={(event) => setForm({ ...form, partQuantity: event.target.value })} />
+        <input placeholder="Part rate" value={form.partRate} onChange={(event) => setForm({ ...form, partRate: event.target.value })} />
+        <input placeholder="Labor" value={form.laborDescription} onChange={(event) => setForm({ ...form, laborDescription: event.target.value })} />
+        <input placeholder="Labor amount" value={form.laborAmount} onChange={(event) => setForm({ ...form, laborAmount: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={createMutation.isPending}>Create</Button>
+      </form>
+      <JobCardList items={items} onStatusChange={(id, status) => statusMutation.mutate({ id, status })} />
+    </article>
+  );
+}
+
+function JobCardList({
+  items,
+  onStatusChange,
+}: {
+  items: JobCard[];
+  onStatusChange: (id: string, status: string) => void;
+}) {
+  if (items.length === 0) {
+    return <p className="empty-text">No records yet.</p>;
+  }
+
+  return (
+    <ul className="compact-list action-list">
+      {items.slice(0, 8).map((item) => (
+        <li key={item.id}>
+          <span>{`${item.jobCardNumber} / ${item.vehicle.registrationNumber}`}</span>
+          <strong>{`${item.customer.name} / ${item.status} / ${item.estimatedTotal}`}</strong>
+          <select value={item.status} onChange={(event) => onStatusChange(item.id, event.target.value)}>
+            <option value="OPEN">OPEN</option>
+            <option value="IN_PROGRESS">IN_PROGRESS</option>
+            <option value="READY">READY</option>
+            <option value="DELIVERED">DELIVERED</option>
+            <option value="CANCELLED">CANCELLED</option>
+          </select>
+        </li>
+      ))}
+    </ul>
   );
 }
 
