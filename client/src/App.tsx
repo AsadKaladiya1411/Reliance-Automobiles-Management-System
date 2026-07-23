@@ -55,6 +55,18 @@ type NumberSeries = {
   nextNumber: number;
 };
 
+type MasterSummary = {
+  units: number;
+  hsnCodes: number;
+  taxRates: number;
+  brands: number;
+  categories: number;
+  subCategories: number;
+  products: number;
+  productVariants: number;
+  warehouses: number;
+};
+
 const modules = [
   { name: "Foundation", icon: "FD", status: "In progress", text: "Company, RBAC, audit, number series" },
   { name: "Masters", icon: "MS", status: "Planned", text: "Products, customers, suppliers, employees, vehicles" },
@@ -122,6 +134,16 @@ function useNumberSeries() {
     queryKey: ["number-series"],
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<NumberSeries[]>>("/number-series");
+      return response.data.data;
+    },
+  });
+}
+
+function useMasterSummary() {
+  return useQuery({
+    queryKey: ["master-summary"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<MasterSummary>>("/masters/summary");
       return response.data.data;
     },
   });
@@ -287,6 +309,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
   const company = useCompany();
   const financialYears = useFinancialYears();
   const numberSeries = useNumberSeries();
+  const masterSummary = useMasterSummary();
   const logout = useMutation({
     mutationFn: async () => {
       await api.post("/auth/logout");
@@ -387,6 +410,20 @@ function DashboardShell({ user }: { user: AuthUser }) {
           <NumberSeriesPanel numberSeries={numberSeries.data ?? []} />
         </section>
 
+        <section className="setup-panel" aria-label="Master data readiness">
+          <h2>Master Data Readiness</h2>
+          <div className="readiness-grid">
+            <ReadinessMetric label="Units" value={masterSummary.data?.units} />
+            <ReadinessMetric label="HSN Codes" value={masterSummary.data?.hsnCodes} />
+            <ReadinessMetric label="Tax Rates" value={masterSummary.data?.taxRates} />
+            <ReadinessMetric label="Brands" value={masterSummary.data?.brands} />
+            <ReadinessMetric label="Categories" value={masterSummary.data?.categories} />
+            <ReadinessMetric label="Sub-categories" value={masterSummary.data?.subCategories} />
+            <ReadinessMetric label="Products" value={masterSummary.data?.products} />
+            <ReadinessMetric label="Warehouses" value={masterSummary.data?.warehouses} />
+          </div>
+        </section>
+
         <section className="module-grid" aria-label="RAMS modules">
           {modules.map((module) => (
             <article className="module-card" key={module.name}>
@@ -403,6 +440,15 @@ function DashboardShell({ user }: { user: AuthUser }) {
         </section>
       </section>
     </main>
+  );
+}
+
+function ReadinessMetric({ label, value }: { label: string; value?: number }) {
+  return (
+    <div className="readiness-metric">
+      <span>{label}</span>
+      <strong>{value ?? "..."}</strong>
+    </div>
   );
 }
 

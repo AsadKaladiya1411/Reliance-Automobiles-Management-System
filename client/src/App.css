@@ -222,6 +222,32 @@ h1 {
   color: #0f766e;
 }
 
+.readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.readiness-metric {
+  min-height: 68px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  border: 1px solid #eef2f6;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.readiness-metric span {
+  color: #667085;
+  font-size: 12px;
+}
+
+.readiness-metric strong {
+  color: #111827;
+  font-size: 20px;
+}
+
 .module-card {
   min-height: 148px;
   display: grid;
@@ -287,6 +313,10 @@ h1 {
   .foundation-grid {
     grid-template-columns: 1fr;
   }
+
+  .readiness-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
@@ -307,7 +337,8 @@ h1 {
   .status-strip,
   .module-grid,
   .nav-list,
-  .inline-form {
+  .inline-form,
+  .readiness-grid {
     grid-template-columns: 1fr;
   }
 }

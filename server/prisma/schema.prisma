@@ -50,6 +50,12 @@ enum AuditAction {
   REVERSE
 }
 
+enum ProductTrackingType {
+  NONE
+  BATCH
+  SERIAL
+}
+
 model Company {
   id            String       @id @default(uuid()) @db.Uuid
   code          String       @unique @db.VarChar(32)
@@ -78,6 +84,15 @@ model Company {
   permissions    Permission[]
   numberSeries   NumberSeries[]
   auditLogs      AuditLog[]
+  units          Unit[]
+  hsnCodes       HsnCode[]
+  taxRates       TaxRate[]
+  brands         Brand[]
+  categories     Category[]
+  subCategories  SubCategory[]
+  products       Product[]
+  productVariants ProductVariant[]
+  warehouses     Warehouse[]
 }
 
 model FinancialYear {
@@ -219,4 +234,235 @@ model AuditLog {
   @@index([companyId, module, createdAt])
   @@index([entityType, entityId])
   @@index([actorUserId, createdAt])
+}
+
+model Unit {
+  id        String       @id @default(uuid()) @db.Uuid
+  companyId String       @db.Uuid
+  code      String       @db.VarChar(24)
+  name      String       @db.VarChar(80)
+  symbol    String       @db.VarChar(16)
+  status    RecordStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  products Product[]
+
+  @@unique([companyId, code])
+  @@unique([companyId, name])
+}
+
+model HsnCode {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  code        String       @db.VarChar(8)
+  description String       @db.VarChar(240)
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  products Product[]
+  taxRates TaxRate[]
+
+  @@unique([companyId, code])
+}
+
+model TaxRate {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  hsnCodeId   String?      @db.Uuid
+  name        String       @db.VarChar(80)
+  cgstRate    Decimal      @default(0) @db.Decimal(5, 2)
+  sgstRate    Decimal      @default(0) @db.Decimal(5, 2)
+  igstRate    Decimal      @default(0) @db.Decimal(5, 2)
+  cessRate    Decimal      @default(0) @db.Decimal(5, 2)
+  effectiveFrom DateTime   @db.Date
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+  hsnCode HsnCode? @relation(fields: [hsnCodeId], references: [id])
+  products Product[]
+
+  @@unique([companyId, name, effectiveFrom])
+  @@index([companyId, status])
+}
+
+model Brand {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  code        String       @db.VarChar(32)
+  name        String       @db.VarChar(120)
+  description String?      @db.VarChar(300)
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  products Product[]
+
+  @@unique([companyId, code])
+  @@unique([companyId, name])
+}
+
+model Category {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  code        String       @db.VarChar(32)
+  name        String       @db.VarChar(120)
+  description String?      @db.VarChar(300)
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company       Company       @relation(fields: [companyId], references: [id])
+  subCategories SubCategory[]
+  products      Product[]
+
+  @@unique([companyId, code])
+  @@unique([companyId, name])
+}
+
+model SubCategory {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  categoryId  String       @db.Uuid
+  code        String       @db.VarChar(32)
+  name        String       @db.VarChar(120)
+  description String?      @db.VarChar(300)
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
+  products Product[]
+
+  @@unique([companyId, categoryId, code])
+  @@unique([companyId, categoryId, name])
+}
+
+model Product {
+  id              String              @id @default(uuid()) @db.Uuid
+  companyId       String              @db.Uuid
+  code            String              @db.VarChar(40)
+  name            String              @db.VarChar(180)
+  description     String?             @db.VarChar(500)
+  brandId         String?             @db.Uuid
+  categoryId      String              @db.Uuid
+  subCategoryId   String?             @db.Uuid
+  unitId          String              @db.Uuid
+  hsnCodeId       String?             @db.Uuid
+  taxRateId       String?             @db.Uuid
+  trackingType    ProductTrackingType @default(NONE)
+  reorderLevel    Decimal             @default(0) @db.Decimal(14, 3)
+  status          RecordStatus        @default(ACTIVE)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  company     Company          @relation(fields: [companyId], references: [id])
+  brand       Brand?           @relation(fields: [brandId], references: [id])
+  category    Category         @relation(fields: [categoryId], references: [id])
+  subCategory SubCategory?     @relation(fields: [subCategoryId], references: [id])
+  unit        Unit             @relation(fields: [unitId], references: [id])
+  hsnCode     HsnCode?         @relation(fields: [hsnCodeId], references: [id])
+  taxRate     TaxRate?         @relation(fields: [taxRateId], references: [id])
+  variants    ProductVariant[]
+
+  @@unique([companyId, code])
+  @@index([companyId, name])
+  @@index([companyId, status])
+}
+
+model ProductVariant {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  productId   String       @db.Uuid
+  code        String       @db.VarChar(48)
+  name        String       @db.VarChar(160)
+  barcode     String?      @db.VarChar(80)
+  salePrice   Decimal      @default(0) @db.Decimal(14, 2)
+  purchasePrice Decimal    @default(0) @db.Decimal(14, 2)
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([companyId, code])
+  @@unique([companyId, barcode])
+  @@index([companyId, productId, status])
+}
+
+model Warehouse {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  code        String       @db.VarChar(32)
+  name        String       @db.VarChar(120)
+  address     String?      @db.VarChar(300)
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+  blocks  WarehouseBlock[]
+
+  @@unique([companyId, code])
+  @@unique([companyId, name])
+}
+
+model WarehouseBlock {
+  id          String       @id @default(uuid()) @db.Uuid
+  warehouseId String       @db.Uuid
+  code        String       @db.VarChar(32)
+  name        String       @db.VarChar(120)
+  blockType   String       @default("Storage") @db.VarChar(40)
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  warehouse Warehouse       @relation(fields: [warehouseId], references: [id])
+  racks     WarehouseRack[]
+
+  @@unique([warehouseId, code])
+  @@unique([warehouseId, name])
+}
+
+model WarehouseRack {
+  id        String       @id @default(uuid()) @db.Uuid
+  blockId   String       @db.Uuid
+  code      String       @db.VarChar(32)
+  name      String       @db.VarChar(120)
+  rackType  String       @default("Open") @db.VarChar(40)
+  shelfCount Int         @default(1)
+  status    RecordStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  block   WarehouseBlock  @relation(fields: [blockId], references: [id])
+  shelves WarehouseShelf[]
+
+  @@unique([blockId, code])
+  @@unique([blockId, name])
+}
+
+model WarehouseShelf {
+  id        String       @id @default(uuid()) @db.Uuid
+  rackId    String       @db.Uuid
+  code      String       @db.VarChar(32)
+  name      String       @db.VarChar(120)
+  barcode   String?      @db.VarChar(80)
+  status    RecordStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  rack WarehouseRack @relation(fields: [rackId], references: [id])
+
+  @@unique([rackId, code])
+  @@unique([rackId, name])
+  @@unique([barcode])
 }
