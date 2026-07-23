@@ -8,6 +8,7 @@ import { notFound } from "./middleware/not-found";
 import { errorHandler } from "./middleware/error-handler";
 import authRoutes from "./modules/auth/auth.routes";
 import companyRoutes from "./modules/company/company.routes";
+import commercialMasterRoutes from "./modules/commercial-masters/commercial-masters.routes";
 import financialYearRoutes from "./modules/financial-year/financial-year.routes";
 import inventoryRoutes from "./modules/inventory/inventory.routes";
 import mastersRoutes from "./modules/masters/masters.routes";
@@ -30,6 +31,7 @@ app.use(cookieParser());
 
 app.use("/api", authRoutes);
 app.use("/api", companyRoutes);
+app.use("/api", commercialMasterRoutes);
 app.use("/api", financialYearRoutes);
 app.use("/api", inventoryRoutes);
 app.use("/api", mastersRoutes);

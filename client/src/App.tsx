@@ -74,6 +74,14 @@ type InventorySummary = {
   stockValue: string | number;
 };
 
+type CommercialMasterSummary = {
+  customers: number;
+  suppliers: number;
+  employees: number;
+  vehicles: number;
+  paymentModes: number;
+};
+
 type Unit = {
   id: string;
   code: string;
@@ -133,6 +141,44 @@ type StockBalance = {
   product: { name: string };
   productVariant: { name: string; code: string };
   warehouse: { name: string };
+};
+
+type Customer = {
+  id: string;
+  code: string;
+  name: string;
+  phone?: string | null;
+  customerType: string;
+};
+
+type Supplier = {
+  id: string;
+  code: string;
+  name: string;
+  phone?: string | null;
+  supplierType: string;
+};
+
+type Employee = {
+  id: string;
+  code: string;
+  name: string;
+  designation?: string | null;
+};
+
+type Vehicle = {
+  id: string;
+  registrationNumber: string;
+  brand: string;
+  model: string;
+  customer?: Customer | null;
+};
+
+type PaymentMode = {
+  id: string;
+  code: string;
+  name: string;
+  paymentType: string;
 };
 
 type AppView = "dashboard" | "masters" | "inventory" | "transactions" | "settings";
@@ -232,6 +278,16 @@ function useInventorySummary() {
     queryKey: ["inventory-summary"],
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<InventorySummary>>("/inventory/summary");
+      return response.data.data;
+    },
+  });
+}
+
+function useCommercialMasterSummary() {
+  return useQuery({
+    queryKey: ["commercial-master-summary"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<CommercialMasterSummary>>("/commercial-masters/summary");
       return response.data.data;
     },
   });
@@ -410,6 +466,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
   const numberSeries = useNumberSeries();
   const masterSummary = useMasterSummary();
   const inventorySummary = useInventorySummary();
+  const commercialMasterSummary = useCommercialMasterSummary();
   const logout = useMutation({
     mutationFn: async () => {
       await api.post("/auth/logout");
@@ -461,13 +518,19 @@ function DashboardShell({ user }: { user: AuthUser }) {
 
         {activeView === "dashboard" ? (
           <DashboardView
+            commercialMasterSummary={commercialMasterSummary.data}
             inventorySummary={inventorySummary.data}
             masterSummary={masterSummary.data}
             status={status}
           />
         ) : null}
 
-        {activeView === "masters" ? <MastersView masterSummary={masterSummary.data} /> : null}
+        {activeView === "masters" ? (
+          <MastersView
+            commercialMasterSummary={commercialMasterSummary.data}
+            masterSummary={masterSummary.data}
+          />
+        ) : null}
 
         {activeView === "inventory" ? (
           <InventoryView inventorySummary={inventorySummary.data} />
@@ -488,10 +551,12 @@ function DashboardShell({ user }: { user: AuthUser }) {
 }
 
 function DashboardView({
+  commercialMasterSummary,
   status,
   masterSummary,
   inventorySummary,
 }: {
+  commercialMasterSummary?: CommercialMasterSummary;
   status: ReturnType<typeof useSystemStatus>;
   masterSummary?: MasterSummary;
   inventorySummary?: InventorySummary;
@@ -522,6 +587,11 @@ function DashboardView({
         <MasterReadinessGrid masterSummary={masterSummary} />
       </section>
 
+      <section className="setup-panel" aria-label="Commercial master readiness">
+        <h2>Commercial Master Readiness</h2>
+        <CommercialReadinessGrid commercialMasterSummary={commercialMasterSummary} />
+      </section>
+
       <section className="setup-panel" aria-label="Inventory foundation">
         <h2>Inventory Foundation</h2>
         <InventoryReadinessGrid inventorySummary={inventorySummary} />
@@ -532,7 +602,13 @@ function DashboardView({
   );
 }
 
-function MastersView({ masterSummary }: { masterSummary?: MasterSummary }) {
+function MastersView({
+  commercialMasterSummary,
+  masterSummary,
+}: {
+  commercialMasterSummary?: CommercialMasterSummary;
+  masterSummary?: MasterSummary;
+}) {
   const units = useMasterList<Unit>("units", "/masters/units");
   const hsnCodes = useMasterList<HsnCode>("hsn-codes", "/masters/hsn-codes");
   const taxRates = useMasterList<TaxRate>("tax-rates", "/masters/tax-rates");
@@ -541,6 +617,11 @@ function MastersView({ masterSummary }: { masterSummary?: MasterSummary }) {
   const products = useMasterList<Product>("products", "/masters/products");
   const variants = useMasterList<ProductVariant>("product-variants", "/masters/product-variants");
   const warehouses = useMasterList<Warehouse>("warehouses", "/masters/warehouses");
+  const customers = useMasterList<Customer>("customers", "/commercial-masters/customers");
+  const suppliers = useMasterList<Supplier>("suppliers", "/commercial-masters/suppliers");
+  const employees = useMasterList<Employee>("employees", "/commercial-masters/employees");
+  const vehicles = useMasterList<Vehicle>("vehicles", "/commercial-masters/vehicles");
+  const paymentModes = useMasterList<PaymentMode>("payment-modes", "/commercial-masters/payment-modes");
 
   return (
     <>
@@ -552,7 +633,16 @@ function MastersView({ masterSummary }: { masterSummary?: MasterSummary }) {
         <h2>Master Data Readiness</h2>
         <MasterReadinessGrid masterSummary={masterSummary} />
       </section>
+      <section className="setup-panel">
+        <h2>Commercial Master Readiness</h2>
+        <CommercialReadinessGrid commercialMasterSummary={commercialMasterSummary} />
+      </section>
       <section className="masters-grid">
+        <CustomerPanel items={customers.data ?? []} />
+        <SupplierPanel items={suppliers.data ?? []} />
+        <EmployeePanel items={employees.data ?? []} />
+        <PaymentModePanel items={paymentModes.data ?? []} />
+        <VehiclePanel customers={customers.data ?? []} items={vehicles.data ?? []} />
         <UnitMasterPanel items={units.data ?? []} />
         <HsnMasterPanel items={hsnCodes.data ?? []} />
         <TaxRatePanel hsnCodes={hsnCodes.data ?? []} items={taxRates.data ?? []} />
@@ -698,6 +788,22 @@ function InventoryReadinessGrid({ inventorySummary }: { inventorySummary?: Inven
   );
 }
 
+function CommercialReadinessGrid({
+  commercialMasterSummary,
+}: {
+  commercialMasterSummary?: CommercialMasterSummary;
+}) {
+  return (
+    <div className="readiness-grid">
+      <ReadinessMetric label="Customers" value={commercialMasterSummary?.customers} />
+      <ReadinessMetric label="Suppliers" value={commercialMasterSummary?.suppliers} />
+      <ReadinessMetric label="Employees" value={commercialMasterSummary?.employees} />
+      <ReadinessMetric label="Vehicles" value={commercialMasterSummary?.vehicles} />
+      <ReadinessMetric label="Payment Modes" value={commercialMasterSummary?.paymentModes} />
+    </div>
+  );
+}
+
 function ModuleGrid({ filter }: { filter?: string[] }) {
   const visibleModules = filter
     ? modules.filter((module) => filter.includes(module.name))
@@ -828,6 +934,160 @@ function SimpleCodeNamePanel({
         <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
       </form>
       <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: item.code }))} />
+    </article>
+  );
+}
+
+function CustomerPanel({ items }: { items: Customer[] }) {
+  const [form, setForm] = useState({ code: "", name: "", customerType: "Retail", phone: "", gstin: "" });
+  const mutation = useCreateMaster("/commercial-masters/customers", ["customers", "commercial-master-summary"], () =>
+    setForm({ code: "", name: "", customerType: "Retail", phone: "", gstin: "" }),
+  );
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Customers</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate(form);
+      }}>
+        <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
+        <input placeholder="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        <input placeholder="Type" value={form.customerType} onChange={(event) => setForm({ ...form, customerType: event.target.value })} />
+        <input placeholder="Phone" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
+        <input placeholder="GSTIN" value={form.gstin} onChange={(event) => setForm({ ...form, gstin: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+      </form>
+      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.customerType}` }))} />
+    </article>
+  );
+}
+
+function SupplierPanel({ items }: { items: Supplier[] }) {
+  const [form, setForm] = useState({ code: "", name: "", supplierType: "Distributor", phone: "", gstin: "" });
+  const mutation = useCreateMaster("/commercial-masters/suppliers", ["suppliers", "commercial-master-summary"], () =>
+    setForm({ code: "", name: "", supplierType: "Distributor", phone: "", gstin: "" }),
+  );
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Suppliers</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate(form);
+      }}>
+        <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
+        <input placeholder="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        <input placeholder="Type" value={form.supplierType} onChange={(event) => setForm({ ...form, supplierType: event.target.value })} />
+        <input placeholder="Phone" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
+        <input placeholder="GSTIN" value={form.gstin} onChange={(event) => setForm({ ...form, gstin: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+      </form>
+      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.supplierType}` }))} />
+    </article>
+  );
+}
+
+function EmployeePanel({ items }: { items: Employee[] }) {
+  const [form, setForm] = useState({ code: "", name: "", designation: "", department: "", phone: "" });
+  const mutation = useCreateMaster("/commercial-masters/employees", ["employees", "commercial-master-summary"], () =>
+    setForm({ code: "", name: "", designation: "", department: "", phone: "" }),
+  );
+
+  return (
+    <article className="setup-panel master-panel">
+      <h2>Employees</h2>
+      <form className="compact-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate(form);
+      }}>
+        <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
+        <input placeholder="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        <input placeholder="Designation" value={form.designation} onChange={(event) => setForm({ ...form, designation: event.target.value })} />
+        <input placeholder="Department" value={form.department} onChange={(event) => setForm({ ...form, department: event.target.value })} />
+        <input placeholder="Phone" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+      </form>
+      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: item.designation ?? item.code }))} />
+    </article>
+  );
+}
+
+function PaymentModePanel({ items }: { items: PaymentMode[] }) {
+  const [form, setForm] = useState({ code: "", name: "", paymentType: "Cash", requiresReference: false });
+  const mutation = useCreateMaster("/commercial-masters/payment-modes", ["payment-modes", "commercial-master-summary"], () =>
+    setForm({ code: "", name: "", paymentType: "Cash", requiresReference: false }),
+  );
+
+  return (
+    <article className="setup-panel master-panel">
+      <h2>Payment Modes</h2>
+      <form className="compact-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate(form);
+      }}>
+        <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
+        <input placeholder="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        <select value={form.paymentType} onChange={(event) => setForm({ ...form, paymentType: event.target.value })}>
+          <option>Cash</option>
+          <option>Bank</option>
+          <option>UPI</option>
+          <option>Card</option>
+          <option>Cheque</option>
+        </select>
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={form.requiresReference}
+            onChange={(event) => setForm({ ...form, requiresReference: event.target.checked })}
+          />
+          Reference
+        </label>
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+      </form>
+      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: item.paymentType }))} />
+    </article>
+  );
+}
+
+function VehiclePanel({ customers, items }: { customers: Customer[]; items: Vehicle[] }) {
+  const [form, setForm] = useState({
+    customerId: "",
+    registrationNumber: "",
+    brand: "",
+    model: "",
+    vehicleType: "Four-wheeler",
+    fuelType: "",
+  });
+  const mutation = useCreateMaster("/commercial-masters/vehicles", ["vehicles", "commercial-master-summary"], () =>
+    setForm({ ...form, registrationNumber: "", brand: "", model: "", fuelType: "" }),
+  );
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Vehicles</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate(form);
+      }}>
+        <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value })}>
+          <option value="">Walk-in / unassigned</option>
+          {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
+        </select>
+        <input placeholder="Registration" value={form.registrationNumber} onChange={(event) => setForm({ ...form, registrationNumber: event.target.value })} />
+        <input placeholder="Brand" value={form.brand} onChange={(event) => setForm({ ...form, brand: event.target.value })} />
+        <input placeholder="Model" value={form.model} onChange={(event) => setForm({ ...form, model: event.target.value })} />
+        <input placeholder="Type" value={form.vehicleType} onChange={(event) => setForm({ ...form, vehicleType: event.target.value })} />
+        <input placeholder="Fuel" value={form.fuelType} onChange={(event) => setForm({ ...form, fuelType: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+      </form>
+      <MasterList
+        items={items.map((item) => ({
+          id: item.id,
+          label: item.registrationNumber,
+          meta: `${item.brand} ${item.model}${item.customer ? ` / ${item.customer.name}` : ""}`,
+        }))}
+      />
     </article>
   );
 }

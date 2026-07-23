@@ -107,6 +107,11 @@ model Company {
   warehouses     Warehouse[]
   stockBalances  StockBalance[]
   stockMovements StockMovement[]
+  customers      Customer[]
+  suppliers      Supplier[]
+  employees      Employee[]
+  vehicles       Vehicle[]
+  paymentModes   PaymentMode[]
 }
 
 model FinancialYear {
@@ -554,4 +559,114 @@ model StockMovement {
   @@index([companyId, productVariantId, createdAt])
   @@index([companyId, documentType, documentNumber])
   @@index([companyId, warehouseId, createdAt])
+}
+
+model Customer {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  code        String       @db.VarChar(40)
+  name        String       @db.VarChar(180)
+  customerType String      @default("Retail") @db.VarChar(40)
+  phone       String?      @db.VarChar(32)
+  email       String?      @db.VarChar(160)
+  gstin       String?      @db.VarChar(15)
+  pan         String?      @db.VarChar(10)
+  creditLimit Decimal      @default(0) @db.Decimal(14, 2)
+  creditDays  Int          @default(0)
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  vehicles Vehicle[]
+
+  @@unique([companyId, code])
+  @@index([companyId, name])
+  @@index([companyId, phone])
+}
+
+model Supplier {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  code        String       @db.VarChar(40)
+  name        String       @db.VarChar(180)
+  supplierType String      @default("Distributor") @db.VarChar(40)
+  phone       String?      @db.VarChar(32)
+  email       String?      @db.VarChar(160)
+  gstin       String?      @db.VarChar(15)
+  pan         String?      @db.VarChar(10)
+  creditDays  Int          @default(0)
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, code])
+  @@index([companyId, name])
+  @@index([companyId, phone])
+}
+
+model Employee {
+  id          String       @id @default(uuid()) @db.Uuid
+  companyId   String       @db.Uuid
+  code        String       @db.VarChar(40)
+  name        String       @db.VarChar(180)
+  designation String?      @db.VarChar(120)
+  department  String?      @db.VarChar(80)
+  phone       String?      @db.VarChar(32)
+  email       String?      @db.VarChar(160)
+  joiningDate DateTime?    @db.Date
+  status      RecordStatus @default(ACTIVE)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, code])
+  @@index([companyId, name])
+}
+
+model Vehicle {
+  id                 String       @id @default(uuid()) @db.Uuid
+  companyId          String       @db.Uuid
+  customerId         String?      @db.Uuid
+  registrationNumber String       @db.VarChar(40)
+  chassisNumber      String?      @db.VarChar(80)
+  engineNumber       String?      @db.VarChar(80)
+  vehicleType        String       @default("Four-wheeler") @db.VarChar(40)
+  brand              String       @db.VarChar(120)
+  model              String       @db.VarChar(120)
+  variant            String?      @db.VarChar(120)
+  fuelType           String?      @db.VarChar(40)
+  odometerReading    Int          @default(0)
+  status             RecordStatus @default(ACTIVE)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@unique([companyId, registrationNumber])
+  @@unique([companyId, chassisNumber])
+  @@unique([companyId, engineNumber])
+  @@index([companyId, brand, model])
+}
+
+model PaymentMode {
+  id                String       @id @default(uuid()) @db.Uuid
+  companyId          String       @db.Uuid
+  code              String       @db.VarChar(40)
+  name              String       @db.VarChar(120)
+  paymentType       String       @db.VarChar(40)
+  requiresReference Boolean      @default(false)
+  isDefault         Boolean      @default(false)
+  status            RecordStatus @default(ACTIVE)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, code])
+  @@unique([companyId, name])
 }
