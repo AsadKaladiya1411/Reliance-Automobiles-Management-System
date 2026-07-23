@@ -312,6 +312,17 @@ type SalesInvoice = {
   lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number }>;
 };
 
+type AuditLog = {
+  id: string;
+  module: string;
+  action: string;
+  entityType: string;
+  entityId?: string | null;
+  description?: string | null;
+  createdAt: string;
+  actor?: { fullName: string; username: string } | null;
+};
+
 type JobCard = {
   id: string;
   jobCardNumber: string;
@@ -491,6 +502,16 @@ function usePaymentSummary() {
     queryKey: ["payment-summary"],
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<PaymentSummary>>("/payments/summary");
+      return response.data.data;
+    },
+  });
+}
+
+function useAuditLogs() {
+  return useQuery({
+    queryKey: ["audit-logs"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<AuditLog[]>>("/audit/logs");
       return response.data.data;
     },
   });
@@ -677,6 +698,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
   const company = useCompany();
   const financialYears = useFinancialYears();
   const numberSeries = useNumberSeries();
+  const auditLogs = useAuditLogs();
   const masterSummary = useMasterSummary();
   const inventorySummary = useInventorySummary();
   const commercialMasterSummary = useCommercialMasterSummary();
@@ -781,6 +803,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
             company={company.data}
             financialYears={financialYears.data ?? []}
             numberSeries={numberSeries.data ?? []}
+            auditLogs={auditLogs.data ?? []}
           />
         ) : null}
       </section>
@@ -1116,10 +1139,12 @@ function TransactionsView({
 
 function SettingsView({
   company,
+  auditLogs,
   financialYears,
   numberSeries,
 }: {
   company?: Company;
+  auditLogs: AuditLog[];
   financialYears: FinancialYear[];
   numberSeries: NumberSeries[];
 }) {
@@ -1150,6 +1175,7 @@ function SettingsView({
 
         <FinancialYearPanel financialYears={financialYears} />
         <NumberSeriesPanel numberSeries={numberSeries} />
+        <AuditLogPanel items={auditLogs} />
       </section>
     </>
   );
@@ -2490,6 +2516,21 @@ function NumberSeriesPanel({ numberSeries }: { numberSeries: NumberSeries[] }) {
           </li>
         ))}
       </ul>
+    </article>
+  );
+}
+
+function AuditLogPanel({ items }: { items: AuditLog[] }) {
+  return (
+    <article className="setup-panel wide-panel">
+      <h2>Audit Trail</h2>
+      <MasterList
+        items={items.map((item) => ({
+          id: item.id,
+          label: `${item.module} / ${item.action} / ${item.entityType}`,
+          meta: `${item.actor?.fullName ?? item.actor?.username ?? "System"} / ${new Date(item.createdAt).toLocaleString()}`,
+        }))}
+      />
     </article>
   );
 }

@@ -42,3 +42,12 @@ export async function writeAuditLog(input: AuditInput) {
     },
   });
 }
+
+export async function listAuditLogs(companyId: string) {
+  return prisma.auditLog.findMany({
+    where: { companyId },
+    include: { actor: { select: { id: true, fullName: true, username: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+  });
+}
