@@ -8,6 +8,7 @@ import {
   listStockBalances,
   listStockMovements,
   postOpeningStock,
+  postStockAdjustment,
 } from "./inventory.service";
 
 const router = Router();
@@ -48,6 +49,13 @@ router.post(
   "/inventory/opening-stock",
   asyncHandler(async (req, res) => {
     sendSuccess(res, await postOpeningStock(context(req), req.body), "Opening stock posted.", 201);
+  }),
+);
+
+router.post(
+  "/inventory/stock-adjustments",
+  asyncHandler(async (req, res) => {
+    sendSuccess(res, await postStockAdjustment(context(req), req.body), "Stock adjustment posted.", 201);
   }),
 );
 

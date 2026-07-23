@@ -14,6 +14,7 @@ type UpsertNumberSeriesInput = {
 
 const defaultNumberSeries = [
   { documentType: "OPENING_STOCK", prefix: "OS-", padding: 5 },
+  { documentType: "STOCK_ADJUSTMENT", prefix: "SA-", padding: 5 },
   { documentType: "JOURNAL_ENTRY", prefix: "JV-", padding: 5 },
   { documentType: "PURCHASE_INVOICE", prefix: "PI-", padding: 5 },
   { documentType: "SALES_INVOICE", prefix: "SI-", padding: 5 },
