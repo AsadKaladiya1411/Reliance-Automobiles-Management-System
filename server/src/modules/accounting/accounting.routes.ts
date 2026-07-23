@@ -7,6 +7,7 @@ import {
   createAccount,
   getAccountingSummary,
   getGstSummary,
+  getPartyOutstanding,
   getPartyLedgerSummary,
   listAccounts,
   listJournalEntries,
@@ -58,6 +59,10 @@ router.get("/accounting/party-ledger", asyncHandler(async (req, res) => {
 
 router.get("/accounting/gst-summary", asyncHandler(async (req, res) => {
   sendSuccess(res, await getGstSummary(req.user!.companyId));
+}));
+
+router.get("/accounting/party-outstanding", asyncHandler(async (req, res) => {
+  sendSuccess(res, await getPartyOutstanding(req.user!.companyId));
 }));
 
 router.post("/accounting/journal-entries", asyncHandler(async (req, res) => {

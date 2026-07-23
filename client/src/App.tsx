@@ -135,6 +135,21 @@ type GstSummary = {
   netPayable: string | number;
 };
 
+type PartyOutstanding = {
+  customers: Array<{
+    party?: { id: string; code: string; name: string; phone?: string | null };
+    debit: string | number;
+    credit: string | number;
+    balance: string | number;
+  }>;
+  suppliers: Array<{
+    party?: { id: string; code: string; name: string; phone?: string | null };
+    debit: string | number;
+    credit: string | number;
+    balance: string | number;
+  }>;
+};
+
 type Unit = {
   id: string;
   code: string;
@@ -512,6 +527,16 @@ function useAuditLogs() {
     queryKey: ["audit-logs"],
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<AuditLog[]>>("/audit/logs");
+      return response.data.data;
+    },
+  });
+}
+
+function usePartyOutstanding() {
+  return useQuery({
+    queryKey: ["party-outstanding"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<PartyOutstanding>>("/accounting/party-outstanding");
       return response.data.data;
     },
   });
@@ -1082,6 +1107,7 @@ function TransactionsView({
   const partyLedger = useMasterList<PartyLedgerEntry>("party-ledger", "/accounting/party-ledger");
   const paymentModes = useMasterList<PaymentMode>("payment-modes", "/commercial-masters/payment-modes");
   const payments = useMasterList<Payment>("payments", "/payments");
+  const outstanding = usePartyOutstanding();
 
   return (
     <>
@@ -1130,6 +1156,7 @@ function TransactionsView({
           paymentModes={paymentModes.data ?? []}
           suppliers={suppliers.data ?? []}
         />
+        <OutstandingPanel outstanding={outstanding.data} />
         <PartyLedgerPanel items={partyLedger.data ?? []} />
       </section>
       <ModuleGrid filter={["Purchase", "Sales", "Workshop", "Accounting"]} />
@@ -1963,6 +1990,39 @@ function PartyLedgerPanel({ items }: { items: PartyLedgerEntry[] }) {
           meta: `Dr ${entry.debitAmount} / Cr ${entry.creditAmount}`,
         }))}
       />
+    </article>
+  );
+}
+
+function OutstandingPanel({ outstanding }: { outstanding?: PartyOutstanding }) {
+  const customerItems = outstanding?.customers ?? [];
+  const supplierItems = outstanding?.suppliers ?? [];
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Outstanding Balances</h2>
+      <div className="split-list-grid">
+        <div>
+          <h3>Customer Receivables</h3>
+          <MasterList
+            items={customerItems.map((entry) => ({
+              id: entry.party?.id ?? `${entry.party?.name}-${entry.balance}`,
+              label: entry.party?.name ?? "Customer",
+              meta: `${entry.party?.code ?? ""} / ${entry.balance}`,
+            }))}
+          />
+        </div>
+        <div>
+          <h3>Supplier Payables</h3>
+          <MasterList
+            items={supplierItems.map((entry) => ({
+              id: entry.party?.id ?? `${entry.party?.name}-${entry.balance}`,
+              label: entry.party?.name ?? "Supplier",
+              meta: `${entry.party?.code ?? ""} / ${entry.balance}`,
+            }))}
+          />
+        </div>
+      </div>
     </article>
   );
 }

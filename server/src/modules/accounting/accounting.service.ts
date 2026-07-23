@@ -213,6 +213,60 @@ export async function getPartyLedgerSummary(companyId: string) {
   };
 }
 
+export async function getPartyOutstanding(companyId: string) {
+  const [customerLedger, supplierLedger] = await Promise.all([
+    prisma.partyLedgerEntry.groupBy({
+      by: ["customerId"],
+      where: { companyId, partyType: "CUSTOMER", customerId: { not: null } },
+      _sum: { debitAmount: true, creditAmount: true },
+    }),
+    prisma.partyLedgerEntry.groupBy({
+      by: ["supplierId"],
+      where: { companyId, partyType: "SUPPLIER", supplierId: { not: null } },
+      _sum: { debitAmount: true, creditAmount: true },
+    }),
+  ]);
+  const [customers, suppliers] = await Promise.all([
+    prisma.customer.findMany({
+      where: { id: { in: customerLedger.map((entry) => entry.customerId).filter(Boolean) as string[] } },
+      select: { id: true, code: true, name: true, phone: true },
+    }),
+    prisma.supplier.findMany({
+      where: { id: { in: supplierLedger.map((entry) => entry.supplierId).filter(Boolean) as string[] } },
+      select: { id: true, code: true, name: true, phone: true },
+    }),
+  ]);
+  const customerMap = new Map(customers.map((customer) => [customer.id, customer]));
+  const supplierMap = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
+
+  return {
+    customers: customerLedger
+      .map((entry) => {
+        const debit = new Prisma.Decimal(entry._sum.debitAmount ?? 0);
+        const credit = new Prisma.Decimal(entry._sum.creditAmount ?? 0);
+        return {
+          party: customerMap.get(entry.customerId ?? ""),
+          debit,
+          credit,
+          balance: debit.minus(credit),
+        };
+      })
+      .filter((entry) => entry.party && !entry.balance.equals(0)),
+    suppliers: supplierLedger
+      .map((entry) => {
+        const debit = new Prisma.Decimal(entry._sum.debitAmount ?? 0);
+        const credit = new Prisma.Decimal(entry._sum.creditAmount ?? 0);
+        return {
+          party: supplierMap.get(entry.supplierId ?? ""),
+          debit,
+          credit,
+          balance: credit.minus(debit),
+        };
+      })
+      .filter((entry) => entry.party && !entry.balance.equals(0)),
+  };
+}
+
 export async function getGstSummary(companyId: string) {
   const [purchaseTotals, salesTotals] = await Promise.all([
     prisma.purchaseInvoice.aggregate({
