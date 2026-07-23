@@ -319,6 +319,31 @@ type GeneralLedgerLine = {
   narration?: string | null;
 };
 
+type FinancialStatementRow = {
+  account: Account;
+  debitTotal: string | number;
+  creditTotal: string | number;
+  amount: string | number;
+};
+
+type ProfitAndLoss = {
+  income: FinancialStatementRow[];
+  expenses: FinancialStatementRow[];
+  totalIncome: string | number;
+  totalExpenses: string | number;
+  netProfit: string | number;
+};
+
+type BalanceSheet = {
+  assets: FinancialStatementRow[];
+  liabilities: FinancialStatementRow[];
+  equity: FinancialStatementRow[];
+  totalAssets: string | number;
+  totalLiabilities: string | number;
+  totalEquity: string | number;
+  totalLiabilitiesAndEquity: string | number;
+};
+
 type PartyLedgerEntry = {
   id: string;
   partyType: string;
@@ -1233,6 +1258,20 @@ function TransactionsView({
     },
   });
   const generalLedger = useMasterList<GeneralLedgerLine>("general-ledger", "/accounting/general-ledger");
+  const profitAndLoss = useQuery({
+    queryKey: ["profit-and-loss"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<ProfitAndLoss>>("/accounting/profit-and-loss");
+      return response.data.data;
+    },
+  });
+  const balanceSheet = useQuery({
+    queryKey: ["balance-sheet"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<BalanceSheet>>("/accounting/balance-sheet");
+      return response.data.data;
+    },
+  });
   const suppliers = useMasterList<Supplier>("suppliers", "/commercial-masters/suppliers");
   const variants = useMasterList<ProductVariant>("product-variants", "/masters/product-variants");
   const warehouses = useMasterList<Warehouse>("warehouses", "/masters/warehouses");
@@ -1323,6 +1362,8 @@ function TransactionsView({
         <JournalPanel accounts={accounts.data ?? []} items={journalEntries.data ?? []} />
         <TrialBalancePanel trialBalance={trialBalance.data} />
         <GeneralLedgerPanel items={generalLedger.data ?? []} />
+        <ProfitAndLossPanel statement={profitAndLoss.data} />
+        <BalanceSheetPanel statement={balanceSheet.data} />
         <PaymentPanel
           customers={customers.data ?? []}
           items={payments.data ?? []}
@@ -2150,6 +2191,8 @@ function JournalPanel({ accounts, items }: { accounts: Account[]; items: Journal
         queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
         queryClient.invalidateQueries({ queryKey: ["trial-balance"] }),
         queryClient.invalidateQueries({ queryKey: ["general-ledger"] }),
+        queryClient.invalidateQueries({ queryKey: ["profit-and-loss"] }),
+        queryClient.invalidateQueries({ queryKey: ["balance-sheet"] }),
         queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
       ]);
       setForm({ ...form, amount: "0", narration: "Manual journal" });
@@ -2217,6 +2260,47 @@ function GeneralLedgerPanel({ items }: { items: GeneralLedgerLine[] }) {
           id: line.id,
           label: `${line.account.code} ${line.account.name}`,
           meta: `${line.entryNumber} / Dr ${line.debitAmount} / Cr ${line.creditAmount}`,
+        }))}
+      />
+    </article>
+  );
+}
+
+function ProfitAndLossPanel({ statement }: { statement?: ProfitAndLoss }) {
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Profit & Loss</h2>
+      <div className="readiness-grid">
+        <ReadinessMetric label="Income" value={statement?.totalIncome} />
+        <ReadinessMetric label="Expenses" value={statement?.totalExpenses} />
+        <ReadinessMetric label="Net Profit" value={statement?.netProfit} />
+      </div>
+      <MasterList
+        items={[...(statement?.income ?? []), ...(statement?.expenses ?? [])].map((row) => ({
+          id: row.account.id,
+          label: `${row.account.code} ${row.account.name}`,
+          meta: `${row.account.accountType} / ${row.amount}`,
+        }))}
+      />
+    </article>
+  );
+}
+
+function BalanceSheetPanel({ statement }: { statement?: BalanceSheet }) {
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Balance Sheet</h2>
+      <div className="readiness-grid">
+        <ReadinessMetric label="Assets" value={statement?.totalAssets} />
+        <ReadinessMetric label="Liabilities" value={statement?.totalLiabilities} />
+        <ReadinessMetric label="Equity" value={statement?.totalEquity} />
+        <ReadinessMetric label="L + E" value={statement?.totalLiabilitiesAndEquity} />
+      </div>
+      <MasterList
+        items={[...(statement?.assets ?? []), ...(statement?.liabilities ?? []), ...(statement?.equity ?? [])].map((row) => ({
+          id: row.account.id,
+          label: `${row.account.code} ${row.account.name}`,
+          meta: `${row.account.accountType} / ${row.amount}`,
         }))}
       />
     </article>
@@ -3421,6 +3505,8 @@ async function invalidatePostingQueries(extraKeys: string[] = []) {
     queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
     queryClient.invalidateQueries({ queryKey: ["trial-balance"] }),
     queryClient.invalidateQueries({ queryKey: ["general-ledger"] }),
+    queryClient.invalidateQueries({ queryKey: ["profit-and-loss"] }),
+    queryClient.invalidateQueries({ queryKey: ["balance-sheet"] }),
     queryClient.invalidateQueries({ queryKey: ["party-ledger"] }),
     queryClient.invalidateQueries({ queryKey: ["party-ledger-summary"] }),
     queryClient.invalidateQueries({ queryKey: ["party-outstanding"] }),

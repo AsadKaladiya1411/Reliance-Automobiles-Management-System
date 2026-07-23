@@ -243,6 +243,76 @@ export async function listGeneralLedger(companyId: string, accountId?: string) {
   }));
 }
 
+async function accountBalances(companyId: string, accountTypes: Array<"ASSET" | "LIABILITY" | "EQUITY" | "INCOME" | "EXPENSE">) {
+  const accounts = await prisma.account.findMany({
+    where: { companyId, accountType: { in: accountTypes }, status: "ACTIVE" },
+    orderBy: [{ code: "asc" }],
+  });
+  const balances = await prisma.journalLine.groupBy({
+    by: ["accountId"],
+    where: {
+      accountId: { in: accounts.map((account) => account.id) },
+      journalEntry: { companyId, status: "POSTED" },
+    },
+    _sum: { debitAmount: true, creditAmount: true },
+  });
+  const balanceMap = new Map(balances.map((balance) => [balance.accountId, balance]));
+
+  return accounts.map((account) => {
+    const balance = balanceMap.get(account.id);
+    const debitTotal = new Prisma.Decimal(balance?._sum.debitAmount ?? 0);
+    const creditTotal = new Prisma.Decimal(balance?._sum.creditAmount ?? 0);
+
+    return { account, debitTotal, creditTotal };
+  });
+}
+
+export async function getProfitAndLoss(companyId: string) {
+  const rows = await accountBalances(companyId, ["INCOME", "EXPENSE"]);
+  const income = rows
+    .filter((row) => row.account.accountType === "INCOME")
+    .map((row) => ({ ...row, amount: row.creditTotal.minus(row.debitTotal) }));
+  const expenses = rows
+    .filter((row) => row.account.accountType === "EXPENSE")
+    .map((row) => ({ ...row, amount: row.debitTotal.minus(row.creditTotal) }));
+  const totalIncome = income.reduce((total, row) => total.plus(row.amount), new Prisma.Decimal(0));
+  const totalExpenses = expenses.reduce((total, row) => total.plus(row.amount), new Prisma.Decimal(0));
+
+  return {
+    income,
+    expenses,
+    totalIncome,
+    totalExpenses,
+    netProfit: totalIncome.minus(totalExpenses),
+  };
+}
+
+export async function getBalanceSheet(companyId: string) {
+  const rows = await accountBalances(companyId, ["ASSET", "LIABILITY", "EQUITY"]);
+  const assets = rows
+    .filter((row) => row.account.accountType === "ASSET")
+    .map((row) => ({ ...row, amount: row.debitTotal.minus(row.creditTotal) }));
+  const liabilities = rows
+    .filter((row) => row.account.accountType === "LIABILITY")
+    .map((row) => ({ ...row, amount: row.creditTotal.minus(row.debitTotal) }));
+  const equity = rows
+    .filter((row) => row.account.accountType === "EQUITY")
+    .map((row) => ({ ...row, amount: row.creditTotal.minus(row.debitTotal) }));
+  const totalAssets = assets.reduce((total, row) => total.plus(row.amount), new Prisma.Decimal(0));
+  const totalLiabilities = liabilities.reduce((total, row) => total.plus(row.amount), new Prisma.Decimal(0));
+  const totalEquity = equity.reduce((total, row) => total.plus(row.amount), new Prisma.Decimal(0));
+
+  return {
+    assets,
+    liabilities,
+    equity,
+    totalAssets,
+    totalLiabilities,
+    totalEquity,
+    totalLiabilitiesAndEquity: totalLiabilities.plus(totalEquity),
+  };
+}
+
 export async function listPartyLedgerEntries(companyId: string, partyType?: string) {
   const normalizedPartyType = partyType?.trim().toUpperCase();
 

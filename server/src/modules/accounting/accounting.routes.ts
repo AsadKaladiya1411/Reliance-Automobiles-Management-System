@@ -6,9 +6,11 @@ import { sendSuccess } from "../../utils/api-response";
 import {
   createAccount,
   getAccountingSummary,
+  getBalanceSheet,
   getGstSummary,
   getPartyOutstanding,
   getPartyLedgerSummary,
+  getProfitAndLoss,
   getTrialBalance,
   listAccounts,
   listGeneralLedger,
@@ -57,6 +59,14 @@ router.get("/accounting/trial-balance", asyncHandler(async (req, res) => {
 
 router.get("/accounting/general-ledger", asyncHandler(async (req, res) => {
   sendSuccess(res, await listGeneralLedger(req.user!.companyId, String(req.query.accountId ?? "")));
+}));
+
+router.get("/accounting/profit-and-loss", asyncHandler(async (req, res) => {
+  sendSuccess(res, await getProfitAndLoss(req.user!.companyId));
+}));
+
+router.get("/accounting/balance-sheet", asyncHandler(async (req, res) => {
+  sendSuccess(res, await getBalanceSheet(req.user!.companyId));
 }));
 
 router.get("/accounting/party-ledger-summary", asyncHandler(async (req, res) => {
