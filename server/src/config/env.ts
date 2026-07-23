@@ -21,6 +21,20 @@ function requireEnv(name: string) {
   return value;
 }
 
+function readEnv(name: string, fallback: string, nodeEnv: NodeEnv) {
+  const value = process.env[name];
+
+  if (value && value.trim() !== "") {
+    return value;
+  }
+
+  if (nodeEnv === "production") {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+
+  return fallback;
+}
+
 function parsePort(value: string | undefined) {
   const port = Number(value ?? "5000");
 
@@ -49,12 +63,14 @@ function parseSaltRounds(value: string | undefined) {
   return rounds;
 }
 
+const nodeEnv = parseNodeEnv(process.env.NODE_ENV);
+
 export const env: AppEnv = {
-  nodeEnv: parseNodeEnv(process.env.NODE_ENV),
+  nodeEnv,
   port: parsePort(process.env.PORT),
-  clientUrl: requireEnv("CLIENT_URL"),
+  clientUrl: readEnv("CLIENT_URL", "http://localhost:5173", nodeEnv),
   databaseUrl: requireEnv("DATABASE_URL"),
-  jwtSecret: requireEnv("JWT_SECRET"),
+  jwtSecret: readEnv("JWT_SECRET", "development-only-change-before-production", nodeEnv),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "8h",
   cookieName: process.env.AUTH_COOKIE_NAME || "rams_session",
   passwordSaltRounds: parseSaltRounds(process.env.PASSWORD_SALT_ROUNDS),
