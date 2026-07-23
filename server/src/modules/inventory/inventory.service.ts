@@ -25,6 +25,21 @@ type StockAdjustmentInput = OpeningStockInput & {
   adjustmentType: string;
 };
 
+type StockTransferInput = {
+  productVariantId: string;
+  fromWarehouseId: string;
+  fromBlockId?: string;
+  fromRackId?: string;
+  fromShelfId?: string;
+  toWarehouseId: string;
+  toBlockId?: string;
+  toRackId?: string;
+  toShelfId?: string;
+  quantity: number;
+  documentDate?: string;
+  narration?: string;
+};
+
 function requiredString(value: unknown, field: string) {
   if (typeof value !== "string" || value.trim() === "") {
     throw new ApiError(400, "INVALID_INVENTORY_DATA", `${field} is required.`);
@@ -149,6 +164,24 @@ async function validateLocation(
       throw new ApiError(404, "WAREHOUSE_SHELF_NOT_FOUND", "Warehouse shelf not found or inactive.");
     }
   }
+}
+
+async function validateTransferLocation(
+  companyId: string,
+  input: Pick<StockTransferInput, "fromWarehouseId" | "fromBlockId" | "fromRackId" | "fromShelfId" | "toWarehouseId" | "toBlockId" | "toRackId" | "toShelfId">,
+) {
+  await validateLocation(companyId, {
+    warehouseId: input.fromWarehouseId,
+    blockId: input.fromBlockId,
+    rackId: input.fromRackId,
+    shelfId: input.fromShelfId,
+  });
+  await validateLocation(companyId, {
+    warehouseId: input.toWarehouseId,
+    blockId: input.toBlockId,
+    rackId: input.toRackId,
+    shelfId: input.toShelfId,
+  });
 }
 
 export async function getInventorySummary(companyId: string) {
@@ -505,5 +538,189 @@ export async function postStockAdjustment(context: InventoryContext, body: unkno
     });
 
     return { documentNumber, movement, balance, journalEntry };
+  });
+}
+
+export async function postStockTransfer(context: InventoryContext, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const input: StockTransferInput = {
+    productVariantId: requiredString(data.productVariantId, "Product variant"),
+    fromWarehouseId: requiredString(data.fromWarehouseId, "From warehouse"),
+    fromBlockId: optionalString(data.fromBlockId),
+    fromRackId: optionalString(data.fromRackId),
+    fromShelfId: optionalString(data.fromShelfId),
+    toWarehouseId: requiredString(data.toWarehouseId, "To warehouse"),
+    toBlockId: optionalString(data.toBlockId),
+    toRackId: optionalString(data.toRackId),
+    toShelfId: optionalString(data.toShelfId),
+    quantity: positiveNumber(data.quantity, "Quantity"),
+    documentDate: optionalString(data.documentDate),
+    narration: optionalString(data.narration),
+  };
+  const fromKey = locationKey({
+    warehouseId: input.fromWarehouseId,
+    blockId: input.fromBlockId,
+    rackId: input.fromRackId,
+    shelfId: input.fromShelfId,
+  });
+  const toKey = locationKey({
+    warehouseId: input.toWarehouseId,
+    blockId: input.toBlockId,
+    rackId: input.toRackId,
+    shelfId: input.toShelfId,
+  });
+
+  if (fromKey === toKey) {
+    throw new ApiError(400, "INVALID_TRANSFER_LOCATION", "Source and destination locations must be different.");
+  }
+
+  const productVariant = await prisma.productVariant.findFirst({
+    where: {
+      id: input.productVariantId,
+      companyId: context.companyId,
+      status: "ACTIVE",
+      product: { status: "ACTIVE" },
+    },
+    include: { product: true },
+  });
+
+  if (!productVariant) {
+    throw new ApiError(404, "PRODUCT_VARIANT_NOT_FOUND", "Product variant not found or inactive.");
+  }
+
+  await validateTransferLocation(context.companyId, input);
+  const documentDate = parseDate(input.documentDate);
+
+  return prisma.$transaction(async (tx) => {
+    const documentNumber = await nextDocumentNumber(tx, context.companyId, "STOCK_TRANSFER");
+    const fromBalance = await tx.stockBalance.findUnique({
+      where: {
+        companyId_productVariantId_warehouseId_locationKey: {
+          companyId: context.companyId,
+          productVariantId: input.productVariantId,
+          warehouseId: input.fromWarehouseId,
+          locationKey: fromKey,
+        },
+      },
+    });
+
+    if (!fromBalance || Number(fromBalance.quantity) < input.quantity) {
+      throw new ApiError(400, "INSUFFICIENT_STOCK", "Transfer quantity exceeds available source stock.");
+    }
+
+    const unitCost = Number(fromBalance.averageCost ?? 0);
+    const totalValue = Number((input.quantity * unitCost).toFixed(2));
+    const newFromQuantity = Number(fromBalance.quantity) - input.quantity;
+    const newFromValue = Math.max(Number(fromBalance.stockValue) - totalValue, 0);
+
+    const updatedFromBalance = await tx.stockBalance.update({
+      where: { id: fromBalance.id },
+      data: {
+        quantity: newFromQuantity,
+        averageCost: newFromQuantity > 0 ? fromBalance.averageCost : 0,
+        stockValue: Number(newFromValue.toFixed(2)),
+      },
+    });
+    const toBalance = await tx.stockBalance.findUnique({
+      where: {
+        companyId_productVariantId_warehouseId_locationKey: {
+          companyId: context.companyId,
+          productVariantId: input.productVariantId,
+          warehouseId: input.toWarehouseId,
+          locationKey: toKey,
+        },
+      },
+    });
+    const toQuantity = Number(toBalance?.quantity ?? 0) + input.quantity;
+    const toValue = Number((Number(toBalance?.stockValue ?? 0) + totalValue).toFixed(2));
+    const updatedToBalance = await tx.stockBalance.upsert({
+      where: {
+        companyId_productVariantId_warehouseId_locationKey: {
+          companyId: context.companyId,
+          productVariantId: input.productVariantId,
+          warehouseId: input.toWarehouseId,
+          locationKey: toKey,
+        },
+      },
+      create: {
+        companyId: context.companyId,
+        productId: productVariant.productId,
+        productVariantId: input.productVariantId,
+        warehouseId: input.toWarehouseId,
+        blockId: input.toBlockId,
+        rackId: input.toRackId,
+        shelfId: input.toShelfId,
+        locationKey: toKey,
+        quantity: input.quantity,
+        averageCost: unitCost,
+        stockValue: totalValue,
+      },
+      update: {
+        quantity: toQuantity,
+        averageCost: toQuantity > 0 ? Number((toValue / toQuantity).toFixed(2)) : 0,
+        stockValue: toValue,
+      },
+    });
+    const [outMovement, inMovement] = await Promise.all([
+      tx.stockMovement.create({
+        data: {
+          companyId: context.companyId,
+          productId: productVariant.productId,
+          productVariantId: input.productVariantId,
+          warehouseId: input.fromWarehouseId,
+          blockId: input.fromBlockId,
+          rackId: input.fromRackId,
+          shelfId: input.fromShelfId,
+          locationKey: fromKey,
+          movementType: "TRANSFER_OUT",
+          documentType: "STOCK_TRANSFER",
+          documentNumber,
+          documentDate,
+          quantityOut: input.quantity,
+          unitCost,
+          totalValue,
+          narration: input.narration,
+          createdByUserId: context.userId,
+        },
+      }),
+      tx.stockMovement.create({
+        data: {
+          companyId: context.companyId,
+          productId: productVariant.productId,
+          productVariantId: input.productVariantId,
+          warehouseId: input.toWarehouseId,
+          blockId: input.toBlockId,
+          rackId: input.toRackId,
+          shelfId: input.toShelfId,
+          locationKey: toKey,
+          movementType: "TRANSFER_IN",
+          documentType: "STOCK_TRANSFER",
+          documentNumber,
+          documentDate,
+          quantityIn: input.quantity,
+          unitCost,
+          totalValue,
+          narration: input.narration,
+          createdByUserId: context.userId,
+        },
+      }),
+    ]);
+
+    await tx.auditLog.create({
+      data: {
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        module: "inventory",
+        action: "POST",
+        entityType: "StockTransfer",
+        entityId: documentNumber,
+        description: "Stock transfer posted.",
+        afterData: { outMovement, inMovement, fromBalance: updatedFromBalance, toBalance: updatedToBalance },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return { documentNumber, outMovement, inMovement, fromBalance: updatedFromBalance, toBalance: updatedToBalance };
   });
 }

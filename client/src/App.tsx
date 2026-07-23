@@ -1095,6 +1095,7 @@ function InventoryView({ inventorySummary }: { inventorySummary?: InventorySumma
       </section>
       <OpeningStockPanel variants={variants.data ?? []} warehouses={warehouses.data ?? []} />
       <StockAdjustmentPanel variants={variants.data ?? []} warehouses={warehouses.data ?? []} />
+      <StockTransferPanel variants={variants.data ?? []} warehouses={warehouses.data ?? []} />
       <section className="setup-panel">
         <h2>Current Stock</h2>
         <MasterList
@@ -1534,6 +1535,71 @@ function StockAdjustmentPanel({
         </select>
         <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
         <input placeholder="Unit cost" value={form.unitCost} onChange={(event) => setForm({ ...form, unitCost: event.target.value })} />
+        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
+      </form>
+    </article>
+  );
+}
+
+function StockTransferPanel({
+  variants,
+  warehouses,
+}: {
+  variants: ProductVariant[];
+  warehouses: Warehouse[];
+}) {
+  const [form, setForm] = useState({
+    productVariantId: "",
+    fromWarehouseId: "",
+    toWarehouseId: "",
+    quantity: "1",
+    narration: "Stock transfer",
+  });
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/inventory/stock-transfers", form);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["inventory-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-balances"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
+      ]);
+      setForm({ ...form, quantity: "1", narration: "Stock transfer" });
+    },
+  });
+
+  return (
+    <article className="setup-panel">
+      <h2>Post Stock Transfer</h2>
+      <form
+        className="compact-form product-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          mutation.mutate();
+        }}
+      >
+        <select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
+          <option value="">Product variant</option>
+          {variants.map((variant) => (
+            <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>
+          ))}
+        </select>
+        <select value={form.fromWarehouseId} onChange={(event) => setForm({ ...form, fromWarehouseId: event.target.value })}>
+          <option value="">From warehouse</option>
+          {warehouses.map((warehouse) => (
+            <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
+          ))}
+        </select>
+        <select value={form.toWarehouseId} onChange={(event) => setForm({ ...form, toWarehouseId: event.target.value })}>
+          <option value="">To warehouse</option>
+          {warehouses.map((warehouse) => (
+            <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
+          ))}
+        </select>
+        <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
         <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
         <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
       </form>
