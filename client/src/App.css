@@ -45,21 +45,24 @@
   gap: 4px;
 }
 
-.nav-list a {
+.nav-list button {
   min-height: 38px;
   display: flex;
   align-items: center;
   gap: 10px;
+  border: 0;
   border-radius: 6px;
   color: #344054;
+  background: transparent;
   padding: 0 10px;
-  text-decoration: none;
   font-size: 14px;
   font-weight: 500;
+  cursor: pointer;
+  text-align: left;
 }
 
-.nav-list a.active,
-.nav-list a:hover {
+.nav-list button.active,
+.nav-list button:hover {
   background: #e8f3f1;
   color: #0f5f59;
 }
@@ -110,6 +113,24 @@ h1 {
   margin: 0;
   font-size: 28px;
   line-height: 1.2;
+}
+
+.view-header {
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.view-header h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.view-header p {
+  margin: 6px 0 0;
+  color: #667085;
+  line-height: 1.5;
 }
 
 .status-strip {

@@ -74,6 +74,16 @@ type InventorySummary = {
   stockValue: string | number;
 };
 
+type AppView = "dashboard" | "masters" | "inventory" | "transactions" | "settings";
+
+const navItems: Array<{ id: AppView; label: string; icon: string }> = [
+  { id: "dashboard", label: "Dashboard", icon: "DB" },
+  { id: "masters", label: "Masters", icon: "MS" },
+  { id: "inventory", label: "Inventory", icon: "IN" },
+  { id: "transactions", label: "Transactions", icon: "TR" },
+  { id: "settings", label: "Settings", icon: "ST" },
+];
+
 const modules = [
   { name: "Foundation", icon: "FD", status: "In progress", text: "Company, RBAC, audit, number series" },
   { name: "Masters", icon: "MS", status: "Planned", text: "Products, customers, suppliers, employees, vehicles" },
@@ -322,6 +332,7 @@ function AuthPanel({
 }
 
 function DashboardShell({ user }: { user: AuthUser }) {
+  const [activeView, setActiveView] = useState<AppView>("dashboard");
   const status = useSystemStatus();
   const company = useCompany();
   const financialYears = useFinancialYears();
@@ -349,26 +360,17 @@ function DashboardShell({ user }: { user: AuthUser }) {
         </div>
 
         <nav className="nav-list" aria-label="Primary">
-          <a className="active" href="/">
-            <span className="nav-icon">DB</span>
-            Dashboard
-          </a>
-          <a href="/">
-            <span className="nav-icon">MS</span>
-            Masters
-          </a>
-          <a href="/">
-            <span className="nav-icon">IN</span>
-            Inventory
-          </a>
-          <a href="/">
-            <span className="nav-icon">TR</span>
-            Transactions
-          </a>
-          <a href="/">
-            <span className="nav-icon">ST</span>
-            Settings
-          </a>
+          {navItems.map((item) => (
+            <button
+              className={activeView === item.id ? "active" : ""}
+              key={item.id}
+              type="button"
+              onClick={() => setActiveView(item.id)}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
         </nav>
       </aside>
 
@@ -386,88 +388,210 @@ function DashboardShell({ user }: { user: AuthUser }) {
           </div>
         </header>
 
-        <section className="status-strip" aria-label="System status">
-          <div>
-            <span>API</span>
-            <strong>{status.isError ? "Unavailable" : status.data?.service ?? "Checking"}</strong>
-          </div>
-          <div>
-            <span>Company</span>
-            <strong>{status.data?.companyConfigured ? "Configured" : "Pending"}</strong>
-          </div>
-          <div>
-            <span>Financial Year</span>
-            <strong>{status.data ? `${status.data.openFinancialYears} open` : "Checking"}</strong>
-          </div>
-          <div>
-            <span>Number Series</span>
-            <strong>{status.data ? status.data.numberSeriesCount : "Checking"}</strong>
-          </div>
-        </section>
+        {activeView === "dashboard" ? (
+          <DashboardView
+            inventorySummary={inventorySummary.data}
+            masterSummary={masterSummary.data}
+            status={status}
+          />
+        ) : null}
 
-        <section className="foundation-grid" aria-label="Foundation setup">
-          <article className="setup-panel">
-            <h2>Company Profile</h2>
-            <dl>
-              <div>
-                <dt>Name</dt>
-                <dd>{company.data?.name ?? "Loading"}</dd>
-              </div>
-              <div>
-                <dt>GSTIN</dt>
-                <dd>{company.data?.gstin ?? "Not configured"}</dd>
-              </div>
-              <div>
-                <dt>Location</dt>
-                <dd>{[company.data?.city, company.data?.state].filter(Boolean).join(", ") || "Not configured"}</dd>
-              </div>
-            </dl>
-          </article>
+        {activeView === "masters" ? <MastersView masterSummary={masterSummary.data} /> : null}
 
-          <FinancialYearPanel financialYears={financialYears.data ?? []} />
-          <NumberSeriesPanel numberSeries={numberSeries.data ?? []} />
-        </section>
+        {activeView === "inventory" ? (
+          <InventoryView inventorySummary={inventorySummary.data} />
+        ) : null}
 
-        <section className="setup-panel" aria-label="Master data readiness">
-          <h2>Master Data Readiness</h2>
-          <div className="readiness-grid">
-            <ReadinessMetric label="Units" value={masterSummary.data?.units} />
-            <ReadinessMetric label="HSN Codes" value={masterSummary.data?.hsnCodes} />
-            <ReadinessMetric label="Tax Rates" value={masterSummary.data?.taxRates} />
-            <ReadinessMetric label="Brands" value={masterSummary.data?.brands} />
-            <ReadinessMetric label="Categories" value={masterSummary.data?.categories} />
-            <ReadinessMetric label="Sub-categories" value={masterSummary.data?.subCategories} />
-            <ReadinessMetric label="Products" value={masterSummary.data?.products} />
-            <ReadinessMetric label="Warehouses" value={masterSummary.data?.warehouses} />
-          </div>
-        </section>
+        {activeView === "transactions" ? <TransactionsView /> : null}
 
-        <section className="setup-panel" aria-label="Inventory foundation">
-          <h2>Inventory Foundation</h2>
-          <div className="readiness-grid">
-            <ReadinessMetric label="Stock Items" value={inventorySummary.data?.stockItems} />
-            <ReadinessMetric label="Movements" value={inventorySummary.data?.movementCount} />
-            <ReadinessMetric label="Total Quantity" value={inventorySummary.data?.totalQuantity} />
-            <ReadinessMetric label="Stock Value" value={inventorySummary.data?.stockValue} />
-          </div>
-        </section>
-
-        <section className="module-grid" aria-label="RAMS modules">
-          {modules.map((module) => (
-            <article className="module-card" key={module.name}>
-              <div className="module-icon">{module.icon}</div>
-              <div>
-                <div className="module-title">
-                  <h2>{module.name}</h2>
-                  <span>{module.status}</span>
-                </div>
-                <p>{module.text}</p>
-              </div>
-            </article>
-          ))}
-        </section>
+        {activeView === "settings" ? (
+          <SettingsView
+            company={company.data}
+            financialYears={financialYears.data ?? []}
+            numberSeries={numberSeries.data ?? []}
+          />
+        ) : null}
       </section>
     </main>
+  );
+}
+
+function DashboardView({
+  status,
+  masterSummary,
+  inventorySummary,
+}: {
+  status: ReturnType<typeof useSystemStatus>;
+  masterSummary?: MasterSummary;
+  inventorySummary?: InventorySummary;
+}) {
+  return (
+    <>
+      <section className="status-strip" aria-label="System status">
+        <div>
+          <span>API</span>
+          <strong>{status.isError ? "Unavailable" : status.data?.service ?? "Checking"}</strong>
+        </div>
+        <div>
+          <span>Company</span>
+          <strong>{status.data?.companyConfigured ? "Configured" : "Pending"}</strong>
+        </div>
+        <div>
+          <span>Financial Year</span>
+          <strong>{status.data ? `${status.data.openFinancialYears} open` : "Checking"}</strong>
+        </div>
+        <div>
+          <span>Number Series</span>
+          <strong>{status.data ? status.data.numberSeriesCount : "Checking"}</strong>
+        </div>
+      </section>
+
+      <section className="setup-panel" aria-label="Master data readiness">
+        <h2>Master Data Readiness</h2>
+        <MasterReadinessGrid masterSummary={masterSummary} />
+      </section>
+
+      <section className="setup-panel" aria-label="Inventory foundation">
+        <h2>Inventory Foundation</h2>
+        <InventoryReadinessGrid inventorySummary={inventorySummary} />
+      </section>
+
+      <ModuleGrid />
+    </>
+  );
+}
+
+function MastersView({ masterSummary }: { masterSummary?: MasterSummary }) {
+  return (
+    <>
+      <section className="view-header">
+        <h2>Masters</h2>
+        <p>Core master data required before inventory, purchase, sales, and workshop transactions.</p>
+      </section>
+      <section className="setup-panel">
+        <h2>Master Data Readiness</h2>
+        <MasterReadinessGrid masterSummary={masterSummary} />
+      </section>
+      <ModuleGrid filter={["Masters"]} />
+    </>
+  );
+}
+
+function InventoryView({ inventorySummary }: { inventorySummary?: InventorySummary }) {
+  return (
+    <>
+      <section className="view-header">
+        <h2>Inventory</h2>
+        <p>Stock balances, opening stock, movement history, and future purchase/sales posting impact.</p>
+      </section>
+      <section className="setup-panel">
+        <h2>Inventory Foundation</h2>
+        <InventoryReadinessGrid inventorySummary={inventorySummary} />
+      </section>
+      <ModuleGrid filter={["Inventory"]} />
+    </>
+  );
+}
+
+function TransactionsView() {
+  return (
+    <>
+      <section className="view-header">
+        <h2>Transactions</h2>
+        <p>Purchase, sales, workshop, accounting, and GST posting workflows will be added here incrementally.</p>
+      </section>
+      <ModuleGrid filter={["Purchase", "Sales", "Workshop", "Accounting"]} />
+    </>
+  );
+}
+
+function SettingsView({
+  company,
+  financialYears,
+  numberSeries,
+}: {
+  company?: Company;
+  financialYears: FinancialYear[];
+  numberSeries: NumberSeries[];
+}) {
+  return (
+    <>
+      <section className="view-header">
+        <h2>Settings</h2>
+        <p>Company, financial year, and document numbering configuration.</p>
+      </section>
+      <section className="foundation-grid" aria-label="Foundation setup">
+        <article className="setup-panel">
+          <h2>Company Profile</h2>
+          <dl>
+            <div>
+              <dt>Name</dt>
+              <dd>{company?.name ?? "Loading"}</dd>
+            </div>
+            <div>
+              <dt>GSTIN</dt>
+              <dd>{company?.gstin ?? "Not configured"}</dd>
+            </div>
+            <div>
+              <dt>Location</dt>
+              <dd>{[company?.city, company?.state].filter(Boolean).join(", ") || "Not configured"}</dd>
+            </div>
+          </dl>
+        </article>
+
+        <FinancialYearPanel financialYears={financialYears} />
+        <NumberSeriesPanel numberSeries={numberSeries} />
+      </section>
+    </>
+  );
+}
+
+function MasterReadinessGrid({ masterSummary }: { masterSummary?: MasterSummary }) {
+  return (
+    <div className="readiness-grid">
+      <ReadinessMetric label="Units" value={masterSummary?.units} />
+      <ReadinessMetric label="HSN Codes" value={masterSummary?.hsnCodes} />
+      <ReadinessMetric label="Tax Rates" value={masterSummary?.taxRates} />
+      <ReadinessMetric label="Brands" value={masterSummary?.brands} />
+      <ReadinessMetric label="Categories" value={masterSummary?.categories} />
+      <ReadinessMetric label="Sub-categories" value={masterSummary?.subCategories} />
+      <ReadinessMetric label="Products" value={masterSummary?.products} />
+      <ReadinessMetric label="Warehouses" value={masterSummary?.warehouses} />
+    </div>
+  );
+}
+
+function InventoryReadinessGrid({ inventorySummary }: { inventorySummary?: InventorySummary }) {
+  return (
+    <div className="readiness-grid">
+      <ReadinessMetric label="Stock Items" value={inventorySummary?.stockItems} />
+      <ReadinessMetric label="Movements" value={inventorySummary?.movementCount} />
+      <ReadinessMetric label="Total Quantity" value={inventorySummary?.totalQuantity} />
+      <ReadinessMetric label="Stock Value" value={inventorySummary?.stockValue} />
+    </div>
+  );
+}
+
+function ModuleGrid({ filter }: { filter?: string[] }) {
+  const visibleModules = filter
+    ? modules.filter((module) => filter.includes(module.name))
+    : modules;
+
+  return (
+    <section className="module-grid" aria-label="RAMS modules">
+      {visibleModules.map((module) => (
+        <article className="module-card" key={module.name}>
+          <div className="module-icon">{module.icon}</div>
+          <div>
+            <div className="module-title">
+              <h2>{module.name}</h2>
+              <span>{module.status}</span>
+            </div>
+            <p>{module.text}</p>
+          </div>
+        </article>
+      ))}
+    </section>
   );
 }
 
