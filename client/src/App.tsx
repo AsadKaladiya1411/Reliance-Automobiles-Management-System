@@ -89,6 +89,13 @@ type AccountingSummary = {
   creditTotal: string | number;
 };
 
+type PurchaseSummary = {
+  postedInvoices: number;
+  taxableAmount: string | number;
+  totalTaxAmount: string | number;
+  grandTotal: string | number;
+};
+
 type Unit = {
   id: string;
   code: string;
@@ -208,6 +215,16 @@ type JournalEntry = {
   }>;
 };
 
+type PurchaseInvoice = {
+  id: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  grandTotal: string | number;
+  supplier: Supplier;
+  warehouse: Warehouse;
+  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number }>;
+};
+
 type AppView = "dashboard" | "masters" | "inventory" | "transactions" | "settings";
 
 const navItems: Array<{ id: AppView; label: string; icon: string }> = [
@@ -325,6 +342,16 @@ function useAccountingSummary() {
     queryKey: ["accounting-summary"],
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<AccountingSummary>>("/accounting/summary");
+      return response.data.data;
+    },
+  });
+}
+
+function usePurchaseSummary() {
+  return useQuery({
+    queryKey: ["purchase-summary"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<PurchaseSummary>>("/purchase/summary");
       return response.data.data;
     },
   });
@@ -505,6 +532,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
   const inventorySummary = useInventorySummary();
   const commercialMasterSummary = useCommercialMasterSummary();
   const accountingSummary = useAccountingSummary();
+  const purchaseSummary = usePurchaseSummary();
   const logout = useMutation({
     mutationFn: async () => {
       await api.post("/auth/logout");
@@ -560,6 +588,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
             commercialMasterSummary={commercialMasterSummary.data}
             inventorySummary={inventorySummary.data}
             masterSummary={masterSummary.data}
+            purchaseSummary={purchaseSummary.data}
             status={status}
           />
         ) : null}
@@ -575,7 +604,12 @@ function DashboardShell({ user }: { user: AuthUser }) {
           <InventoryView inventorySummary={inventorySummary.data} />
         ) : null}
 
-        {activeView === "transactions" ? <TransactionsView accountingSummary={accountingSummary.data} /> : null}
+        {activeView === "transactions" ? (
+          <TransactionsView
+            accountingSummary={accountingSummary.data}
+            purchaseSummary={purchaseSummary.data}
+          />
+        ) : null}
 
         {activeView === "settings" ? (
           <SettingsView
@@ -595,12 +629,14 @@ function DashboardView({
   status,
   masterSummary,
   inventorySummary,
+  purchaseSummary,
 }: {
   accountingSummary?: AccountingSummary;
   commercialMasterSummary?: CommercialMasterSummary;
   status: ReturnType<typeof useSystemStatus>;
   masterSummary?: MasterSummary;
   inventorySummary?: InventorySummary;
+  purchaseSummary?: PurchaseSummary;
 }) {
   return (
     <>
@@ -641,6 +677,11 @@ function DashboardView({
       <section className="setup-panel" aria-label="Accounting foundation">
         <h2>Accounting Foundation</h2>
         <AccountingReadinessGrid accountingSummary={accountingSummary} />
+      </section>
+
+      <section className="setup-panel" aria-label="Purchase posting">
+        <h2>Purchase Posting</h2>
+        <PurchaseReadinessGrid purchaseSummary={purchaseSummary} />
       </section>
 
       <ModuleGrid />
@@ -755,9 +796,19 @@ function InventoryView({ inventorySummary }: { inventorySummary?: InventorySumma
   );
 }
 
-function TransactionsView({ accountingSummary }: { accountingSummary?: AccountingSummary }) {
+function TransactionsView({
+  accountingSummary,
+  purchaseSummary,
+}: {
+  accountingSummary?: AccountingSummary;
+  purchaseSummary?: PurchaseSummary;
+}) {
   const accounts = useMasterList<Account>("accounts", "/accounting/accounts");
   const journalEntries = useMasterList<JournalEntry>("journal-entries", "/accounting/journal-entries");
+  const suppliers = useMasterList<Supplier>("suppliers", "/commercial-masters/suppliers");
+  const variants = useMasterList<ProductVariant>("product-variants", "/masters/product-variants");
+  const warehouses = useMasterList<Warehouse>("warehouses", "/masters/warehouses");
+  const purchaseInvoices = useMasterList<PurchaseInvoice>("purchase-invoices", "/purchase/invoices");
 
   return (
     <>
@@ -769,7 +820,17 @@ function TransactionsView({ accountingSummary }: { accountingSummary?: Accountin
         <h2>Accounting Foundation</h2>
         <AccountingReadinessGrid accountingSummary={accountingSummary} />
       </section>
+      <section className="setup-panel">
+        <h2>Purchase Posting</h2>
+        <PurchaseReadinessGrid purchaseSummary={purchaseSummary} />
+      </section>
       <section className="masters-grid">
+        <PurchaseInvoicePanel
+          invoices={purchaseInvoices.data ?? []}
+          suppliers={suppliers.data ?? []}
+          variants={variants.data ?? []}
+          warehouses={warehouses.data ?? []}
+        />
         <AccountPanel items={accounts.data ?? []} />
         <JournalPanel accounts={accounts.data ?? []} items={journalEntries.data ?? []} />
       </section>
@@ -868,6 +929,17 @@ function AccountingReadinessGrid({ accountingSummary }: { accountingSummary?: Ac
       <ReadinessMetric label="Posted Journals" value={accountingSummary?.postedJournals} />
       <ReadinessMetric label="Debit Total" value={accountingSummary?.debitTotal} />
       <ReadinessMetric label="Credit Total" value={accountingSummary?.creditTotal} />
+    </div>
+  );
+}
+
+function PurchaseReadinessGrid({ purchaseSummary }: { purchaseSummary?: PurchaseSummary }) {
+  return (
+    <div className="readiness-grid">
+      <ReadinessMetric label="Posted Invoices" value={purchaseSummary?.postedInvoices} />
+      <ReadinessMetric label="Taxable Purchase" value={purchaseSummary?.taxableAmount} />
+      <ReadinessMetric label="GST Input" value={purchaseSummary?.totalTaxAmount} />
+      <ReadinessMetric label="Grand Total" value={purchaseSummary?.grandTotal} />
     </div>
   );
 }
@@ -1258,6 +1330,100 @@ function JournalPanel({ accounts, items }: { accounts: Account[]; items: Journal
           id: item.id,
           label: item.entryNumber,
           meta: item.narration ?? `${item.lines.length} lines`,
+        }))}
+      />
+    </article>
+  );
+}
+
+function PurchaseInvoicePanel({
+  invoices,
+  suppliers,
+  variants,
+  warehouses,
+}: {
+  invoices: PurchaseInvoice[];
+  suppliers: Supplier[];
+  variants: ProductVariant[];
+  warehouses: Warehouse[];
+}) {
+  const [form, setForm] = useState({
+    supplierId: "",
+    warehouseId: "",
+    invoiceDate: new Date().toISOString().slice(0, 10),
+    supplierBillNumber: "",
+    taxMode: "CGST_SGST",
+    productVariantId: "",
+    quantity: "1",
+    unitCost: "0",
+    narration: "Purchase invoice",
+  });
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/purchase/invoices", {
+        supplierId: form.supplierId,
+        warehouseId: form.warehouseId,
+        invoiceDate: form.invoiceDate,
+        supplierBillNumber: form.supplierBillNumber,
+        taxMode: form.taxMode,
+        narration: form.narration,
+        lines: [
+          {
+            productVariantId: form.productVariantId,
+            quantity: form.quantity,
+            unitCost: form.unitCost,
+          },
+        ],
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["purchase-invoices"] }),
+        queryClient.invalidateQueries({ queryKey: ["purchase-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-balances"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
+      ]);
+      setForm({ ...form, productVariantId: "", quantity: "1", unitCost: "0", supplierBillNumber: "" });
+    },
+  });
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Post Purchase Invoice</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate();
+      }}>
+        <select value={form.supplierId} onChange={(event) => setForm({ ...form, supplierId: event.target.value })}>
+          <option value="">Supplier</option>
+          {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+        </select>
+        <select value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value })}>
+          <option value="">Warehouse</option>
+          {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
+        </select>
+        <select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
+          <option value="">Product variant</option>
+          {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
+        </select>
+        <input type="date" value={form.invoiceDate} onChange={(event) => setForm({ ...form, invoiceDate: event.target.value })} />
+        <input placeholder="Supplier bill no." value={form.supplierBillNumber} onChange={(event) => setForm({ ...form, supplierBillNumber: event.target.value })} />
+        <select value={form.taxMode} onChange={(event) => setForm({ ...form, taxMode: event.target.value })}>
+          <option value="CGST_SGST">CGST + SGST</option>
+          <option value="IGST">IGST</option>
+        </select>
+        <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
+        <input placeholder="Unit cost" value={form.unitCost} onChange={(event) => setForm({ ...form, unitCost: event.target.value })} />
+        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
+      </form>
+      <MasterList
+        items={invoices.map((invoice) => ({
+          id: invoice.id,
+          label: invoice.invoiceNumber,
+          meta: `${invoice.supplier.name} / ${invoice.grandTotal}`,
         }))}
       />
     </article>

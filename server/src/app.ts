@@ -14,6 +14,7 @@ import financialYearRoutes from "./modules/financial-year/financial-year.routes"
 import inventoryRoutes from "./modules/inventory/inventory.routes";
 import mastersRoutes from "./modules/masters/masters.routes";
 import numberSeriesRoutes from "./modules/number-series/number-series.routes";
+import purchaseRoutes from "./modules/purchase/purchase.routes";
 import systemRoutes from "./modules/system/system.routes";
 
 const app = express();
@@ -38,6 +39,7 @@ app.use("/api", financialYearRoutes);
 app.use("/api", inventoryRoutes);
 app.use("/api", mastersRoutes);
 app.use("/api", numberSeriesRoutes);
+app.use("/api", purchaseRoutes);
 app.use("/api", systemRoutes);
 app.use("/api/system", systemRoutes);
 
