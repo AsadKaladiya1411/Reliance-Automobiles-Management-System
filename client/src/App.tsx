@@ -74,6 +74,58 @@ type InventorySummary = {
   stockValue: string | number;
 };
 
+type Unit = {
+  id: string;
+  code: string;
+  name: string;
+  symbol: string;
+};
+
+type HsnCode = {
+  id: string;
+  code: string;
+  description: string;
+};
+
+type TaxRate = {
+  id: string;
+  name: string;
+  cgstRate: string | number;
+  sgstRate: string | number;
+  igstRate: string | number;
+};
+
+type Brand = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+type Category = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+type Product = {
+  id: string;
+  code: string;
+  name: string;
+};
+
+type ProductVariant = {
+  id: string;
+  code: string;
+  name: string;
+  salePrice: string | number;
+};
+
+type Warehouse = {
+  id: string;
+  code: string;
+  name: string;
+};
+
 type AppView = "dashboard" | "masters" | "inventory" | "transactions" | "settings";
 
 const navItems: Array<{ id: AppView; label: string; icon: string }> = [
@@ -171,6 +223,16 @@ function useInventorySummary() {
     queryKey: ["inventory-summary"],
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<InventorySummary>>("/inventory/summary");
+      return response.data.data;
+    },
+  });
+}
+
+function useMasterList<T>(key: string, path: string) {
+  return useQuery({
+    queryKey: [key],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<T[]>>(path);
       return response.data.data;
     },
   });
@@ -462,6 +524,15 @@ function DashboardView({
 }
 
 function MastersView({ masterSummary }: { masterSummary?: MasterSummary }) {
+  const units = useMasterList<Unit>("units", "/masters/units");
+  const hsnCodes = useMasterList<HsnCode>("hsn-codes", "/masters/hsn-codes");
+  const taxRates = useMasterList<TaxRate>("tax-rates", "/masters/tax-rates");
+  const brands = useMasterList<Brand>("brands", "/masters/brands");
+  const categories = useMasterList<Category>("categories", "/masters/categories");
+  const products = useMasterList<Product>("products", "/masters/products");
+  const variants = useMasterList<ProductVariant>("product-variants", "/masters/product-variants");
+  const warehouses = useMasterList<Warehouse>("warehouses", "/masters/warehouses");
+
   return (
     <>
       <section className="view-header">
@@ -472,7 +543,38 @@ function MastersView({ masterSummary }: { masterSummary?: MasterSummary }) {
         <h2>Master Data Readiness</h2>
         <MasterReadinessGrid masterSummary={masterSummary} />
       </section>
-      <ModuleGrid filter={["Masters"]} />
+      <section className="masters-grid">
+        <UnitMasterPanel items={units.data ?? []} />
+        <HsnMasterPanel items={hsnCodes.data ?? []} />
+        <TaxRatePanel hsnCodes={hsnCodes.data ?? []} items={taxRates.data ?? []} />
+        <SimpleCodeNamePanel
+          items={brands.data ?? []}
+          path="/masters/brands"
+          queryKeys={["brands", "master-summary"]}
+          title="Brands"
+        />
+        <SimpleCodeNamePanel
+          items={categories.data ?? []}
+          path="/masters/categories"
+          queryKeys={["categories", "master-summary"]}
+          title="Categories"
+        />
+        <ProductPanel
+          brands={brands.data ?? []}
+          categories={categories.data ?? []}
+          hsnCodes={hsnCodes.data ?? []}
+          items={products.data ?? []}
+          taxRates={taxRates.data ?? []}
+          units={units.data ?? []}
+        />
+        <VariantPanel items={variants.data ?? []} products={products.data ?? []} />
+        <SimpleCodeNamePanel
+          items={warehouses.data ?? []}
+          path="/masters/warehouses"
+          queryKeys={["warehouses", "master-summary"]}
+          title="Warehouses"
+        />
+      </section>
     </>
   );
 }
@@ -593,6 +695,260 @@ function ModuleGrid({ filter }: { filter?: string[] }) {
       ))}
     </section>
   );
+}
+
+function SimpleCodeNamePanel({
+  items,
+  path,
+  queryKeys,
+  title,
+}: {
+  items: Array<{ id: string; code: string; name: string }>;
+  path: string;
+  queryKeys: string[];
+  title: string;
+}) {
+  const [form, setForm] = useState({ code: "", name: "" });
+  const mutation = useCreateMaster(path, queryKeys, () => setForm({ code: "", name: "" }));
+
+  return (
+    <article className="setup-panel master-panel">
+      <h2>{title}</h2>
+      <form
+        className="compact-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          mutation.mutate(form);
+        }}
+      >
+        <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
+        <input placeholder="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+      </form>
+      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: item.code }))} />
+    </article>
+  );
+}
+
+function UnitMasterPanel({ items }: { items: Unit[] }) {
+  const [form, setForm] = useState({ code: "", name: "", symbol: "" });
+  const mutation = useCreateMaster("/masters/units", ["units", "master-summary"], () =>
+    setForm({ code: "", name: "", symbol: "" }),
+  );
+
+  return (
+    <article className="setup-panel master-panel">
+      <h2>Units</h2>
+      <form
+        className="compact-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          mutation.mutate(form);
+        }}
+      >
+        <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
+        <input placeholder="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        <input placeholder="Symbol" value={form.symbol} onChange={(event) => setForm({ ...form, symbol: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+      </form>
+      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: item.symbol }))} />
+    </article>
+  );
+}
+
+function HsnMasterPanel({ items }: { items: HsnCode[] }) {
+  const [form, setForm] = useState({ code: "", description: "" });
+  const mutation = useCreateMaster("/masters/hsn-codes", ["hsn-codes", "master-summary"], () =>
+    setForm({ code: "", description: "" }),
+  );
+
+  return (
+    <article className="setup-panel master-panel">
+      <h2>HSN Codes</h2>
+      <form
+        className="compact-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          mutation.mutate(form);
+        }}
+      >
+        <input placeholder="HSN" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
+        <input placeholder="Description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+      </form>
+      <MasterList items={items.map((item) => ({ id: item.id, label: item.description, meta: item.code }))} />
+    </article>
+  );
+}
+
+function TaxRatePanel({ hsnCodes, items }: { hsnCodes: HsnCode[]; items: TaxRate[] }) {
+  const [form, setForm] = useState({
+    name: "GST 18%",
+    hsnCodeId: "",
+    cgstRate: "9",
+    sgstRate: "9",
+    igstRate: "18",
+  });
+  const mutation = useCreateMaster("/masters/tax-rates", ["tax-rates", "master-summary"], () => undefined);
+
+  return (
+    <article className="setup-panel master-panel">
+      <h2>Tax Rates</h2>
+      <form
+        className="compact-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          mutation.mutate(form);
+        }}
+      >
+        <input placeholder="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        <select value={form.hsnCodeId} onChange={(event) => setForm({ ...form, hsnCodeId: event.target.value })}>
+          <option value="">No HSN</option>
+          {hsnCodes.map((hsn) => <option key={hsn.id} value={hsn.id}>{hsn.code}</option>)}
+        </select>
+        <input placeholder="CGST" value={form.cgstRate} onChange={(event) => setForm({ ...form, cgstRate: event.target.value })} />
+        <input placeholder="SGST" value={form.sgstRate} onChange={(event) => setForm({ ...form, sgstRate: event.target.value })} />
+        <input placeholder="IGST" value={form.igstRate} onChange={(event) => setForm({ ...form, igstRate: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+      </form>
+      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.igstRate}%` }))} />
+    </article>
+  );
+}
+
+function ProductPanel({
+  brands,
+  categories,
+  hsnCodes,
+  items,
+  taxRates,
+  units,
+}: {
+  brands: Brand[];
+  categories: Category[];
+  hsnCodes: HsnCode[];
+  items: Product[];
+  taxRates: TaxRate[];
+  units: Unit[];
+}) {
+  const [form, setForm] = useState({
+    code: "",
+    name: "",
+    brandId: "",
+    categoryId: "",
+    unitId: "",
+    hsnCodeId: "",
+    taxRateId: "",
+    reorderLevel: "0",
+  });
+  const mutation = useCreateMaster("/masters/products", ["products", "master-summary"], () =>
+    setForm({ ...form, code: "", name: "", reorderLevel: "0" }),
+  );
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Products</h2>
+      <form
+        className="compact-form product-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          mutation.mutate(form);
+        }}
+      >
+        <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
+        <input placeholder="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        <select value={form.brandId} onChange={(event) => setForm({ ...form, brandId: event.target.value })}>
+          <option value="">No brand</option>
+          {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+        </select>
+        <select value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })}>
+          <option value="">Category</option>
+          {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+        </select>
+        <select value={form.unitId} onChange={(event) => setForm({ ...form, unitId: event.target.value })}>
+          <option value="">Unit</option>
+          {units.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
+        </select>
+        <select value={form.hsnCodeId} onChange={(event) => setForm({ ...form, hsnCodeId: event.target.value })}>
+          <option value="">HSN</option>
+          {hsnCodes.map((hsn) => <option key={hsn.id} value={hsn.id}>{hsn.code}</option>)}
+        </select>
+        <select value={form.taxRateId} onChange={(event) => setForm({ ...form, taxRateId: event.target.value })}>
+          <option value="">Tax rate</option>
+          {taxRates.map((tax) => <option key={tax.id} value={tax.id}>{tax.name}</option>)}
+        </select>
+        <input placeholder="Reorder" value={form.reorderLevel} onChange={(event) => setForm({ ...form, reorderLevel: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+      </form>
+      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: item.code }))} />
+    </article>
+  );
+}
+
+function VariantPanel({ items, products }: { items: ProductVariant[]; products: Product[] }) {
+  const [form, setForm] = useState({
+    productId: "",
+    code: "",
+    name: "",
+    salePrice: "0",
+    purchasePrice: "0",
+  });
+  const mutation = useCreateMaster("/masters/product-variants", ["product-variants", "master-summary"], () =>
+    setForm({ ...form, code: "", name: "", salePrice: "0", purchasePrice: "0" }),
+  );
+
+  return (
+    <article className="setup-panel master-panel wide-panel">
+      <h2>Product Variants</h2>
+      <form
+        className="compact-form product-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          mutation.mutate(form);
+        }}
+      >
+        <select value={form.productId} onChange={(event) => setForm({ ...form, productId: event.target.value })}>
+          <option value="">Product</option>
+          {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+        </select>
+        <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
+        <input placeholder="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        <input placeholder="Sale price" value={form.salePrice} onChange={(event) => setForm({ ...form, salePrice: event.target.value })} />
+        <input placeholder="Purchase price" value={form.purchasePrice} onChange={(event) => setForm({ ...form, purchasePrice: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+      </form>
+      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.salePrice}` }))} />
+    </article>
+  );
+}
+
+function MasterList({ items }: { items: Array<{ id: string; label: string; meta: string }> }) {
+  if (items.length === 0) {
+    return <p className="empty-text">No records yet.</p>;
+  }
+
+  return (
+    <ul className="compact-list">
+      {items.slice(0, 6).map((item) => (
+        <li key={item.id}>
+          <span>{item.label}</span>
+          <strong>{item.meta}</strong>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function useCreateMaster(path: string, queryKeys: string[], onSuccess?: () => void) {
+  return useMutation({
+    mutationFn: async (payload: Record<string, unknown>) => {
+      await api.post(path, payload);
+    },
+    onSuccess: async () => {
+      await Promise.all(queryKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey: [queryKey] })));
+      onSuccess?.();
+    },
+  });
 }
 
 function ReadinessMetric({ label, value }: { label: string; value?: number | string }) {

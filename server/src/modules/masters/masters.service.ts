@@ -244,6 +244,40 @@ export async function createProduct(context: MasterContext, body: unknown) {
   return product;
 }
 
+export async function listProductVariants(companyId: string) {
+  return prisma.productVariant.findMany({
+    where: { companyId },
+    include: { product: true },
+    orderBy: { name: "asc" },
+  });
+}
+
+export async function createProductVariant(context: MasterContext, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const productId = requiredString(data.productId, "Product");
+  const product = await prisma.product.findFirst({
+    where: { id: productId, companyId: context.companyId, status: "ACTIVE" },
+  });
+
+  if (!product) {
+    throw new ApiError(404, "PRODUCT_NOT_FOUND", "Product not found or inactive.");
+  }
+
+  const variant = await prisma.productVariant.create({
+    data: {
+      companyId: context.companyId,
+      productId,
+      code: requiredString(data.code, "Code").toUpperCase(),
+      name: requiredString(data.name, "Name"),
+      barcode: optionalString(data.barcode),
+      salePrice: decimalNumber(data.salePrice),
+      purchasePrice: decimalNumber(data.purchasePrice),
+    },
+  });
+  await auditCreate(context, "ProductVariant", variant.id, variant);
+  return variant;
+}
+
 export async function listWarehouses(companyId: string) {
   return prisma.warehouse.findMany({
     where: { companyId },

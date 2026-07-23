@@ -7,6 +7,7 @@ import {
   createCategory,
   createHsnCode,
   createProduct,
+  createProductVariant,
   createSubCategory,
   createTaxRate,
   createUnit,
@@ -19,6 +20,7 @@ import {
   listCategories,
   listHsnCodes,
   listProducts,
+  listProductVariants,
   listSubCategories,
   listTaxRates,
   listUnits,
@@ -97,6 +99,13 @@ router.get("/masters/products", asyncHandler(async (req, res) => {
 }));
 router.post("/masters/products", asyncHandler(async (req, res) => {
   sendSuccess(res, await createProduct(context(req), req.body), "Product created.", 201);
+}));
+
+router.get("/masters/product-variants", asyncHandler(async (req, res) => {
+  sendSuccess(res, await listProductVariants(req.user!.companyId));
+}));
+router.post("/masters/product-variants", asyncHandler(async (req, res) => {
+  sendSuccess(res, await createProductVariant(context(req), req.body), "Product variant created.", 201);
 }));
 
 router.get("/masters/warehouses", asyncHandler(async (req, res) => {
