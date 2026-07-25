@@ -476,7 +476,7 @@ type PurchaseOrder = {
   grandTotal: string | number;
   status: string;
   supplier: Supplier;
-  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; lineTotal: string | number }>;
+  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; unitCost: string | number; lineTotal: string | number }>;
 };
 
 type GoodsReceiptNote = {
@@ -509,7 +509,7 @@ type SalesQuotation = {
   grandTotal: string | number;
   status: string;
   customer: Customer;
-  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; lineTotal: string | number }>;
+  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; unitPrice: string | number; lineTotal: string | number }>;
 };
 
 type SalesOrder = {
@@ -521,7 +521,7 @@ type SalesOrder = {
   status: string;
   customer: Customer;
   quotation?: SalesQuotation | null;
-  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; lineTotal: string | number }>;
+  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; unitPrice: string | number; lineTotal: string | number }>;
 };
 
 type DeliveryChallan = {
@@ -2093,6 +2093,11 @@ function GoodsReceiptNotePanel({
     narration: "Goods receipt note",
   });
   const supplierOrders = orders.filter((order) => !form.supplierId || order.supplier.id === form.supplierId);
+  const selectedOrder = orders.find((order) => order.id === form.purchaseOrderId);
+  const conversionLines = selectedOrder?.lines.map((line) => ({
+    productVariantId: line.productVariant.id,
+    quantity: line.quantity,
+  }));
   const mutation = useMutation({
     mutationFn: async () => {
       await api.post("/purchase/grns", {
@@ -2101,7 +2106,7 @@ function GoodsReceiptNotePanel({
         warehouseId: form.warehouseId,
         grnDate: form.grnDate,
         narration: form.narration,
-        lines: [{ productVariantId: form.productVariantId, quantity: form.quantity }],
+        lines: conversionLines?.length ? conversionLines : [{ productVariantId: form.productVariantId, quantity: form.quantity }],
       });
     },
     onSuccess: async () => {
@@ -2125,7 +2130,19 @@ function GoodsReceiptNotePanel({
           <option value="">Supplier</option>
           {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
         </select>
-        <select value={form.purchaseOrderId} onChange={(event) => setForm({ ...form, purchaseOrderId: event.target.value })}>
+        <select
+          value={form.purchaseOrderId}
+          onChange={(event) => {
+            const order = orders.find((item) => item.id === event.target.value);
+            setForm({
+              ...form,
+              supplierId: order?.supplier.id ?? form.supplierId,
+              purchaseOrderId: event.target.value,
+              productVariantId: "",
+              quantity: "1",
+            });
+          }}
+        >
           <option value="">No purchase order</option>
           {supplierOrders.map((order) => <option key={order.id} value={order.id}>{`${order.orderNumber} / ${order.grandTotal}`}</option>)}
         </select>
@@ -2142,6 +2159,7 @@ function GoodsReceiptNotePanel({
         <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
         <Button type="submit" variant="outline" disabled={mutation.isPending}>Create</Button>
       </form>
+      {conversionLines?.length ? <p className="empty-text">{conversionLines.length} purchase order line(s) will be copied.</p> : null}
       <MasterList
         items={items.map((grn) => ({
           id: grn.id,
@@ -3203,6 +3221,12 @@ function SalesOrderPanel({
     narration: "Sales order",
   });
   const customerQuotations = quotations.filter((quotation) => !form.customerId || quotation.customer.id === form.customerId);
+  const selectedQuotation = quotations.find((quotation) => quotation.id === form.quotationId);
+  const conversionLines = selectedQuotation?.lines.map((line) => ({
+    productVariantId: line.productVariant.id,
+    quantity: line.quantity,
+    unitPrice: line.unitPrice,
+  }));
   const mutation = useMutation({
     mutationFn: async () => {
       await api.post("/sales/orders", {
@@ -3211,7 +3235,9 @@ function SalesOrderPanel({
         orderDate: form.orderDate,
         expectedDate: form.expectedDate,
         narration: form.narration,
-        lines: [{ productVariantId: form.productVariantId, quantity: form.quantity, unitPrice: form.unitPrice }],
+        lines: conversionLines?.length
+          ? conversionLines
+          : [{ productVariantId: form.productVariantId, quantity: form.quantity, unitPrice: form.unitPrice }],
       });
     },
     onSuccess: async () => {
@@ -3235,7 +3261,20 @@ function SalesOrderPanel({
           <option value="">Customer</option>
           {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
         </select>
-        <select value={form.quotationId} onChange={(event) => setForm({ ...form, quotationId: event.target.value })}>
+        <select
+          value={form.quotationId}
+          onChange={(event) => {
+            const quotation = quotations.find((item) => item.id === event.target.value);
+            setForm({
+              ...form,
+              customerId: quotation?.customer.id ?? form.customerId,
+              quotationId: event.target.value,
+              productVariantId: "",
+              quantity: "1",
+              unitPrice: "0",
+            });
+          }}
+        >
           <option value="">No quotation</option>
           {customerQuotations.map((quotation) => (
             <option key={quotation.id} value={quotation.id}>{`${quotation.quotationNumber} / ${quotation.grandTotal}`}</option>
@@ -3252,6 +3291,7 @@ function SalesOrderPanel({
         <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
         <Button type="submit" variant="outline" disabled={mutation.isPending}>Create</Button>
       </form>
+      {conversionLines?.length ? <p className="empty-text">{conversionLines.length} quotation line(s) will be copied.</p> : null}
       <MasterList
         items={items.map((order) => ({
           id: order.id,
@@ -3286,6 +3326,11 @@ function DeliveryChallanPanel({
     narration: "Delivery challan",
   });
   const customerOrders = orders.filter((order) => !form.customerId || order.customer.id === form.customerId);
+  const selectedOrder = orders.find((order) => order.id === form.salesOrderId);
+  const conversionLines = selectedOrder?.lines.map((line) => ({
+    productVariantId: line.productVariant.id,
+    quantity: line.quantity,
+  }));
   const mutation = useMutation({
     mutationFn: async () => {
       await api.post("/sales/delivery-challans", {
@@ -3294,7 +3339,7 @@ function DeliveryChallanPanel({
         warehouseId: form.warehouseId,
         challanDate: form.challanDate,
         narration: form.narration,
-        lines: [{ productVariantId: form.productVariantId, quantity: form.quantity }],
+        lines: conversionLines?.length ? conversionLines : [{ productVariantId: form.productVariantId, quantity: form.quantity }],
       });
     },
     onSuccess: async () => {
@@ -3318,7 +3363,19 @@ function DeliveryChallanPanel({
           <option value="">Customer</option>
           {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
         </select>
-        <select value={form.salesOrderId} onChange={(event) => setForm({ ...form, salesOrderId: event.target.value })}>
+        <select
+          value={form.salesOrderId}
+          onChange={(event) => {
+            const order = orders.find((item) => item.id === event.target.value);
+            setForm({
+              ...form,
+              customerId: order?.customer.id ?? form.customerId,
+              salesOrderId: event.target.value,
+              productVariantId: "",
+              quantity: "1",
+            });
+          }}
+        >
           <option value="">No sales order</option>
           {customerOrders.map((order) => <option key={order.id} value={order.id}>{`${order.orderNumber} / ${order.grandTotal}`}</option>)}
         </select>
@@ -3335,6 +3392,7 @@ function DeliveryChallanPanel({
         <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
         <Button type="submit" variant="outline" disabled={mutation.isPending}>Create</Button>
       </form>
+      {conversionLines?.length ? <p className="empty-text">{conversionLines.length} sales order line(s) will be copied.</p> : null}
       <MasterList
         items={items.map((challan) => ({
           id: challan.id,
