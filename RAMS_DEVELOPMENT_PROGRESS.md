@@ -4,7 +4,7 @@ Last updated: 2026-07-25
 
 ## Overall Completion
 
-Estimated completion: 63%
+Estimated completion: 64%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -15,7 +15,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Platform/Foundation | 74% | Web app, API, environment config, Prisma, setup flow, number series, audit logs, global API errors, same-origin mutation guard, and audit reporting are in place. Needs stronger tests, deployment hardening, logging, and operational docs. |
 | Authentication/RBAC | 71% | Login, registration, current-user session, Super Admin, Staff role, user-role administration, backend module permission middleware, role-aware navigation, and permission-aware Settings queries. Needs finer action-level controls and richer user lifecycle controls. |
 | Company/Financial Year/Settings | 65% | Company profile, financial years, number series, default seeding, audit view. Needs closing/opening year workflows and more settings. |
-| Masters | 74% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, and Warehouses. Needs lifecycle support for remaining masters, import/export, search, pagination. |
+| Masters | 78% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, and Product Variants. Needs lifecycle support for tax and warehouse hierarchy records, import/export, search, pagination. |
 | Commercial Masters | 68% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls and dependency safeguards. Needs richer profiles, credit limits, contact/address handling, search, pagination, and import/export. |
 | Inventory | 68% | Opening stock, stock balances, movements, adjustments, transfers, negative stock protection, reorder alerts. Needs valuation reports, batch/serial handling, stronger location selection, stock aging. |
 | Purchase | 60% | Purchase orders, GRN workflow, purchase invoice posting/cancel, purchase return, GST/input tax and supplier ledger integration. Needs order-to-invoice conversion, partial receipts, approval depth, landed cost. |
@@ -45,6 +45,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Permission-aware Settings data fetching added.
 - Added edit/deactivate lifecycle for Units, HSN codes, Brands, Categories, and Warehouses.
 - Added edit/deactivate lifecycle for Customers, Suppliers, Employees, Vehicles, and Payment Modes.
+- Added edit/deactivate lifecycle for Products and Product Variants with inventory/transaction safeguards.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -67,7 +68,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 ## Remaining Tasks
 
 - Refine action-level permission mapping for special posting/approval routes.
-- Add edit/deactivate/detail/search/pagination patterns for remaining product, tax, warehouse hierarchy, and transaction-supporting records.
+- Add edit/deactivate/detail/search/pagination patterns for remaining tax, warehouse hierarchy, and transaction-supporting records.
 - Add richer customer/supplier ledgers with invoice allocation and settlement.
 - Add order/GRN/challan conversion flows to reduce duplicate manual entry.
 - Complete workshop service billing without double-consuming issued parts.
@@ -82,11 +83,11 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Commercial master lifecycle support.
+Product and variant lifecycle support.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 15 to 22 focused development sessions.
+Estimated remaining iterations: 14 to 21 focused development sessions.
 
 The largest remaining chunks are workshop billing, approval/permission enforcement, reporting/export depth, automated testing, and production deployment hardening.
 
@@ -94,9 +95,9 @@ The largest remaining chunks are workshop billing, approval/permission enforceme
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `client/src/App.tsx`
-- `server/src/modules/commercial-masters/commercial-masters.routes.ts`
-- `server/src/modules/commercial-masters/commercial-masters.service.ts`
+- `server/src/modules/masters/masters.routes.ts`
+- `server/src/modules/masters/masters.service.ts`
 
 ## Next Implementation Target
 
-Product and variant lifecycle support, including safe edit/deactivate rules for catalog records used by inventory and transactions.
+Tax rate and warehouse hierarchy lifecycle support, plus search/pagination foundations for master lists.

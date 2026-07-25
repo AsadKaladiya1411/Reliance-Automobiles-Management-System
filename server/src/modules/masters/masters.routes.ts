@@ -19,6 +19,8 @@ import {
   deactivateBrand,
   deactivateCategory,
   deactivateHsnCode,
+  deactivateProduct,
+  deactivateProductVariant,
   deactivateUnit,
   deactivateWarehouse,
   getMasterSummary,
@@ -34,6 +36,8 @@ import {
   updateBrand,
   updateCategory,
   updateHsnCode,
+  updateProduct,
+  updateProductVariant,
   updateUnit,
   updateWarehouse,
 } from "./masters.service";
@@ -135,12 +139,24 @@ router.get("/masters/products", asyncHandler(async (req, res) => {
 router.post("/masters/products", asyncHandler(async (req, res) => {
   sendSuccess(res, await createProduct(context(req), req.body), "Product created.", 201);
 }));
+router.patch("/masters/products/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await updateProduct(context(req), routeParam(req.params.id, "id"), req.body), "Product updated.");
+}));
+router.delete("/masters/products/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await deactivateProduct(context(req), routeParam(req.params.id, "id")), "Product deactivated.");
+}));
 
 router.get("/masters/product-variants", asyncHandler(async (req, res) => {
   sendSuccess(res, await listProductVariants(req.user!.companyId));
 }));
 router.post("/masters/product-variants", asyncHandler(async (req, res) => {
   sendSuccess(res, await createProductVariant(context(req), req.body), "Product variant created.", 201);
+}));
+router.patch("/masters/product-variants/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await updateProductVariant(context(req), routeParam(req.params.id, "id"), req.body), "Product variant updated.");
+}));
+router.delete("/masters/product-variants/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await deactivateProductVariant(context(req), routeParam(req.params.id, "id")), "Product variant deactivated.");
 }));
 
 router.get("/masters/warehouses", asyncHandler(async (req, res) => {

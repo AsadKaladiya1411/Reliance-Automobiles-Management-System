@@ -241,13 +241,23 @@ type Product = {
   id: string;
   code: string;
   name: string;
+  brandId?: string | null;
+  categoryId: string;
+  unitId: string;
+  hsnCodeId?: string | null;
+  taxRateId?: string | null;
+  reorderLevel?: string | number;
+  status?: string;
 };
 
 type ProductVariant = {
   id: string;
+  productId: string;
   code: string;
   name: string;
   salePrice: string | number;
+  purchasePrice?: string | number;
+  status?: string;
 };
 
 type Warehouse = {
@@ -4187,9 +4197,38 @@ function ProductPanel({
     taxRateId: "",
     reorderLevel: "0",
   });
+  const [editingId, setEditingId] = useState("");
   const mutation = useCreateMaster("/masters/products", ["products", "master-summary"], () =>
     setForm({ ...form, code: "", name: "", reorderLevel: "0" }),
   );
+  const productKeys = ["products", "master-summary", "reorder-items"];
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/masters/products/${editingId}`, form);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(productKeys);
+      setEditingId("");
+      setForm({
+        code: "",
+        name: "",
+        brandId: "",
+        categoryId: "",
+        unitId: "",
+        hsnCodeId: "",
+        taxRateId: "",
+        reorderLevel: "0",
+      });
+    },
+  });
+  const deactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/masters/products/${id}`);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(productKeys);
+    },
+  });
 
   return (
     <article className="setup-panel master-panel wide-panel">
@@ -4198,6 +4237,10 @@ function ProductPanel({
         className="compact-form product-form"
         onSubmit={(event) => {
           event.preventDefault();
+          if (editingId) {
+            updateMutation.mutate();
+            return;
+          }
           mutation.mutate(form);
         }}
       >
@@ -4224,9 +4267,44 @@ function ProductPanel({
           {taxRates.map((tax) => <option key={tax.id} value={tax.id}>{tax.name}</option>)}
         </select>
         <input placeholder="Reorder" value={form.reorderLevel} onChange={(event) => setForm({ ...form, reorderLevel: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+        <Button type="submit" variant="outline" disabled={mutation.isPending || updateMutation.isPending}>
+          {editingId ? "Save" : "Add"}
+        </Button>
+        {editingId ? (
+          <Button type="button" variant="outline" onClick={() => {
+            setEditingId("");
+            setForm({
+              code: "",
+              name: "",
+              brandId: "",
+              categoryId: "",
+              unitId: "",
+              hsnCodeId: "",
+              taxRateId: "",
+              reorderLevel: "0",
+            });
+          }}>
+            Cancel
+          </Button>
+        ) : null}
       </form>
-      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: item.code }))} />
+      <EditableMasterList
+        items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.status ?? "ACTIVE"}`, raw: item }))}
+        onDeactivate={(id) => deactivateMutation.mutate(id)}
+        onEdit={(item) => {
+          setEditingId(item.id);
+          setForm({
+            code: item.raw.code,
+            name: item.raw.name,
+            brandId: item.raw.brandId ?? "",
+            categoryId: item.raw.categoryId,
+            unitId: item.raw.unitId,
+            hsnCodeId: item.raw.hsnCodeId ?? "",
+            taxRateId: item.raw.taxRateId ?? "",
+            reorderLevel: String(item.raw.reorderLevel ?? "0"),
+          });
+        }}
+      />
     </article>
   );
 }
@@ -4239,9 +4317,29 @@ function VariantPanel({ items, products }: { items: ProductVariant[]; products: 
     salePrice: "0",
     purchasePrice: "0",
   });
+  const [editingId, setEditingId] = useState("");
   const mutation = useCreateMaster("/masters/product-variants", ["product-variants", "master-summary"], () =>
     setForm({ ...form, code: "", name: "", salePrice: "0", purchasePrice: "0" }),
   );
+  const variantKeys = ["product-variants", "master-summary", "reorder-items"];
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/masters/product-variants/${editingId}`, form);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(variantKeys);
+      setEditingId("");
+      setForm({ productId: "", code: "", name: "", salePrice: "0", purchasePrice: "0" });
+    },
+  });
+  const deactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/masters/product-variants/${id}`);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(variantKeys);
+    },
+  });
 
   return (
     <article className="setup-panel master-panel wide-panel">
@@ -4250,6 +4348,10 @@ function VariantPanel({ items, products }: { items: ProductVariant[]; products: 
         className="compact-form product-form"
         onSubmit={(event) => {
           event.preventDefault();
+          if (editingId) {
+            updateMutation.mutate();
+            return;
+          }
           mutation.mutate(form);
         }}
       >
@@ -4261,9 +4363,32 @@ function VariantPanel({ items, products }: { items: ProductVariant[]; products: 
         <input placeholder="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
         <input placeholder="Sale price" value={form.salePrice} onChange={(event) => setForm({ ...form, salePrice: event.target.value })} />
         <input placeholder="Purchase price" value={form.purchasePrice} onChange={(event) => setForm({ ...form, purchasePrice: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+        <Button type="submit" variant="outline" disabled={mutation.isPending || updateMutation.isPending}>
+          {editingId ? "Save" : "Add"}
+        </Button>
+        {editingId ? (
+          <Button type="button" variant="outline" onClick={() => {
+            setEditingId("");
+            setForm({ productId: "", code: "", name: "", salePrice: "0", purchasePrice: "0" });
+          }}>
+            Cancel
+          </Button>
+        ) : null}
       </form>
-      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.salePrice}` }))} />
+      <EditableMasterList
+        items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.salePrice} / ${item.status ?? "ACTIVE"}`, raw: item }))}
+        onDeactivate={(id) => deactivateMutation.mutate(id)}
+        onEdit={(item) => {
+          setEditingId(item.id);
+          setForm({
+            productId: item.raw.productId,
+            code: item.raw.code,
+            name: item.raw.name,
+            salePrice: String(item.raw.salePrice),
+            purchasePrice: String(item.raw.purchasePrice ?? "0"),
+          });
+        }}
+      />
     </article>
   );
 }

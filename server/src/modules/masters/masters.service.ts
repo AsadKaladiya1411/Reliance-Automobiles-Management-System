@@ -430,6 +430,69 @@ export async function createProduct(context: MasterContext, body: unknown) {
   return product;
 }
 
+export async function updateProduct(context: MasterContext, productId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const existing = await prisma.product.findFirst({ where: { id: productId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "PRODUCT_NOT_FOUND", "Product not found.");
+  }
+
+  const updated = await prisma.product.update({
+    where: { id: existing.id },
+    data: {
+      code: requiredString(data.code, "Code").toUpperCase(),
+      name: requiredString(data.name, "Name"),
+      description: optionalString(data.description),
+      brandId: optionalString(data.brandId),
+      categoryId: requiredString(data.categoryId, "Category"),
+      subCategoryId: optionalString(data.subCategoryId),
+      unitId: requiredString(data.unitId, "Unit"),
+      hsnCodeId: optionalString(data.hsnCodeId),
+      taxRateId: optionalString(data.taxRateId),
+      trackingType: (optionalString(data.trackingType) ?? existing.trackingType) as "NONE" | "BATCH" | "SERIAL",
+      reorderLevel: decimalNumber(data.reorderLevel),
+    },
+    include: { brand: true, category: true, subCategory: true, unit: true, hsnCode: true, taxRate: true },
+  });
+  await auditUpdate(context, "Product", updated.id, existing, updated);
+  return updated;
+}
+
+export async function deactivateProduct(context: MasterContext, productId: string) {
+  const existing = await prisma.product.findFirst({ where: { id: productId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "PRODUCT_NOT_FOUND", "Product not found.");
+  }
+
+  const [
+    variants,
+    stockBalances,
+    stockMovements,
+    purchaseInvoiceLines,
+    purchaseReturnLines,
+    salesInvoiceLines,
+    salesReturnLines,
+  ] = await Promise.all([
+    prisma.productVariant.count({ where: { companyId: context.companyId, productId } }),
+    prisma.stockBalance.count({ where: { companyId: context.companyId, productId } }),
+    prisma.stockMovement.count({ where: { companyId: context.companyId, productId } }),
+    prisma.purchaseInvoiceLine.count({ where: { companyId: context.companyId, productId } }),
+    prisma.purchaseReturnLine.count({ where: { companyId: context.companyId, productId } }),
+    prisma.salesInvoiceLine.count({ where: { companyId: context.companyId, productId } }),
+    prisma.salesReturnLine.count({ where: { companyId: context.companyId, productId } }),
+  ]);
+
+  if ([variants, stockBalances, stockMovements, purchaseInvoiceLines, purchaseReturnLines, salesInvoiceLines, salesReturnLines].some((count) => count > 0)) {
+    throw new ApiError(400, "MASTER_IN_USE", "Product has variants, stock, or transaction history and cannot be deactivated.");
+  }
+
+  const updated = await prisma.product.update({ where: { id: existing.id }, data: { status: "INACTIVE" } });
+  await auditDeactivate(context, "Product", updated.id, existing, updated);
+  return updated;
+}
+
 export async function listProductVariants(companyId: string) {
   return prisma.productVariant.findMany({
     where: { companyId },
@@ -462,6 +525,83 @@ export async function createProductVariant(context: MasterContext, body: unknown
   });
   await auditCreate(context, "ProductVariant", variant.id, variant);
   return variant;
+}
+
+export async function updateProductVariant(context: MasterContext, variantId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const existing = await prisma.productVariant.findFirst({ where: { id: variantId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "PRODUCT_VARIANT_NOT_FOUND", "Product variant not found.");
+  }
+
+  const productId = requiredString(data.productId, "Product");
+  const product = await prisma.product.findFirst({
+    where: { id: productId, companyId: context.companyId, status: "ACTIVE" },
+  });
+
+  if (!product) {
+    throw new ApiError(404, "PRODUCT_NOT_FOUND", "Product not found or inactive.");
+  }
+
+  const updated = await prisma.productVariant.update({
+    where: { id: existing.id },
+    data: {
+      productId,
+      code: requiredString(data.code, "Code").toUpperCase(),
+      name: requiredString(data.name, "Name"),
+      barcode: optionalString(data.barcode),
+      salePrice: decimalNumber(data.salePrice),
+      purchasePrice: decimalNumber(data.purchasePrice),
+    },
+    include: { product: true },
+  });
+  await auditUpdate(context, "ProductVariant", updated.id, existing, updated);
+  return updated;
+}
+
+export async function deactivateProductVariant(context: MasterContext, variantId: string) {
+  const existing = await prisma.productVariant.findFirst({ where: { id: variantId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "PRODUCT_VARIANT_NOT_FOUND", "Product variant not found.");
+  }
+
+  const [
+    stockBalances,
+    stockMovements,
+    purchaseOrders,
+    grns,
+    purchaseInvoiceLines,
+    purchaseReturnLines,
+    salesQuotations,
+    salesOrders,
+    challans,
+    salesInvoiceLines,
+    salesReturnLines,
+    jobCardParts,
+  ] = await Promise.all([
+    prisma.stockBalance.count({ where: { companyId: context.companyId, productVariantId: variantId } }),
+    prisma.stockMovement.count({ where: { companyId: context.companyId, productVariantId: variantId } }),
+    prisma.purchaseOrderLine.count({ where: { companyId: context.companyId, productVariantId: variantId } }),
+    prisma.goodsReceiptNoteLine.count({ where: { companyId: context.companyId, productVariantId: variantId } }),
+    prisma.purchaseInvoiceLine.count({ where: { companyId: context.companyId, productVariantId: variantId } }),
+    prisma.purchaseReturnLine.count({ where: { companyId: context.companyId, productVariantId: variantId } }),
+    prisma.salesQuotationLine.count({ where: { companyId: context.companyId, productVariantId: variantId } }),
+    prisma.salesOrderLine.count({ where: { companyId: context.companyId, productVariantId: variantId } }),
+    prisma.deliveryChallanLine.count({ where: { companyId: context.companyId, productVariantId: variantId } }),
+    prisma.salesInvoiceLine.count({ where: { companyId: context.companyId, productVariantId: variantId } }),
+    prisma.salesReturnLine.count({ where: { companyId: context.companyId, productVariantId: variantId } }),
+    prisma.jobCardPart.count({ where: { productVariantId: variantId, jobCard: { companyId: context.companyId } } }),
+  ]);
+
+  if ([stockBalances, stockMovements, purchaseOrders, grns, purchaseInvoiceLines, purchaseReturnLines, salesQuotations, salesOrders, challans, salesInvoiceLines, salesReturnLines, jobCardParts].some((count) => count > 0)) {
+    throw new ApiError(400, "MASTER_IN_USE", "Product variant has stock or transaction history and cannot be deactivated.");
+  }
+
+  const updated = await prisma.productVariant.update({ where: { id: existing.id }, data: { status: "INACTIVE" } });
+  await auditDeactivate(context, "ProductVariant", updated.id, existing, updated);
+  return updated;
 }
 
 export async function listWarehouses(companyId: string) {
