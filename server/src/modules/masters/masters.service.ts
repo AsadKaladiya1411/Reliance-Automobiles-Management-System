@@ -262,6 +262,62 @@ export async function createTaxRate(context: MasterContext, body: unknown) {
   return taxRate;
 }
 
+export async function updateTaxRate(context: MasterContext, taxRateId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const existing = await prisma.taxRate.findFirst({ where: { id: taxRateId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "TAX_RATE_NOT_FOUND", "Tax rate not found.");
+  }
+
+  const cgstRate = decimalNumber(data.cgstRate);
+  const sgstRate = decimalNumber(data.sgstRate);
+  const igstRate = decimalNumber(data.igstRate);
+
+  if (Number((cgstRate + sgstRate).toFixed(2)) !== igstRate) {
+    throw new ApiError(400, "INVALID_GST_RATE", "IGST must equal CGST plus SGST.");
+  }
+
+  const effectiveFrom = data.effectiveFrom ? new Date(String(data.effectiveFrom)) : existing.effectiveFrom;
+
+  if (Number.isNaN(effectiveFrom.getTime())) {
+    throw new ApiError(400, "INVALID_DATE", "Effective date is invalid.");
+  }
+
+  const updated = await prisma.taxRate.update({
+    where: { id: existing.id },
+    data: {
+      hsnCodeId: optionalString(data.hsnCodeId),
+      name: requiredString(data.name, "Name"),
+      cgstRate,
+      sgstRate,
+      igstRate,
+      cessRate: decimalNumber(data.cessRate),
+      effectiveFrom,
+    },
+  });
+  await auditUpdate(context, "TaxRate", updated.id, existing, updated);
+  return updated;
+}
+
+export async function deactivateTaxRate(context: MasterContext, taxRateId: string) {
+  const existing = await prisma.taxRate.findFirst({ where: { id: taxRateId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "TAX_RATE_NOT_FOUND", "Tax rate not found.");
+  }
+
+  const inUse = await prisma.product.count({ where: { companyId: context.companyId, taxRateId } });
+
+  if (inUse > 0) {
+    throw new ApiError(400, "MASTER_IN_USE", "Tax rate is used by products and cannot be deactivated.");
+  }
+
+  const updated = await prisma.taxRate.update({ where: { id: existing.id }, data: { status: "INACTIVE" } });
+  await auditDeactivate(context, "TaxRate", updated.id, existing, updated);
+  return updated;
+}
+
 export async function listBrands(companyId: string) {
   return prisma.brand.findMany({ where: { companyId }, orderBy: { name: "asc" } });
 }
@@ -699,6 +755,54 @@ export async function createWarehouseBlock(context: MasterContext, warehouseId: 
   return block;
 }
 
+export async function updateWarehouseBlock(context: MasterContext, blockId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const existing = await prisma.warehouseBlock.findFirst({
+    where: { id: blockId, warehouse: { companyId: context.companyId } },
+  });
+
+  if (!existing) {
+    throw new ApiError(404, "WAREHOUSE_BLOCK_NOT_FOUND", "Warehouse block not found.");
+  }
+
+  const updated = await prisma.warehouseBlock.update({
+    where: { id: existing.id },
+    data: {
+      code: requiredString(data.code, "Code").toUpperCase(),
+      name: requiredString(data.name, "Name"),
+      blockType: optionalString(data.blockType) ?? "Storage",
+    },
+  });
+  await auditUpdate(context, "WarehouseBlock", updated.id, existing, updated);
+  return updated;
+}
+
+export async function deactivateWarehouseBlock(context: MasterContext, blockId: string) {
+  const existing = await prisma.warehouseBlock.findFirst({
+    where: { id: blockId, warehouse: { companyId: context.companyId } },
+  });
+
+  if (!existing) {
+    throw new ApiError(404, "WAREHOUSE_BLOCK_NOT_FOUND", "Warehouse block not found.");
+  }
+
+  const [racks, balances, movements, purchaseLines, salesLines] = await Promise.all([
+    prisma.warehouseRack.count({ where: { blockId } }),
+    prisma.stockBalance.count({ where: { companyId: context.companyId, blockId } }),
+    prisma.stockMovement.count({ where: { companyId: context.companyId, blockId } }),
+    prisma.purchaseInvoiceLine.count({ where: { companyId: context.companyId, blockId } }),
+    prisma.salesInvoiceLine.count({ where: { companyId: context.companyId, blockId } }),
+  ]);
+
+  if ([racks, balances, movements, purchaseLines, salesLines].some((count) => count > 0)) {
+    throw new ApiError(400, "MASTER_IN_USE", "Warehouse block has racks, stock, or transaction history and cannot be deactivated.");
+  }
+
+  const updated = await prisma.warehouseBlock.update({ where: { id: existing.id }, data: { status: "INACTIVE" } });
+  await auditDeactivate(context, "WarehouseBlock", updated.id, existing, updated);
+  return updated;
+}
+
 export async function createWarehouseRack(context: MasterContext, blockId: string, body: unknown) {
   const data = body as Record<string, unknown>;
   const block = await prisma.warehouseBlock.findFirst({
@@ -728,6 +832,61 @@ export async function createWarehouseRack(context: MasterContext, blockId: strin
   return rack;
 }
 
+export async function updateWarehouseRack(context: MasterContext, rackId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const existing = await prisma.warehouseRack.findFirst({
+    where: { id: rackId, block: { warehouse: { companyId: context.companyId } } },
+  });
+
+  if (!existing) {
+    throw new ApiError(404, "WAREHOUSE_RACK_NOT_FOUND", "Warehouse rack not found.");
+  }
+
+  const shelfCount = Number(data.shelfCount ?? existing.shelfCount);
+
+  if (!Number.isInteger(shelfCount) || shelfCount < 1 || shelfCount > 50) {
+    throw new ApiError(400, "INVALID_SHELF_COUNT", "Shelf count must be between 1 and 50.");
+  }
+
+  const updated = await prisma.warehouseRack.update({
+    where: { id: existing.id },
+    data: {
+      code: requiredString(data.code, "Code").toUpperCase(),
+      name: requiredString(data.name, "Name"),
+      rackType: optionalString(data.rackType) ?? "Open",
+      shelfCount,
+    },
+  });
+  await auditUpdate(context, "WarehouseRack", updated.id, existing, updated);
+  return updated;
+}
+
+export async function deactivateWarehouseRack(context: MasterContext, rackId: string) {
+  const existing = await prisma.warehouseRack.findFirst({
+    where: { id: rackId, block: { warehouse: { companyId: context.companyId } } },
+  });
+
+  if (!existing) {
+    throw new ApiError(404, "WAREHOUSE_RACK_NOT_FOUND", "Warehouse rack not found.");
+  }
+
+  const [shelves, balances, movements, purchaseLines, salesLines] = await Promise.all([
+    prisma.warehouseShelf.count({ where: { rackId } }),
+    prisma.stockBalance.count({ where: { companyId: context.companyId, rackId } }),
+    prisma.stockMovement.count({ where: { companyId: context.companyId, rackId } }),
+    prisma.purchaseInvoiceLine.count({ where: { companyId: context.companyId, rackId } }),
+    prisma.salesInvoiceLine.count({ where: { companyId: context.companyId, rackId } }),
+  ]);
+
+  if ([shelves, balances, movements, purchaseLines, salesLines].some((count) => count > 0)) {
+    throw new ApiError(400, "MASTER_IN_USE", "Warehouse rack has shelves, stock, or transaction history and cannot be deactivated.");
+  }
+
+  const updated = await prisma.warehouseRack.update({ where: { id: existing.id }, data: { status: "INACTIVE" } });
+  await auditDeactivate(context, "WarehouseRack", updated.id, existing, updated);
+  return updated;
+}
+
 export async function createWarehouseShelf(context: MasterContext, rackId: string, body: unknown) {
   const data = body as Record<string, unknown>;
   const rack = await prisma.warehouseRack.findFirst({
@@ -748,4 +907,51 @@ export async function createWarehouseShelf(context: MasterContext, rackId: strin
   });
   await auditCreate(context, "WarehouseShelf", shelf.id, shelf);
   return shelf;
+}
+
+export async function updateWarehouseShelf(context: MasterContext, shelfId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const existing = await prisma.warehouseShelf.findFirst({
+    where: { id: shelfId, rack: { block: { warehouse: { companyId: context.companyId } } } },
+  });
+
+  if (!existing) {
+    throw new ApiError(404, "WAREHOUSE_SHELF_NOT_FOUND", "Warehouse shelf not found.");
+  }
+
+  const updated = await prisma.warehouseShelf.update({
+    where: { id: existing.id },
+    data: {
+      code: requiredString(data.code, "Code").toUpperCase(),
+      name: requiredString(data.name, "Name"),
+      barcode: optionalString(data.barcode),
+    },
+  });
+  await auditUpdate(context, "WarehouseShelf", updated.id, existing, updated);
+  return updated;
+}
+
+export async function deactivateWarehouseShelf(context: MasterContext, shelfId: string) {
+  const existing = await prisma.warehouseShelf.findFirst({
+    where: { id: shelfId, rack: { block: { warehouse: { companyId: context.companyId } } } },
+  });
+
+  if (!existing) {
+    throw new ApiError(404, "WAREHOUSE_SHELF_NOT_FOUND", "Warehouse shelf not found.");
+  }
+
+  const [balances, movements, purchaseLines, salesLines] = await Promise.all([
+    prisma.stockBalance.count({ where: { companyId: context.companyId, shelfId } }),
+    prisma.stockMovement.count({ where: { companyId: context.companyId, shelfId } }),
+    prisma.purchaseInvoiceLine.count({ where: { companyId: context.companyId, shelfId } }),
+    prisma.salesInvoiceLine.count({ where: { companyId: context.companyId, shelfId } }),
+  ]);
+
+  if ([balances, movements, purchaseLines, salesLines].some((count) => count > 0)) {
+    throw new ApiError(400, "MASTER_IN_USE", "Warehouse shelf has stock or transaction history and cannot be deactivated.");
+  }
+
+  const updated = await prisma.warehouseShelf.update({ where: { id: existing.id }, data: { status: "INACTIVE" } });
+  await auditDeactivate(context, "WarehouseShelf", updated.id, existing, updated);
+  return updated;
 }

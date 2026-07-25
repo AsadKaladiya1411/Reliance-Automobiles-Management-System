@@ -218,9 +218,11 @@ type HsnCode = {
 type TaxRate = {
   id: string;
   name: string;
+  hsnCodeId?: string | null;
   cgstRate: string | number;
   sgstRate: string | number;
   igstRate: string | number;
+  status?: string;
 };
 
 type Brand = {
@@ -4145,7 +4147,27 @@ function TaxRatePanel({ hsnCodes, items }: { hsnCodes: HsnCode[]; items: TaxRate
     sgstRate: "9",
     igstRate: "18",
   });
-  const mutation = useCreateMaster("/masters/tax-rates", ["tax-rates", "master-summary"], () => undefined);
+  const [editingId, setEditingId] = useState("");
+  const taxRateKeys = ["tax-rates", "master-summary"];
+  const mutation = useCreateMaster("/masters/tax-rates", taxRateKeys, () => undefined);
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/masters/tax-rates/${editingId}`, form);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(taxRateKeys);
+      setEditingId("");
+      setForm({ name: "GST 18%", hsnCodeId: "", cgstRate: "9", sgstRate: "9", igstRate: "18" });
+    },
+  });
+  const deactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/masters/tax-rates/${id}`);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(taxRateKeys);
+    },
+  });
 
   return (
     <article className="setup-panel master-panel">
@@ -4154,6 +4176,10 @@ function TaxRatePanel({ hsnCodes, items }: { hsnCodes: HsnCode[]; items: TaxRate
         className="compact-form"
         onSubmit={(event) => {
           event.preventDefault();
+          if (editingId) {
+            updateMutation.mutate();
+            return;
+          }
           mutation.mutate(form);
         }}
       >
@@ -4165,9 +4191,32 @@ function TaxRatePanel({ hsnCodes, items }: { hsnCodes: HsnCode[]; items: TaxRate
         <input placeholder="CGST" value={form.cgstRate} onChange={(event) => setForm({ ...form, cgstRate: event.target.value })} />
         <input placeholder="SGST" value={form.sgstRate} onChange={(event) => setForm({ ...form, sgstRate: event.target.value })} />
         <input placeholder="IGST" value={form.igstRate} onChange={(event) => setForm({ ...form, igstRate: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+        <Button type="submit" variant="outline" disabled={mutation.isPending || updateMutation.isPending}>
+          {editingId ? "Save" : "Add"}
+        </Button>
+        {editingId ? (
+          <Button type="button" variant="outline" onClick={() => {
+            setEditingId("");
+            setForm({ name: "GST 18%", hsnCodeId: "", cgstRate: "9", sgstRate: "9", igstRate: "18" });
+          }}>
+            Cancel
+          </Button>
+        ) : null}
       </form>
-      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.igstRate}%` }))} />
+      <EditableMasterList
+        items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.igstRate}% / ${item.status ?? "ACTIVE"}`, raw: item }))}
+        onDeactivate={(id) => deactivateMutation.mutate(id)}
+        onEdit={(item) => {
+          setEditingId(item.id);
+          setForm({
+            name: item.raw.name,
+            hsnCodeId: item.raw.hsnCodeId ?? "",
+            cgstRate: String(item.raw.cgstRate),
+            sgstRate: String(item.raw.sgstRate),
+            igstRate: String(item.raw.igstRate),
+          });
+        }}
+      />
     </article>
   );
 }
@@ -4394,19 +4443,33 @@ function VariantPanel({ items, products }: { items: ProductVariant[]; products: 
 }
 
 function MasterList({ items }: { items: Array<{ id: string; label: string; meta: string }> }) {
+  const [search, setSearch] = useState("");
+  const visibleItems = search.trim()
+    ? items.filter((item) => `${item.label} ${item.meta}`.toLowerCase().includes(search.trim().toLowerCase()))
+    : items;
+
   if (items.length === 0) {
     return <p className="empty-text">No records yet.</p>;
   }
 
   return (
-    <ul className="compact-list">
-      {items.slice(0, 6).map((item) => (
-        <li key={item.id}>
-          <span>{item.label}</span>
-          <strong>{item.meta}</strong>
-        </li>
-      ))}
-    </ul>
+    <>
+      <input
+        className="list-search"
+        placeholder="Search records"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+      />
+      {visibleItems.length === 0 ? <p className="empty-text">No matching records.</p> : null}
+      <ul className="compact-list">
+        {visibleItems.slice(0, 8).map((item) => (
+          <li key={item.id}>
+            <span>{item.label}</span>
+            <strong>{item.meta}</strong>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -4419,25 +4482,39 @@ function EditableMasterList<T extends { id: string }>({
   onDeactivate: (id: string) => void;
   onEdit: (item: { id: string; label: string; meta: string; raw: T }) => void;
 }) {
+  const [search, setSearch] = useState("");
+  const visibleItems = search.trim()
+    ? items.filter((item) => `${item.label} ${item.meta}`.toLowerCase().includes(search.trim().toLowerCase()))
+    : items;
+
   if (items.length === 0) {
     return <p className="empty-text">No records yet.</p>;
   }
 
   return (
-    <ul className="compact-list action-list">
-      {items.slice(0, 8).map((item) => (
-        <li key={item.id}>
-          <span>{item.label}</span>
-          <strong>{item.meta}</strong>
-          <Button type="button" variant="outline" onClick={() => onEdit(item)}>
-            Edit
-          </Button>
-          <Button type="button" variant="outline" onClick={() => onDeactivate(item.id)}>
-            Deactivate
-          </Button>
-        </li>
-      ))}
-    </ul>
+    <>
+      <input
+        className="list-search"
+        placeholder="Search records"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+      />
+      {visibleItems.length === 0 ? <p className="empty-text">No matching records.</p> : null}
+      <ul className="compact-list action-list">
+        {visibleItems.slice(0, 8).map((item) => (
+          <li key={item.id}>
+            <span>{item.label}</span>
+            <strong>{item.meta}</strong>
+            <Button type="button" variant="outline" onClick={() => onEdit(item)}>
+              Edit
+            </Button>
+            <Button type="button" variant="outline" onClick={() => onDeactivate(item.id)}>
+              Deactivate
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 

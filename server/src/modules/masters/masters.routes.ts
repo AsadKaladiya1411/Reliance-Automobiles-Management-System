@@ -21,8 +21,12 @@ import {
   deactivateHsnCode,
   deactivateProduct,
   deactivateProductVariant,
+  deactivateTaxRate,
   deactivateUnit,
   deactivateWarehouse,
+  deactivateWarehouseBlock,
+  deactivateWarehouseRack,
+  deactivateWarehouseShelf,
   getMasterSummary,
   listBrands,
   listCategories,
@@ -38,8 +42,12 @@ import {
   updateHsnCode,
   updateProduct,
   updateProductVariant,
+  updateTaxRate,
   updateUnit,
   updateWarehouse,
+  updateWarehouseBlock,
+  updateWarehouseRack,
+  updateWarehouseShelf,
 } from "./masters.service";
 
 const router = Router();
@@ -98,6 +106,12 @@ router.get("/masters/tax-rates", asyncHandler(async (req, res) => {
 }));
 router.post("/masters/tax-rates", asyncHandler(async (req, res) => {
   sendSuccess(res, await createTaxRate(context(req), req.body), "Tax rate created.", 201);
+}));
+router.patch("/masters/tax-rates/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await updateTaxRate(context(req), routeParam(req.params.id, "id"), req.body), "Tax rate updated.");
+}));
+router.delete("/masters/tax-rates/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await deactivateTaxRate(context(req), routeParam(req.params.id, "id")), "Tax rate deactivated.");
 }));
 
 router.get("/masters/brands", asyncHandler(async (req, res) => {
@@ -179,6 +193,20 @@ router.post("/masters/warehouses/:warehouseId/blocks", asyncHandler(async (req, 
     201,
   );
 }));
+router.patch("/masters/warehouse-blocks/:blockId", asyncHandler(async (req, res) => {
+  sendSuccess(
+    res,
+    await updateWarehouseBlock(context(req), routeParam(req.params.blockId, "blockId"), req.body),
+    "Warehouse block updated.",
+  );
+}));
+router.delete("/masters/warehouse-blocks/:blockId", asyncHandler(async (req, res) => {
+  sendSuccess(
+    res,
+    await deactivateWarehouseBlock(context(req), routeParam(req.params.blockId, "blockId")),
+    "Warehouse block deactivated.",
+  );
+}));
 router.post("/masters/warehouse-blocks/:blockId/racks", asyncHandler(async (req, res) => {
   sendSuccess(
     res,
@@ -187,12 +215,40 @@ router.post("/masters/warehouse-blocks/:blockId/racks", asyncHandler(async (req,
     201,
   );
 }));
+router.patch("/masters/warehouse-racks/:rackId", asyncHandler(async (req, res) => {
+  sendSuccess(
+    res,
+    await updateWarehouseRack(context(req), routeParam(req.params.rackId, "rackId"), req.body),
+    "Warehouse rack updated.",
+  );
+}));
+router.delete("/masters/warehouse-racks/:rackId", asyncHandler(async (req, res) => {
+  sendSuccess(
+    res,
+    await deactivateWarehouseRack(context(req), routeParam(req.params.rackId, "rackId")),
+    "Warehouse rack deactivated.",
+  );
+}));
 router.post("/masters/warehouse-racks/:rackId/shelves", asyncHandler(async (req, res) => {
   sendSuccess(
     res,
     await createWarehouseShelf(context(req), routeParam(req.params.rackId, "rackId"), req.body),
     "Warehouse shelf created.",
     201,
+  );
+}));
+router.patch("/masters/warehouse-shelves/:shelfId", asyncHandler(async (req, res) => {
+  sendSuccess(
+    res,
+    await updateWarehouseShelf(context(req), routeParam(req.params.shelfId, "shelfId"), req.body),
+    "Warehouse shelf updated.",
+  );
+}));
+router.delete("/masters/warehouse-shelves/:shelfId", asyncHandler(async (req, res) => {
+  sendSuccess(
+    res,
+    await deactivateWarehouseShelf(context(req), routeParam(req.params.shelfId, "shelfId")),
+    "Warehouse shelf deactivated.",
   );
 }));
 
