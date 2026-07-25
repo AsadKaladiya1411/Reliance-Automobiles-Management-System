@@ -621,9 +621,10 @@ function useCurrentUser() {
   });
 }
 
-function useCompany() {
+function useCompany(enabled = true) {
   return useQuery({
     queryKey: ["company"],
+    enabled,
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<Company>>("/company");
       return response.data.data;
@@ -631,9 +632,10 @@ function useCompany() {
   });
 }
 
-function useFinancialYears() {
+function useFinancialYears(enabled = true) {
   return useQuery({
     queryKey: ["financial-years"],
+    enabled,
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<FinancialYear[]>>("/financial-years");
       return response.data.data;
@@ -641,9 +643,10 @@ function useFinancialYears() {
   });
 }
 
-function useNumberSeries() {
+function useNumberSeries(enabled = true) {
   return useQuery({
     queryKey: ["number-series"],
+    enabled,
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<NumberSeries[]>>("/number-series");
       return response.data.data;
@@ -741,9 +744,10 @@ function usePaymentSummary() {
   });
 }
 
-function useAuditLogs() {
+function useAuditLogs(enabled = true) {
   return useQuery({
     queryKey: ["audit-logs"],
+    enabled,
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<AuditLog[]>>("/audit/logs");
       return response.data.data;
@@ -1008,11 +1012,12 @@ function AuthPanel({
 function DashboardShell({ user }: { user: AuthUser }) {
   const [activeView, setActiveView] = useState<AppView>("dashboard");
   const visibleNavItems = navItems.filter((item) => canAccessView(user, item.id));
+  const canAccessSettings = canAccessView(user, "settings");
   const status = useSystemStatus();
-  const company = useCompany();
-  const financialYears = useFinancialYears();
-  const numberSeries = useNumberSeries();
-  const auditLogs = useAuditLogs();
+  const company = useCompany(canAccessSettings);
+  const financialYears = useFinancialYears(canAccessSettings);
+  const numberSeries = useNumberSeries(canAccessSettings);
+  const auditLogs = useAuditLogs(canAccessSettings);
   const masterSummary = useMasterSummary();
   const inventorySummary = useInventorySummary();
   const commercialMasterSummary = useCommercialMasterSummary();

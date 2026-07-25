@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireAuth, requireModuleAccess } from "../auth/auth.middleware";
+import { ApiError } from "../../utils/api-error";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
 import {
@@ -42,7 +43,7 @@ function context(req: Parameters<Parameters<typeof asyncHandler>[0]>[0]) {
 
 function routeParam(value: string | string[] | undefined, name: string) {
   if (typeof value !== "string" || value.trim() === "") {
-    throw new Error(`Missing route parameter: ${name}`);
+    throw new ApiError(400, "MISSING_ROUTE_PARAMETER", `Missing route parameter: ${name}.`);
   }
 
   return value;

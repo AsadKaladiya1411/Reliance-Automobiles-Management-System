@@ -4,7 +4,7 @@ Last updated: 2026-07-25
 
 ## Overall Completion
 
-Estimated completion: 60%
+Estimated completion: 61%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -12,8 +12,8 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 | Module | Completion | Notes |
 | --- | ---: | --- |
-| Platform/Foundation | 73% | Web app, API, environment config, Prisma, setup flow, number series, audit logs, global API errors are in place. Needs stronger tests, deployment hardening, logging, and operational docs. |
-| Authentication/RBAC | 70% | Login, registration, current-user session, Super Admin, Staff role, user-role administration, backend module permission middleware, and role-aware navigation. Needs finer action-level controls and richer user lifecycle controls. |
+| Platform/Foundation | 74% | Web app, API, environment config, Prisma, setup flow, number series, audit logs, global API errors, same-origin mutation guard, and audit reporting are in place. Needs stronger tests, deployment hardening, logging, and operational docs. |
+| Authentication/RBAC | 71% | Login, registration, current-user session, Super Admin, Staff role, user-role administration, backend module permission middleware, role-aware navigation, and permission-aware Settings queries. Needs finer action-level controls and richer user lifecycle controls. |
 | Company/Financial Year/Settings | 65% | Company profile, financial years, number series, default seeding, audit view. Needs closing/opening year workflows and more settings. |
 | Masters | 70% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Needs edit/deactivate flows, import/export, search, pagination. |
 | Commercial Masters | 62% | Customers, suppliers, employees, vehicles, payment modes. Needs richer profiles, credit limits, contact/address handling, lifecycle controls. |
@@ -40,6 +40,9 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - User role administration UI and API for Super Admin.
 - Backend module permission enforcement middleware.
 - Role-aware frontend navigation.
+- Project-wide audit completed with critical fixes applied.
+- Same-origin guard added for mutating API requests.
+- Permission-aware Settings data fetching added.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -77,33 +80,23 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Permission enforcement and role-aware navigation.
+Project-wide audit and critical fix pass.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 17 to 25 focused development sessions.
+Estimated remaining iterations: 17 to 24 focused development sessions.
 
 The largest remaining chunks are workshop billing, approval/permission enforcement, reporting/export depth, automated testing, and production deployment hardening.
 
 ## Files/Modules Modified In This Session
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
+- `RAMS_AUDIT_REPORT.md`
 - `client/src/App.tsx`
+- `server/src/app.ts`
+- `server/src/middleware/same-origin.ts`
 - `server/src/modules/auth/auth.middleware.ts`
-- `server/src/modules/auth/auth.routes.ts`
-- `server/src/modules/accounting/accounting.routes.ts`
-- `server/src/modules/audit/audit.routes.ts`
-- `server/src/modules/company/company.routes.ts`
-- `server/src/modules/commercial-masters/commercial-masters.routes.ts`
-- `server/src/modules/financial-year/financial-year.routes.ts`
-- `server/src/modules/inventory/inventory.routes.ts`
 - `server/src/modules/masters/masters.routes.ts`
-- `server/src/modules/notes/notes.routes.ts`
-- `server/src/modules/number-series/number-series.routes.ts`
-- `server/src/modules/payments/payments.routes.ts`
-- `server/src/modules/purchase/purchase.routes.ts`
-- `server/src/modules/sales/sales.routes.ts`
-- `server/src/modules/workshop/workshop.routes.ts`
 
 ## Next Implementation Target
 
