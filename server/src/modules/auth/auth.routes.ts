@@ -14,7 +14,7 @@ import {
   signAuthToken,
   updateUserRoles,
 } from "./auth.service";
-import { requireAuth } from "./auth.middleware";
+import { requireAuth, requireModuleAccess } from "./auth.middleware";
 
 const router = Router();
 
@@ -133,6 +133,7 @@ router.get(
 router.get(
   "/auth/users",
   requireAuth,
+  requireModuleAccess("settings"),
   asyncHandler(async (req, res) => {
     sendSuccess(res, await listUsers(req.user!.companyId));
   }),
@@ -141,6 +142,7 @@ router.get(
 router.get(
   "/auth/roles",
   requireAuth,
+  requireModuleAccess("settings"),
   asyncHandler(async (req, res) => {
     sendSuccess(res, await listRoles(req.user!.companyId));
   }),
@@ -149,6 +151,7 @@ router.get(
 router.patch(
   "/auth/users/:id/roles",
   requireAuth,
+  requireModuleAccess("settings"),
   asyncHandler(async (req, res) => {
     sendSuccess(
       res,

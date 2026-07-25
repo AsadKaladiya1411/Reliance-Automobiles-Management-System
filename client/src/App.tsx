@@ -561,6 +561,24 @@ const navItems: Array<{ id: AppView; label: string; icon: string }> = [
   { id: "settings", label: "Settings", icon: "ST" },
 ];
 
+const viewPermissions: Record<AppView, string[]> = {
+  dashboard: ["dashboard:read"],
+  masters: ["masters:read"],
+  inventory: ["inventory:read"],
+  workshop: ["workshop:read"],
+  transactions: ["purchase:read", "sales:read", "accounting:read"],
+  reports: ["reports:read", "accounting:read", "gst:read"],
+  settings: ["settings:read", "company:read"],
+};
+
+function canAccessView(user: AuthUser, view: AppView) {
+  if (user.roles.includes("SUPER_ADMIN")) {
+    return true;
+  }
+
+  return viewPermissions[view].some((permission) => user.permissions.includes(permission));
+}
+
 const modules = [
   { name: "Foundation", icon: "FD", status: "In progress", text: "Company, RBAC, audit, number series" },
   { name: "Masters", icon: "MS", status: "Planned", text: "Products, customers, suppliers, employees, vehicles" },
@@ -989,6 +1007,7 @@ function AuthPanel({
 
 function DashboardShell({ user }: { user: AuthUser }) {
   const [activeView, setActiveView] = useState<AppView>("dashboard");
+  const visibleNavItems = navItems.filter((item) => canAccessView(user, item.id));
   const status = useSystemStatus();
   const company = useCompany();
   const financialYears = useFinancialYears();
@@ -1025,7 +1044,7 @@ function DashboardShell({ user }: { user: AuthUser }) {
         </div>
 
         <nav className="nav-list" aria-label="Primary">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <button
               className={activeView === item.id ? "active" : ""}
               key={item.id}

@@ -1,12 +1,12 @@
 import { Router } from "express";
-import { requireAuth } from "../auth/auth.middleware";
+import { requireAuth, requireModuleAccess } from "../auth/auth.middleware";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
 import { createFinancialYear, listFinancialYears } from "./financial-year.service";
 
 const router = Router();
 
-router.use(requireAuth);
+router.use(requireAuth, requireModuleAccess("settings"));
 
 router.get(
   "/financial-years",

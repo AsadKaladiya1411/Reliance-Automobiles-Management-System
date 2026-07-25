@@ -1,12 +1,12 @@
 import { Router } from "express";
-import { requireAuth } from "../auth/auth.middleware";
+import { requireAuth, requireModuleAccess } from "../auth/auth.middleware";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
 import { getCompany, updateCompany } from "./company.service";
 
 const router = Router();
 
-router.use(requireAuth);
+router.use(requireAuth, requireModuleAccess("company"));
 
 router.get(
   "/company",

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireAuth } from "../auth/auth.middleware";
+import { requireAuth, requireModuleAccess } from "../auth/auth.middleware";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
 import {
@@ -29,7 +29,7 @@ import {
 
 const router = Router();
 
-router.use(requireAuth);
+router.use(requireAuth, requireModuleAccess("masters"));
 
 function context(req: Parameters<Parameters<typeof asyncHandler>[0]>[0]) {
   return {
