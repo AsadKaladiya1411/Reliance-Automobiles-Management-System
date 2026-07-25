@@ -9,12 +9,22 @@ import {
   createPaymentMode,
   createSupplier,
   createVehicle,
+  deactivateCustomer,
+  deactivateEmployee,
+  deactivatePaymentMode,
+  deactivateSupplier,
+  deactivateVehicle,
   getCommercialMasterSummary,
   listCustomers,
   listEmployees,
   listPaymentModes,
   listSuppliers,
   listVehicles,
+  updateCustomer,
+  updateEmployee,
+  updatePaymentMode,
+  updateSupplier,
+  updateVehicle,
 } from "./commercial-masters.service";
 
 const router = Router();
@@ -40,12 +50,24 @@ router.get("/commercial-masters/customers", asyncHandler(async (req, res) => {
 router.post("/commercial-masters/customers", asyncHandler(async (req, res) => {
   sendSuccess(res, await createCustomer(context(req), req.body), "Customer created.", 201);
 }));
+router.patch("/commercial-masters/customers/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await updateCustomer(context(req), String(req.params.id), req.body), "Customer updated.");
+}));
+router.delete("/commercial-masters/customers/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await deactivateCustomer(context(req), String(req.params.id)), "Customer deactivated.");
+}));
 
 router.get("/commercial-masters/suppliers", asyncHandler(async (req, res) => {
   sendSuccess(res, await listSuppliers(req.user!.companyId));
 }));
 router.post("/commercial-masters/suppliers", asyncHandler(async (req, res) => {
   sendSuccess(res, await createSupplier(context(req), req.body), "Supplier created.", 201);
+}));
+router.patch("/commercial-masters/suppliers/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await updateSupplier(context(req), String(req.params.id), req.body), "Supplier updated.");
+}));
+router.delete("/commercial-masters/suppliers/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await deactivateSupplier(context(req), String(req.params.id)), "Supplier deactivated.");
 }));
 
 router.get("/commercial-masters/employees", asyncHandler(async (req, res) => {
@@ -54,6 +76,12 @@ router.get("/commercial-masters/employees", asyncHandler(async (req, res) => {
 router.post("/commercial-masters/employees", asyncHandler(async (req, res) => {
   sendSuccess(res, await createEmployee(context(req), req.body), "Employee created.", 201);
 }));
+router.patch("/commercial-masters/employees/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await updateEmployee(context(req), String(req.params.id), req.body), "Employee updated.");
+}));
+router.delete("/commercial-masters/employees/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await deactivateEmployee(context(req), String(req.params.id)), "Employee deactivated.");
+}));
 
 router.get("/commercial-masters/vehicles", asyncHandler(async (req, res) => {
   sendSuccess(res, await listVehicles(req.user!.companyId));
@@ -61,12 +89,24 @@ router.get("/commercial-masters/vehicles", asyncHandler(async (req, res) => {
 router.post("/commercial-masters/vehicles", asyncHandler(async (req, res) => {
   sendSuccess(res, await createVehicle(context(req), req.body), "Vehicle created.", 201);
 }));
+router.patch("/commercial-masters/vehicles/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await updateVehicle(context(req), String(req.params.id), req.body), "Vehicle updated.");
+}));
+router.delete("/commercial-masters/vehicles/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await deactivateVehicle(context(req), String(req.params.id)), "Vehicle deactivated.");
+}));
 
 router.get("/commercial-masters/payment-modes", asyncHandler(async (req, res) => {
   sendSuccess(res, await listPaymentModes(req.user!.companyId));
 }));
 router.post("/commercial-masters/payment-modes", asyncHandler(async (req, res) => {
   sendSuccess(res, await createPaymentMode(context(req), req.body), "Payment mode created.", 201);
+}));
+router.patch("/commercial-masters/payment-modes/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await updatePaymentMode(context(req), String(req.params.id), req.body), "Payment mode updated.");
+}));
+router.delete("/commercial-masters/payment-modes/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await deactivatePaymentMode(context(req), String(req.params.id)), "Payment mode deactivated.");
 }));
 
 export default router;

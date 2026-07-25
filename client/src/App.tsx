@@ -294,7 +294,9 @@ type Customer = {
   code: string;
   name: string;
   phone?: string | null;
+  gstin?: string | null;
   customerType: string;
+  status?: string;
 };
 
 type Supplier = {
@@ -302,7 +304,9 @@ type Supplier = {
   code: string;
   name: string;
   phone?: string | null;
+  gstin?: string | null;
   supplierType: string;
+  status?: string;
 };
 
 type Employee = {
@@ -310,6 +314,9 @@ type Employee = {
   code: string;
   name: string;
   designation?: string | null;
+  department?: string | null;
+  phone?: string | null;
+  status?: string;
 };
 
 type Vehicle = {
@@ -317,6 +324,9 @@ type Vehicle = {
   registrationNumber: string;
   brand: string;
   model: string;
+  vehicleType?: string;
+  fuelType?: string | null;
+  status?: string;
   customer?: Customer | null;
 };
 
@@ -325,6 +335,8 @@ type PaymentMode = {
   code: string;
   name: string;
   paymentType: string;
+  requiresReference?: boolean;
+  status?: string;
 };
 
 type Account = {
@@ -2336,15 +2348,38 @@ function SimpleCodeNamePanel({
 
 function CustomerPanel({ items }: { items: Customer[] }) {
   const [form, setForm] = useState({ code: "", name: "", customerType: "Retail", phone: "", gstin: "" });
+  const [editingId, setEditingId] = useState("");
   const mutation = useCreateMaster("/commercial-masters/customers", ["customers", "commercial-master-summary"], () =>
     setForm({ code: "", name: "", customerType: "Retail", phone: "", gstin: "" }),
   );
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/commercial-masters/customers/${editingId}`, form);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(["customers", "commercial-master-summary"]);
+      setEditingId("");
+      setForm({ code: "", name: "", customerType: "Retail", phone: "", gstin: "" });
+    },
+  });
+  const deactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/commercial-masters/customers/${id}`);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(["customers", "commercial-master-summary"]);
+    },
+  });
 
   return (
     <article className="setup-panel master-panel wide-panel">
       <h2>Customers</h2>
       <form className="compact-form product-form" onSubmit={(event) => {
         event.preventDefault();
+        if (editingId) {
+          updateMutation.mutate();
+          return;
+        }
         mutation.mutate(form);
       }}>
         <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
@@ -2352,24 +2387,70 @@ function CustomerPanel({ items }: { items: Customer[] }) {
         <input placeholder="Type" value={form.customerType} onChange={(event) => setForm({ ...form, customerType: event.target.value })} />
         <input placeholder="Phone" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
         <input placeholder="GSTIN" value={form.gstin} onChange={(event) => setForm({ ...form, gstin: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+        <Button type="submit" variant="outline" disabled={mutation.isPending || updateMutation.isPending}>
+          {editingId ? "Save" : "Add"}
+        </Button>
+        {editingId ? (
+          <Button type="button" variant="outline" onClick={() => {
+            setEditingId("");
+            setForm({ code: "", name: "", customerType: "Retail", phone: "", gstin: "" });
+          }}>
+            Cancel
+          </Button>
+        ) : null}
       </form>
-      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.customerType}` }))} />
+      <EditableMasterList
+        items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.customerType} / ${item.status ?? "ACTIVE"}`, raw: item }))}
+        onDeactivate={(id) => deactivateMutation.mutate(id)}
+        onEdit={(item) => {
+          setEditingId(item.id);
+          setForm({
+            code: item.raw.code,
+            name: item.raw.name,
+            customerType: item.raw.customerType,
+            phone: item.raw.phone ?? "",
+            gstin: item.raw.gstin ?? "",
+          });
+        }}
+      />
     </article>
   );
 }
 
 function SupplierPanel({ items }: { items: Supplier[] }) {
   const [form, setForm] = useState({ code: "", name: "", supplierType: "Distributor", phone: "", gstin: "" });
+  const [editingId, setEditingId] = useState("");
   const mutation = useCreateMaster("/commercial-masters/suppliers", ["suppliers", "commercial-master-summary"], () =>
     setForm({ code: "", name: "", supplierType: "Distributor", phone: "", gstin: "" }),
   );
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/commercial-masters/suppliers/${editingId}`, form);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(["suppliers", "commercial-master-summary"]);
+      setEditingId("");
+      setForm({ code: "", name: "", supplierType: "Distributor", phone: "", gstin: "" });
+    },
+  });
+  const deactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/commercial-masters/suppliers/${id}`);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(["suppliers", "commercial-master-summary"]);
+    },
+  });
 
   return (
     <article className="setup-panel master-panel wide-panel">
       <h2>Suppliers</h2>
       <form className="compact-form product-form" onSubmit={(event) => {
         event.preventDefault();
+        if (editingId) {
+          updateMutation.mutate();
+          return;
+        }
         mutation.mutate(form);
       }}>
         <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
@@ -2377,24 +2458,70 @@ function SupplierPanel({ items }: { items: Supplier[] }) {
         <input placeholder="Type" value={form.supplierType} onChange={(event) => setForm({ ...form, supplierType: event.target.value })} />
         <input placeholder="Phone" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
         <input placeholder="GSTIN" value={form.gstin} onChange={(event) => setForm({ ...form, gstin: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+        <Button type="submit" variant="outline" disabled={mutation.isPending || updateMutation.isPending}>
+          {editingId ? "Save" : "Add"}
+        </Button>
+        {editingId ? (
+          <Button type="button" variant="outline" onClick={() => {
+            setEditingId("");
+            setForm({ code: "", name: "", supplierType: "Distributor", phone: "", gstin: "" });
+          }}>
+            Cancel
+          </Button>
+        ) : null}
       </form>
-      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.supplierType}` }))} />
+      <EditableMasterList
+        items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.supplierType} / ${item.status ?? "ACTIVE"}`, raw: item }))}
+        onDeactivate={(id) => deactivateMutation.mutate(id)}
+        onEdit={(item) => {
+          setEditingId(item.id);
+          setForm({
+            code: item.raw.code,
+            name: item.raw.name,
+            supplierType: item.raw.supplierType,
+            phone: item.raw.phone ?? "",
+            gstin: item.raw.gstin ?? "",
+          });
+        }}
+      />
     </article>
   );
 }
 
 function EmployeePanel({ items }: { items: Employee[] }) {
   const [form, setForm] = useState({ code: "", name: "", designation: "", department: "", phone: "" });
+  const [editingId, setEditingId] = useState("");
   const mutation = useCreateMaster("/commercial-masters/employees", ["employees", "commercial-master-summary"], () =>
     setForm({ code: "", name: "", designation: "", department: "", phone: "" }),
   );
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/commercial-masters/employees/${editingId}`, form);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(["employees", "commercial-master-summary"]);
+      setEditingId("");
+      setForm({ code: "", name: "", designation: "", department: "", phone: "" });
+    },
+  });
+  const deactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/commercial-masters/employees/${id}`);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(["employees", "commercial-master-summary"]);
+    },
+  });
 
   return (
     <article className="setup-panel master-panel">
       <h2>Employees</h2>
       <form className="compact-form" onSubmit={(event) => {
         event.preventDefault();
+        if (editingId) {
+          updateMutation.mutate();
+          return;
+        }
         mutation.mutate(form);
       }}>
         <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
@@ -2402,24 +2529,70 @@ function EmployeePanel({ items }: { items: Employee[] }) {
         <input placeholder="Designation" value={form.designation} onChange={(event) => setForm({ ...form, designation: event.target.value })} />
         <input placeholder="Department" value={form.department} onChange={(event) => setForm({ ...form, department: event.target.value })} />
         <input placeholder="Phone" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+        <Button type="submit" variant="outline" disabled={mutation.isPending || updateMutation.isPending}>
+          {editingId ? "Save" : "Add"}
+        </Button>
+        {editingId ? (
+          <Button type="button" variant="outline" onClick={() => {
+            setEditingId("");
+            setForm({ code: "", name: "", designation: "", department: "", phone: "" });
+          }}>
+            Cancel
+          </Button>
+        ) : null}
       </form>
-      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: item.designation ?? item.code }))} />
+      <EditableMasterList
+        items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.designation ?? item.code} / ${item.status ?? "ACTIVE"}`, raw: item }))}
+        onDeactivate={(id) => deactivateMutation.mutate(id)}
+        onEdit={(item) => {
+          setEditingId(item.id);
+          setForm({
+            code: item.raw.code,
+            name: item.raw.name,
+            designation: item.raw.designation ?? "",
+            department: item.raw.department ?? "",
+            phone: item.raw.phone ?? "",
+          });
+        }}
+      />
     </article>
   );
 }
 
 function PaymentModePanel({ items }: { items: PaymentMode[] }) {
   const [form, setForm] = useState({ code: "", name: "", paymentType: "Cash", requiresReference: false });
+  const [editingId, setEditingId] = useState("");
   const mutation = useCreateMaster("/commercial-masters/payment-modes", ["payment-modes", "commercial-master-summary"], () =>
     setForm({ code: "", name: "", paymentType: "Cash", requiresReference: false }),
   );
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/commercial-masters/payment-modes/${editingId}`, form);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(["payment-modes", "commercial-master-summary"]);
+      setEditingId("");
+      setForm({ code: "", name: "", paymentType: "Cash", requiresReference: false });
+    },
+  });
+  const deactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/commercial-masters/payment-modes/${id}`);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(["payment-modes", "commercial-master-summary"]);
+    },
+  });
 
   return (
     <article className="setup-panel master-panel">
       <h2>Payment Modes</h2>
       <form className="compact-form" onSubmit={(event) => {
         event.preventDefault();
+        if (editingId) {
+          updateMutation.mutate();
+          return;
+        }
         mutation.mutate(form);
       }}>
         <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
@@ -2439,9 +2612,31 @@ function PaymentModePanel({ items }: { items: PaymentMode[] }) {
           />
           Reference
         </label>
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+        <Button type="submit" variant="outline" disabled={mutation.isPending || updateMutation.isPending}>
+          {editingId ? "Save" : "Add"}
+        </Button>
+        {editingId ? (
+          <Button type="button" variant="outline" onClick={() => {
+            setEditingId("");
+            setForm({ code: "", name: "", paymentType: "Cash", requiresReference: false });
+          }}>
+            Cancel
+          </Button>
+        ) : null}
       </form>
-      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: item.paymentType }))} />
+      <EditableMasterList
+        items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.paymentType} / ${item.status ?? "ACTIVE"}`, raw: item }))}
+        onDeactivate={(id) => deactivateMutation.mutate(id)}
+        onEdit={(item) => {
+          setEditingId(item.id);
+          setForm({
+            code: item.raw.code,
+            name: item.raw.name,
+            paymentType: item.raw.paymentType,
+            requiresReference: Boolean(item.raw.requiresReference),
+          });
+        }}
+      />
     </article>
   );
 }
@@ -2455,15 +2650,45 @@ function VehiclePanel({ customers, items }: { customers: Customer[]; items: Vehi
     vehicleType: "Four-wheeler",
     fuelType: "",
   });
+  const [editingId, setEditingId] = useState("");
   const mutation = useCreateMaster("/commercial-masters/vehicles", ["vehicles", "commercial-master-summary"], () =>
     setForm({ ...form, registrationNumber: "", brand: "", model: "", fuelType: "" }),
   );
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/commercial-masters/vehicles/${editingId}`, form);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(["vehicles", "commercial-master-summary"]);
+      setEditingId("");
+      setForm({
+        customerId: "",
+        registrationNumber: "",
+        brand: "",
+        model: "",
+        vehicleType: "Four-wheeler",
+        fuelType: "",
+      });
+    },
+  });
+  const deactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/commercial-masters/vehicles/${id}`);
+    },
+    onSuccess: async () => {
+      await invalidateKeys(["vehicles", "commercial-master-summary"]);
+    },
+  });
 
   return (
     <article className="setup-panel master-panel wide-panel">
       <h2>Vehicles</h2>
       <form className="compact-form product-form" onSubmit={(event) => {
         event.preventDefault();
+        if (editingId) {
+          updateMutation.mutate();
+          return;
+        }
         mutation.mutate(form);
       }}>
         <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value })}>
@@ -2475,14 +2700,44 @@ function VehiclePanel({ customers, items }: { customers: Customer[]; items: Vehi
         <input placeholder="Model" value={form.model} onChange={(event) => setForm({ ...form, model: event.target.value })} />
         <input placeholder="Type" value={form.vehicleType} onChange={(event) => setForm({ ...form, vehicleType: event.target.value })} />
         <input placeholder="Fuel" value={form.fuelType} onChange={(event) => setForm({ ...form, fuelType: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+        <Button type="submit" variant="outline" disabled={mutation.isPending || updateMutation.isPending}>
+          {editingId ? "Save" : "Add"}
+        </Button>
+        {editingId ? (
+          <Button type="button" variant="outline" onClick={() => {
+            setEditingId("");
+            setForm({
+              customerId: "",
+              registrationNumber: "",
+              brand: "",
+              model: "",
+              vehicleType: "Four-wheeler",
+              fuelType: "",
+            });
+          }}>
+            Cancel
+          </Button>
+        ) : null}
       </form>
-      <MasterList
+      <EditableMasterList
         items={items.map((item) => ({
           id: item.id,
           label: item.registrationNumber,
-          meta: `${item.brand} ${item.model}${item.customer ? ` / ${item.customer.name}` : ""}`,
+          meta: `${item.brand} ${item.model}${item.customer ? ` / ${item.customer.name}` : ""} / ${item.status ?? "ACTIVE"}`,
+          raw: item,
         }))}
+        onDeactivate={(id) => deactivateMutation.mutate(id)}
+        onEdit={(item) => {
+          setEditingId(item.id);
+          setForm({
+            customerId: item.raw.customer?.id ?? "",
+            registrationNumber: item.raw.registrationNumber,
+            brand: item.raw.brand,
+            model: item.raw.model,
+            vehicleType: item.raw.vehicleType ?? "Four-wheeler",
+            fuelType: item.raw.fuelType ?? "",
+          });
+        }}
       />
     </article>
   );
@@ -4071,6 +4326,10 @@ function useCreateMaster(path: string, queryKeys: string[], onSuccess?: () => vo
       onSuccess?.();
     },
   });
+}
+
+async function invalidateKeys(queryKeys: string[]) {
+  await Promise.all(queryKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey: [queryKey] })));
 }
 
 async function invalidatePostingQueries(extraKeys: string[] = []) {
