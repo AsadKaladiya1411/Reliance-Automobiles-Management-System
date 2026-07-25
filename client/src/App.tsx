@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { AxiosError } from "axios";
 import { QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
 import { api, type ApiEnvelope } from "@/lib/api";
+import type { AppNotification } from "@/lib/notifications";
+import { subscribeNotifications } from "@/lib/notifications";
 import { queryClient } from "@/lib/query-client";
 import { Button } from "@/components/ui/button";
 import "./App.css";
@@ -3827,7 +3829,35 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AppContent />
+      <NotificationViewport />
     </QueryClientProvider>
+  );
+}
+
+function NotificationViewport() {
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
+  useEffect(() => {
+    return subscribeNotifications((notification) => {
+      setNotifications((current) => [...current.slice(-2), notification]);
+      window.setTimeout(() => {
+        setNotifications((current) => current.filter((item) => item.id !== notification.id));
+      }, 5000);
+    });
+  }, []);
+
+  if (notifications.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="notification-stack" role="status" aria-live="polite">
+      {notifications.map((notification) => (
+        <div className={`app-notification ${notification.tone}`} key={notification.id}>
+          {notification.message}
+        </div>
+      ))}
+    </div>
   );
 }
 
