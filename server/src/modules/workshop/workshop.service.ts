@@ -76,6 +76,10 @@ function json(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
+function locationKey(input: { warehouseId: string }) {
+  return [input.warehouseId, "-", "-", "-"].join(":");
+}
+
 async function nextJobCardNumber(tx: Prisma.TransactionClient, companyId: string) {
   const series = await tx.numberSeries.findFirst({
     where: { companyId, documentType: "JOB_CARD", status: "ACTIVE" },
@@ -88,6 +92,30 @@ async function nextJobCardNumber(tx: Prisma.TransactionClient, companyId: string
 
   await tx.numberSeries.update({ where: { id: series.id }, data: { nextNumber: { increment: 1 } } });
   return formatDocumentNumber(series);
+}
+
+async function nextJournalNumber(tx: Prisma.TransactionClient, companyId: string) {
+  const series = await tx.numberSeries.findFirst({
+    where: { companyId, documentType: "JOURNAL_ENTRY", status: "ACTIVE" },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (!series) {
+    throw new ApiError(400, "NUMBER_SERIES_MISSING", "Create a JOURNAL_ENTRY number series before issuing workshop parts.");
+  }
+
+  await tx.numberSeries.update({ where: { id: series.id }, data: { nextNumber: { increment: 1 } } });
+  return formatDocumentNumber(series);
+}
+
+async function requireAccount(tx: Prisma.TransactionClient, companyId: string, code: string) {
+  const account = await tx.account.findFirst({ where: { companyId, code, status: "ACTIVE" } });
+
+  if (!account) {
+    throw new ApiError(400, "ACCOUNT_MISSING", `Required account ${code} is missing. Seed default accounts first.`);
+  }
+
+  return account;
 }
 
 export async function getWorkshopSummary(companyId: string) {
@@ -271,4 +299,161 @@ export async function updateJobCardStatus(context: WorkshopContext, jobCardId: s
   });
 
   return updated;
+}
+
+export async function issueJobCardParts(context: WorkshopContext, jobCardId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const warehouseId = requiredString(data.warehouseId, "Warehouse");
+
+  return prisma.$transaction(async (tx) => {
+    const jobCard = await tx.jobCard.findFirst({
+      where: { id: jobCardId, companyId: context.companyId },
+      include: { parts: { include: { productVariant: { include: { product: true } } } } },
+    });
+
+    if (!jobCard) {
+      throw new ApiError(404, "JOB_CARD_NOT_FOUND", "Job card not found.");
+    }
+
+    if (jobCard.status === "CANCELLED" || jobCard.status === "DELIVERED") {
+      throw new ApiError(400, "JOB_CARD_CLOSED", "Parts cannot be issued for a cancelled or delivered job card.");
+    }
+
+    if (jobCard.partsIssuedAt) {
+      throw new ApiError(400, "JOB_CARD_PARTS_ALREADY_ISSUED", "Parts have already been issued for this job card.");
+    }
+
+    if (jobCard.parts.length === 0) {
+      throw new ApiError(400, "JOB_CARD_HAS_NO_PARTS", "Job card has no estimated parts to issue.");
+    }
+
+    const warehouse = await tx.warehouse.findFirst({
+      where: { id: warehouseId, companyId: context.companyId, status: "ACTIVE" },
+    });
+
+    if (!warehouse) {
+      throw new ApiError(404, "WAREHOUSE_NOT_FOUND", "Warehouse not found or inactive.");
+    }
+
+    const inventoryAccount = await requireAccount(tx, context.companyId, "1200");
+    const cogsAccount = await requireAccount(tx, context.companyId, "5000");
+    const journalNumber = await nextJournalNumber(tx, context.companyId);
+    const key = locationKey({ warehouseId });
+    const preparedLines = [];
+
+    for (const part of jobCard.parts) {
+      const balance = await tx.stockBalance.findUnique({
+        where: {
+          companyId_productVariantId_warehouseId_locationKey: {
+            companyId: context.companyId,
+            productVariantId: part.productVariantId,
+            warehouseId,
+            locationKey: key,
+          },
+        },
+      });
+
+      if (!balance || new Prisma.Decimal(balance.quantity).lt(part.quantity)) {
+        throw new ApiError(400, "INSUFFICIENT_STOCK", `${part.productVariant.name} does not have enough stock for this job card.`);
+      }
+
+      const unitCost = new Prisma.Decimal(balance.averageCost ?? 0);
+      const totalValue = unitCost.mul(part.quantity).toDecimalPlaces(2);
+      preparedLines.push({ part, balance, unitCost, totalValue });
+    }
+
+    const totalCost = preparedLines.reduce((total, line) => total.plus(line.totalValue), new Prisma.Decimal(0));
+    const journalEntry = await tx.journalEntry.create({
+      data: {
+        companyId: context.companyId,
+        entryNumber: journalNumber,
+        entryDate: new Date(),
+        sourceModule: "workshop",
+        sourceType: "WORKSHOP_PARTS_ISSUE",
+        sourceId: jobCard.id,
+        narration: `Workshop parts issue ${jobCard.jobCardNumber}`,
+        status: "POSTED",
+        postedByUserId: context.userId,
+        postedAt: new Date(),
+        lines: {
+          create: [
+            { accountId: cogsAccount.id, debitAmount: totalCost, narration: jobCard.jobCardNumber, lineOrder: 1 },
+            { accountId: inventoryAccount.id, creditAmount: totalCost, narration: jobCard.jobCardNumber, lineOrder: 2 },
+          ],
+        },
+      },
+    });
+    const movements = [];
+
+    for (const line of preparedLines) {
+      const newQuantity = new Prisma.Decimal(line.balance.quantity).minus(line.part.quantity);
+      const newValue = new Prisma.Decimal(line.balance.stockValue).minus(line.totalValue).toDecimalPlaces(2);
+
+      await tx.stockBalance.update({
+        where: { id: line.balance.id },
+        data: {
+          quantity: newQuantity,
+          stockValue: newValue.lt(0) ? 0 : newValue,
+          averageCost: newQuantity.gt(0) ? line.balance.averageCost : 0,
+        },
+      });
+
+      movements.push(
+        await tx.stockMovement.create({
+          data: {
+            companyId: context.companyId,
+            productId: line.part.productVariant.productId,
+            productVariantId: line.part.productVariantId,
+            warehouseId,
+            locationKey: key,
+            movementType: "ADJUSTMENT_OUT",
+            documentType: "WORKSHOP_PARTS_ISSUE",
+            documentNumber: jobCard.jobCardNumber,
+            documentDate: new Date(),
+            quantityOut: line.part.quantity,
+            unitCost: line.unitCost,
+            totalValue: line.totalValue,
+            narration: `Workshop parts issue ${jobCard.jobCardNumber}`,
+            createdByUserId: context.userId,
+          },
+        }),
+      );
+    }
+
+    const updated = await tx.jobCard.update({
+      where: { id: jobCard.id },
+      data: {
+        status: jobCard.status === "OPEN" ? "IN_PROGRESS" : jobCard.status,
+        partsIssueWarehouseId: warehouseId,
+        partsIssueJournalEntryId: journalEntry.id,
+        partsIssuedByUserId: context.userId,
+        partsIssuedAt: new Date(),
+      },
+      include: {
+        customer: true,
+        vehicle: true,
+        advisor: true,
+        technician: true,
+        parts: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } },
+        laborLines: { orderBy: { lineOrder: "asc" } },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        module: "workshop",
+        action: "POST",
+        entityType: "JobCardPartsIssue",
+        entityId: jobCard.id,
+        description: "Workshop parts issued.",
+        afterData: json({ jobCard: updated, movements, journalEntry }),
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return updated;
+  });
 }

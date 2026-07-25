@@ -513,6 +513,7 @@ type JobCard = {
   status: string;
   complaint: string;
   estimatedTotal: string | number;
+  partsIssuedAt?: string | null;
   customer: Customer;
   vehicle: Vehicle;
 };
@@ -1174,6 +1175,7 @@ function WorkshopView({ workshopSummary }: { workshopSummary?: WorkshopSummary }
   const vehicles = useMasterList<Vehicle>("vehicles", "/commercial-masters/vehicles");
   const employees = useMasterList<Employee>("employees", "/commercial-masters/employees");
   const variants = useMasterList<ProductVariant>("product-variants", "/masters/product-variants");
+  const warehouses = useMasterList<Warehouse>("warehouses", "/masters/warehouses");
   const jobCards = useMasterList<JobCard>("job-cards", "/workshop/job-cards");
 
   return (
@@ -1193,6 +1195,7 @@ function WorkshopView({ workshopSummary }: { workshopSummary?: WorkshopSummary }
           items={jobCards.data ?? []}
           variants={variants.data ?? []}
           vehicles={vehicles.data ?? []}
+          warehouses={warehouses.data ?? []}
         />
       </section>
       <ModuleGrid filter={["Workshop"]} />
@@ -3267,12 +3270,14 @@ function JobCardPanel({
   items,
   variants,
   vehicles,
+  warehouses,
 }: {
   customers: Customer[];
   employees: Employee[];
   items: JobCard[];
   variants: ProductVariant[];
   vehicles: Vehicle[];
+  warehouses: Warehouse[];
 }) {
   const [form, setForm] = useState({
     customerId: "",
@@ -3288,6 +3293,7 @@ function JobCardPanel({
     partRate: "0",
     laborDescription: "",
     laborAmount: "0",
+    issueWarehouseId: "",
   });
   const customerVehicles = vehicles.filter((vehicle) => !form.customerId || vehicle.customer?.id === form.customerId);
   const createMutation = useMutation({
@@ -3336,6 +3342,27 @@ function JobCardPanel({
       ]);
     },
   });
+  const issueMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.post(`/workshop/job-cards/${id}/issue-parts`, { warehouseId: form.issueWarehouseId });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["job-cards"] }),
+        queryClient.invalidateQueries({ queryKey: ["workshop-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["inventory-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-balances"] }),
+        queryClient.invalidateQueries({ queryKey: ["stock-movements"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
+        queryClient.invalidateQueries({ queryKey: ["trial-balance"] }),
+        queryClient.invalidateQueries({ queryKey: ["general-ledger"] }),
+        queryClient.invalidateQueries({ queryKey: ["profit-and-loss"] }),
+        queryClient.invalidateQueries({ queryKey: ["balance-sheet"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
+      ]);
+    },
+  });
 
   return (
     <article className="setup-panel master-panel wide-panel">
@@ -3372,18 +3399,31 @@ function JobCardPanel({
         <input placeholder="Part rate" value={form.partRate} onChange={(event) => setForm({ ...form, partRate: event.target.value })} />
         <input placeholder="Labor" value={form.laborDescription} onChange={(event) => setForm({ ...form, laborDescription: event.target.value })} />
         <input placeholder="Labor amount" value={form.laborAmount} onChange={(event) => setForm({ ...form, laborAmount: event.target.value })} />
+        <select value={form.issueWarehouseId} onChange={(event) => setForm({ ...form, issueWarehouseId: event.target.value })}>
+          <option value="">Issue warehouse</option>
+          {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
+        </select>
         <Button type="submit" variant="outline" disabled={createMutation.isPending}>Create</Button>
       </form>
-      <JobCardList items={items} onStatusChange={(id, status) => statusMutation.mutate({ id, status })} />
+      <JobCardList
+        canIssueParts={Boolean(form.issueWarehouseId)}
+        items={items}
+        onIssueParts={(id) => issueMutation.mutate(id)}
+        onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
+      />
     </article>
   );
 }
 
 function JobCardList({
+  canIssueParts,
   items,
+  onIssueParts,
   onStatusChange,
 }: {
+  canIssueParts: boolean;
   items: JobCard[];
+  onIssueParts: (id: string) => void;
   onStatusChange: (id: string, status: string) => void;
 }) {
   if (items.length === 0) {
@@ -3403,6 +3443,11 @@ function JobCardList({
             <option value="DELIVERED">DELIVERED</option>
             <option value="CANCELLED">CANCELLED</option>
           </select>
+          {!item.partsIssuedAt && !["CANCELLED", "DELIVERED"].includes(item.status) ? (
+            <Button type="button" variant="outline" disabled={!canIssueParts} onClick={() => onIssueParts(item.id)}>
+              Issue Parts
+            </Button>
+          ) : null}
         </li>
       ))}
     </ul>
