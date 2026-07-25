@@ -5,6 +5,7 @@ import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
 import {
   getInventorySummary,
+  listReorderItems,
   listStockBalances,
   listStockMovements,
   postOpeningStock,
@@ -43,6 +44,13 @@ router.get(
   "/inventory/stock-movements",
   asyncHandler(async (req, res) => {
     sendSuccess(res, await listStockMovements(req.user!.companyId));
+  }),
+);
+
+router.get(
+  "/inventory/reorder-items",
+  asyncHandler(async (req, res) => {
+    sendSuccess(res, await listReorderItems(req.user!.companyId));
   }),
 );
 

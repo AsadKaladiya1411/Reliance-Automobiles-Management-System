@@ -255,6 +255,16 @@ type StockMovement = {
   warehouse: { name: string };
 };
 
+type ReorderItem = {
+  product: { id: string; code: string; name: string };
+  category: { name: string };
+  unit: { symbol: string };
+  reorderLevel: string | number;
+  availableQuantity: string | number;
+  shortageQuantity: string | number;
+  stockValue: string | number;
+};
+
 type Customer = {
   id: string;
   code: string;
@@ -1286,6 +1296,7 @@ function InventoryView({ inventorySummary }: { inventorySummary?: InventorySumma
   const warehouses = useMasterList<Warehouse>("warehouses", "/masters/warehouses");
   const stockBalances = useMasterList<StockBalance>("stock-balances", "/inventory/stock-balances");
   const stockMovements = useMasterList<StockMovement>("stock-movements", "/inventory/stock-movements");
+  const reorderItems = useMasterList<ReorderItem>("reorder-items", "/inventory/reorder-items");
 
   return (
     <>
@@ -1300,6 +1311,16 @@ function InventoryView({ inventorySummary }: { inventorySummary?: InventorySumma
       <OpeningStockPanel variants={variants.data ?? []} warehouses={warehouses.data ?? []} />
       <StockAdjustmentPanel variants={variants.data ?? []} warehouses={warehouses.data ?? []} />
       <StockTransferPanel variants={variants.data ?? []} warehouses={warehouses.data ?? []} />
+      <section className="setup-panel">
+        <h2>Reorder Alerts</h2>
+        <MasterList
+          items={(reorderItems.data ?? []).map((item) => ({
+            id: item.product.id,
+            label: `${item.product.code} / ${item.product.name}`,
+            meta: `${item.availableQuantity} ${item.unit.symbol} available / reorder ${item.reorderLevel} / shortage ${item.shortageQuantity}`,
+          }))}
+        />
+      </section>
       <section className="setup-panel">
         <h2>Current Stock</h2>
         <MasterList

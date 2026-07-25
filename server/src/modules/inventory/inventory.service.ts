@@ -233,6 +233,40 @@ export async function listStockMovements(companyId: string) {
   });
 }
 
+export async function listReorderItems(companyId: string) {
+  const [products, stockTotals] = await Promise.all([
+    prisma.product.findMany({
+      where: { companyId, status: "ACTIVE", reorderLevel: { gt: 0 } },
+      include: { category: true, unit: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.stockBalance.groupBy({
+      by: ["productId"],
+      where: { companyId },
+      _sum: { quantity: true, stockValue: true },
+    }),
+  ]);
+  const totalsByProductId = new Map(stockTotals.map((total) => [total.productId, total]));
+
+  return products
+    .map((product) => {
+      const total = totalsByProductId.get(product.id);
+      const availableQuantity = new Prisma.Decimal(total?._sum.quantity ?? 0);
+      const reorderLevel = new Prisma.Decimal(product.reorderLevel);
+
+      return {
+        product,
+        category: product.category,
+        unit: product.unit,
+        reorderLevel,
+        availableQuantity,
+        shortageQuantity: Prisma.Decimal.max(reorderLevel.minus(availableQuantity), new Prisma.Decimal(0)),
+        stockValue: total?._sum.stockValue ?? new Prisma.Decimal(0),
+      };
+    })
+    .filter((item) => new Prisma.Decimal(item.availableQuantity).lte(item.reorderLevel));
+}
+
 export async function postOpeningStock(context: InventoryContext, body: unknown) {
   const data = body as Record<string, unknown>;
   const input: OpeningStockInput = {
