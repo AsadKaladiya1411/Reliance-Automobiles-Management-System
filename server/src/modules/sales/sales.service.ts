@@ -68,6 +68,10 @@ function json(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
+function addQuantity(map: Map<string, Prisma.Decimal>, productVariantId: string, quantity: Prisma.Decimal) {
+  map.set(productVariantId, (map.get(productVariantId) ?? new Prisma.Decimal(0)).plus(quantity));
+}
+
 async function nextDocumentNumber(tx: Prisma.TransactionClient, companyId: string, documentType: string) {
   const series = await tx.numberSeries.findFirst({
     where: { companyId, documentType, status: "ACTIVE" },
@@ -538,19 +542,26 @@ export async function postSalesInvoice(context: SalesContext, body: unknown) {
       throw new ApiError(404, "WAREHOUSE_NOT_FOUND", "Warehouse not found or inactive.");
     }
 
+    let sourceOrder: Prisma.SalesOrderGetPayload<{ include: { lines: true } }> | null = null;
+    let sourceChallan: Prisma.DeliveryChallanGetPayload<{ include: { lines: true } }> | null = null;
+
     if (salesOrderId) {
       const salesOrder = await tx.salesOrder.findFirst({
         where: { id: salesOrderId, companyId: context.companyId, customerId, status: "APPROVED" },
+        include: { lines: true },
       });
 
       if (!salesOrder) {
         throw new ApiError(404, "SALES_ORDER_NOT_FOUND", "Approved sales order not found for this customer.");
       }
+
+      sourceOrder = salesOrder;
     }
 
     if (deliveryChallanId) {
       const deliveryChallan = await tx.deliveryChallan.findFirst({
         where: { id: deliveryChallanId, companyId: context.companyId, customerId, warehouseId, status: "APPROVED" },
+        include: { lines: true },
       });
 
       if (!deliveryChallan) {
@@ -560,6 +571,8 @@ export async function postSalesInvoice(context: SalesContext, body: unknown) {
       if (salesOrderId && deliveryChallan.salesOrderId && deliveryChallan.salesOrderId !== salesOrderId) {
         throw new ApiError(400, "SOURCE_DOCUMENT_MISMATCH", "Delivery challan does not belong to the selected sales order.");
       }
+
+      sourceChallan = deliveryChallan;
     }
 
     const receivableAccount = await requireAccount(tx, context.companyId, "1100");
@@ -634,6 +647,41 @@ export async function postSalesInvoice(context: SalesContext, body: unknown) {
         costAmount,
         lineOrder: index + 1,
       });
+    }
+
+    if (sourceOrder || sourceChallan) {
+      const sourceDocument = sourceChallan ?? sourceOrder;
+      const sourceQuantities = new Map<string, Prisma.Decimal>();
+      const invoiceQuantities = new Map<string, Prisma.Decimal>();
+
+      for (const line of sourceDocument?.lines ?? []) {
+        addQuantity(sourceQuantities, line.productVariantId, new Prisma.Decimal(line.quantity));
+      }
+      for (const line of preparedLines) {
+        addQuantity(invoiceQuantities, line.productVariantId, line.quantity);
+      }
+
+      const alreadyInvoiced = await tx.salesInvoiceLine.groupBy({
+        by: ["productVariantId"],
+        where: {
+          companyId: context.companyId,
+          salesInvoice: sourceChallan
+            ? { deliveryChallanId: sourceChallan.id, status: "POSTED" }
+            : { salesOrderId: sourceOrder?.id, deliveryChallanId: null, status: "POSTED" },
+        },
+        _sum: { quantity: true },
+      });
+
+      for (const row of alreadyInvoiced) {
+        addQuantity(sourceQuantities, row.productVariantId, new Prisma.Decimal(row._sum.quantity ?? 0).negated());
+      }
+
+      for (const [productVariantId, quantity] of invoiceQuantities.entries()) {
+        const remaining = sourceQuantities.get(productVariantId) ?? new Prisma.Decimal(0);
+        if (quantity.gt(remaining)) {
+          throw new ApiError(400, "SOURCE_QUANTITY_EXCEEDED", "Sales invoice quantity exceeds the remaining source document quantity.");
+        }
+      }
     }
 
     const taxableAmount = preparedLines.reduce((total, line) => total.plus(line.taxableAmount), new Prisma.Decimal(0));

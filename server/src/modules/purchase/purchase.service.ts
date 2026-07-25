@@ -78,6 +78,10 @@ function json(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
+function addQuantity(map: Map<string, Prisma.Decimal>, productVariantId: string, quantity: Prisma.Decimal) {
+  map.set(productVariantId, (map.get(productVariantId) ?? new Prisma.Decimal(0)).plus(quantity));
+}
+
 async function nextDocumentNumber(
   tx: Prisma.TransactionClient,
   companyId: string,
@@ -494,6 +498,8 @@ export async function postPurchaseInvoice(context: PurchaseContext, body: unknow
 
     await validateWarehouse(tx, context.companyId, warehouseId);
 
+    let sourceGrn: Prisma.GoodsReceiptNoteGetPayload<{ include: { lines: true } }> | null = null;
+
     if (goodsReceiptNoteId) {
       const grn = await tx.goodsReceiptNote.findFirst({
         where: {
@@ -503,11 +509,14 @@ export async function postPurchaseInvoice(context: PurchaseContext, body: unknow
           warehouseId,
           status: "APPROVED",
         },
+        include: { lines: true },
       });
 
       if (!grn) {
         throw new ApiError(404, "GRN_NOT_FOUND", "Approved GRN not found for this supplier and warehouse.");
       }
+
+      sourceGrn = grn;
     }
 
     const inventoryAccount = await requireAccount(tx, context.companyId, "1200");
@@ -575,6 +584,38 @@ export async function postPurchaseInvoice(context: PurchaseContext, body: unknow
         lineTotal,
         lineOrder: index + 1,
       });
+    }
+
+    if (sourceGrn) {
+      const sourceQuantities = new Map<string, Prisma.Decimal>();
+      const invoiceQuantities = new Map<string, Prisma.Decimal>();
+
+      for (const line of sourceGrn.lines) {
+        addQuantity(sourceQuantities, line.productVariantId, new Prisma.Decimal(line.quantity));
+      }
+      for (const line of preparedLines) {
+        addQuantity(invoiceQuantities, line.productVariantId, line.quantity);
+      }
+
+      const alreadyInvoiced = await tx.purchaseInvoiceLine.groupBy({
+        by: ["productVariantId"],
+        where: {
+          companyId: context.companyId,
+          purchaseInvoice: { goodsReceiptNoteId: sourceGrn.id, status: "POSTED" },
+        },
+        _sum: { quantity: true },
+      });
+
+      for (const row of alreadyInvoiced) {
+        addQuantity(sourceQuantities, row.productVariantId, new Prisma.Decimal(row._sum.quantity ?? 0).negated());
+      }
+
+      for (const [productVariantId, quantity] of invoiceQuantities.entries()) {
+        const remaining = sourceQuantities.get(productVariantId) ?? new Prisma.Decimal(0);
+        if (quantity.gt(remaining)) {
+          throw new ApiError(400, "GRN_QUANTITY_EXCEEDED", "Purchase invoice quantity exceeds the remaining GRN quantity.");
+        }
+      }
     }
 
     const taxableAmount = preparedLines.reduce((total, line) => total.plus(line.taxableAmount), new Prisma.Decimal(0));
