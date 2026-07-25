@@ -308,6 +308,10 @@ export async function login(input: LoginInput, context: RequestContext) {
 }
 
 export async function registerUser(input: RegisterInput, context: RequestContext) {
+  if (!input.fullName.trim() || !input.username.trim()) {
+    throw new ApiError(400, "INVALID_REGISTER_REQUEST", "Full name and username are required.");
+  }
+
   assertPassword(input.password);
 
   const company = await prisma.company.findFirst({

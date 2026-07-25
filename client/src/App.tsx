@@ -1,10 +1,28 @@
 import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
+import { AxiosError } from "axios";
 import { QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
 import { api, type ApiEnvelope } from "@/lib/api";
 import { queryClient } from "@/lib/query-client";
 import { Button } from "@/components/ui/button";
 import "./App.css";
+
+type ApiErrorEnvelope = {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
+};
+
+function apiErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof AxiosError) {
+    return (error.response?.data as ApiErrorEnvelope | undefined)?.error?.message ?? fallback;
+  }
+
+  return fallback;
+}
 
 type SystemStatus = {
   service: string;
@@ -800,8 +818,8 @@ function LoginForm({ onRegister }: { onRegister: () => void }) {
     onSuccess: async () => {
       await queryClient.invalidateQueries();
     },
-    onError: () => {
-      setError("Invalid username or password.");
+    onError: (error) => {
+      setError(apiErrorMessage(error, "Invalid username or password."));
     },
   });
 
@@ -859,14 +877,22 @@ function RegisterForm({ onLogin }: { onLogin: () => void }) {
     onSuccess: async () => {
       await queryClient.invalidateQueries();
     },
-    onError: () => {
-      setError("Registration failed. Use a unique username and a password of at least 8 characters.");
+    onError: (error) => {
+      setError(apiErrorMessage(error, "Registration failed. Please check your details and try again."));
     },
   });
 
   function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    if (!form.fullName.trim() || !form.username.trim()) {
+      setError("Full name and username are required.");
+      return;
+    }
+    if (form.password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
     mutation.mutate();
   }
 
