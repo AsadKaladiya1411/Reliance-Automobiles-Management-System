@@ -221,6 +221,8 @@ export async function listSalesInvoices(companyId: string) {
     include: {
       customer: true,
       warehouse: true,
+      salesOrder: true,
+      deliveryChallan: true,
       lines: { include: { product: true, productVariant: true }, orderBy: { lineOrder: "asc" } },
     },
     orderBy: { invoiceDate: "desc" },
@@ -507,6 +509,8 @@ export async function postSalesInvoice(context: SalesContext, body: unknown) {
   const data = body as Record<string, unknown>;
   const customerId = requiredString(data.customerId, "Customer");
   const warehouseId = requiredString(data.warehouseId, "Warehouse");
+  const salesOrderId = optionalString(data.salesOrderId);
+  const deliveryChallanId = optionalString(data.deliveryChallanId);
   const invoiceDate = parseDate(data.invoiceDate);
   const taxMode = (optionalString(data.taxMode) ?? "CGST_SGST").toUpperCase();
   const rawLines = Array.isArray(data.lines) ? (data.lines as SalesLineInput[]) : [];
@@ -532,6 +536,30 @@ export async function postSalesInvoice(context: SalesContext, body: unknown) {
     }
     if (!warehouse) {
       throw new ApiError(404, "WAREHOUSE_NOT_FOUND", "Warehouse not found or inactive.");
+    }
+
+    if (salesOrderId) {
+      const salesOrder = await tx.salesOrder.findFirst({
+        where: { id: salesOrderId, companyId: context.companyId, customerId, status: "APPROVED" },
+      });
+
+      if (!salesOrder) {
+        throw new ApiError(404, "SALES_ORDER_NOT_FOUND", "Approved sales order not found for this customer.");
+      }
+    }
+
+    if (deliveryChallanId) {
+      const deliveryChallan = await tx.deliveryChallan.findFirst({
+        where: { id: deliveryChallanId, companyId: context.companyId, customerId, warehouseId, status: "APPROVED" },
+      });
+
+      if (!deliveryChallan) {
+        throw new ApiError(404, "DELIVERY_CHALLAN_NOT_FOUND", "Approved delivery challan not found for this customer and warehouse.");
+      }
+
+      if (salesOrderId && deliveryChallan.salesOrderId && deliveryChallan.salesOrderId !== salesOrderId) {
+        throw new ApiError(400, "SOURCE_DOCUMENT_MISMATCH", "Delivery challan does not belong to the selected sales order.");
+      }
     }
 
     const receivableAccount = await requireAccount(tx, context.companyId, "1100");
@@ -646,6 +674,8 @@ export async function postSalesInvoice(context: SalesContext, body: unknown) {
         companyId: context.companyId,
         customerId,
         warehouseId,
+        salesOrderId,
+        deliveryChallanId,
         invoiceNumber,
         invoiceDate,
         taxMode,
@@ -663,7 +693,7 @@ export async function postSalesInvoice(context: SalesContext, body: unknown) {
         narration: optionalString(data.narration),
         lines: { create: preparedLines.map(({ locationKey: _locationKey, ...line }) => line) },
       },
-      include: { customer: true, warehouse: true, lines: { include: { product: true, productVariant: true } } },
+      include: { customer: true, warehouse: true, salesOrder: true, deliveryChallan: true, lines: { include: { product: true, productVariant: true } } },
     });
 
     for (const line of preparedLines) {

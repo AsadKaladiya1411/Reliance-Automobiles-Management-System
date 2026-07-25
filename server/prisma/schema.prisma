@@ -964,6 +964,7 @@ model GoodsReceiptNote {
   warehouse     Warehouse              @relation(fields: [warehouseId], references: [id])
   purchaseOrder PurchaseOrder?         @relation(fields: [purchaseOrderId], references: [id])
   lines         GoodsReceiptNoteLine[]
+  purchaseInvoices PurchaseInvoice[]
 
   @@unique([companyId, grnNumber])
   @@index([companyId, supplierId, grnDate])
@@ -989,6 +990,7 @@ model PurchaseInvoice {
   companyId          String         @db.Uuid
   supplierId         String         @db.Uuid
   warehouseId        String         @db.Uuid
+  goodsReceiptNoteId String?        @db.Uuid
   invoiceNumber      String         @db.VarChar(80)
   supplierBillNumber String?        @db.VarChar(80)
   invoiceDate        DateTime       @db.Date
@@ -1013,12 +1015,14 @@ model PurchaseInvoice {
   company      Company       @relation(fields: [companyId], references: [id])
   supplier     Supplier      @relation(fields: [supplierId], references: [id])
   warehouse    Warehouse     @relation(fields: [warehouseId], references: [id])
+  goodsReceiptNote GoodsReceiptNote? @relation(fields: [goodsReceiptNoteId], references: [id])
   journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
   lines        PurchaseInvoiceLine[]
   returns      PurchaseReturn[]
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, supplierId, invoiceDate])
+  @@index([companyId, goodsReceiptNoteId])
   @@index([companyId, status, invoiceDate])
 }
 
@@ -1180,6 +1184,7 @@ model SalesOrder {
   quotation SalesQuotation?  @relation(fields: [quotationId], references: [id])
   lines     SalesOrderLine[]
   deliveryChallans DeliveryChallan[]
+  salesInvoices SalesInvoice[]
 
   @@unique([companyId, orderNumber])
   @@index([companyId, customerId, orderDate])
@@ -1223,6 +1228,7 @@ model DeliveryChallan {
   warehouse  Warehouse             @relation(fields: [warehouseId], references: [id])
   salesOrder SalesOrder?           @relation(fields: [salesOrderId], references: [id])
   lines      DeliveryChallanLine[]
+  salesInvoices SalesInvoice[]
 
   @@unique([companyId, challanNumber])
   @@index([companyId, customerId, challanDate])
@@ -1248,6 +1254,8 @@ model SalesInvoice {
   companyId       String         @db.Uuid
   customerId      String         @db.Uuid
   warehouseId     String         @db.Uuid
+  salesOrderId    String?        @db.Uuid
+  deliveryChallanId String?      @db.Uuid
   invoiceNumber   String         @db.VarChar(80)
   invoiceDate     DateTime       @db.Date
   taxMode         String         @default("CGST_SGST") @db.VarChar(16)
@@ -1272,12 +1280,16 @@ model SalesInvoice {
   company      Company       @relation(fields: [companyId], references: [id])
   customer     Customer      @relation(fields: [customerId], references: [id])
   warehouse    Warehouse     @relation(fields: [warehouseId], references: [id])
+  salesOrder   SalesOrder?   @relation(fields: [salesOrderId], references: [id])
+  deliveryChallan DeliveryChallan? @relation(fields: [deliveryChallanId], references: [id])
   journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
   lines        SalesInvoiceLine[]
   returns      SalesReturn[]
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, customerId, invoiceDate])
+  @@index([companyId, salesOrderId])
+  @@index([companyId, deliveryChallanId])
   @@index([companyId, status, invoiceDate])
 }
 

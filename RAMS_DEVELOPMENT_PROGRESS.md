@@ -4,7 +4,7 @@ Last updated: 2026-07-25
 
 ## Overall Completion
 
-Estimated completion: 66%
+Estimated completion: 67%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -18,8 +18,8 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Masters | 82% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, Product Variants, Tax Rates, and warehouse hierarchy records. Needs import/export and server-side pagination for large datasets. |
 | Commercial Masters | 68% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls and dependency safeguards. Needs richer profiles, credit limits, contact/address handling, search, pagination, and import/export. |
 | Inventory | 68% | Opening stock, stock balances, movements, adjustments, transfers, negative stock protection, reorder alerts. Needs valuation reports, batch/serial handling, stronger location selection, stock aging. |
-| Purchase | 63% | Purchase orders, PO-to-GRN line conversion, GRN workflow, purchase invoice posting/cancel, purchase return, GST/input tax and supplier ledger integration. Needs GRN-to-invoice conversion, partial receipts, approval depth, landed cost. |
-| Sales | 63% | Quotations, quotation-to-order conversion, order-to-delivery-challan conversion, sales invoice posting/cancel, sales return, GST/output tax and customer ledger integration. Needs challan/order-to-invoice conversion, discounts, pricing rules, credit checks. |
+| Purchase | 65% | Purchase orders, PO-to-GRN line conversion, GRN workflow, GRN-to-purchase-invoice traceability, purchase invoice posting/cancel, purchase return, GST/input tax and supplier ledger integration. Needs partial receipts, approval depth, landed cost. |
+| Sales | 65% | Quotations, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, sales invoice posting/cancel, sales return, GST/output tax and customer ledger integration. Needs discounts, pricing rules, credit checks. |
 | Accounting | 63% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding. Needs fiscal period controls, voucher types, reconciliation, account mappings. |
 | GST/Tax | 50% | CGST/SGST/IGST calculations and summary reports. Needs detailed GST registers, GSTR exports, tax reconciliation. |
 | Payments/Notes | 58% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact. Needs allocation against invoices and settlement tracking. |
@@ -49,6 +49,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added edit/deactivate lifecycle for Tax Rates and warehouse hierarchy records.
 - Added reusable client-side search for master lists.
 - Added document conversion prefills for PO-to-GRN, quotation-to-sales-order, and sales-order-to-delivery-challan.
+- Added invoice source traceability for GRN-to-purchase-invoice and order/challan-to-sales-invoice workflows.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -73,7 +74,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Refine action-level permission mapping for special posting/approval routes.
 - Add detail views, import/export, and server-side pagination for master records.
 - Add richer customer/supplier ledgers with invoice allocation and settlement.
-- Add GRN/order/challan to invoice conversion flows with traceability.
+- Add partial receipt, partial delivery, and invoicing quantity controls against source documents.
 - Complete workshop service billing without double-consuming issued parts.
 - Add labor billing/accounting for workshop jobs.
 - Add configurable approval workflow foundation beyond simple statuses.
@@ -86,11 +87,11 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Purchase and sales document conversion prefills.
+Invoice conversion traceability for purchase and sales posting.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 12 to 19 focused development sessions.
+Estimated remaining iterations: 11 to 18 focused development sessions.
 
 The largest remaining chunks are workshop billing, approval/permission enforcement, reporting/export depth, automated testing, and production deployment hardening.
 
@@ -98,7 +99,11 @@ The largest remaining chunks are workshop billing, approval/permission enforceme
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `client/src/App.tsx`
+- `server/prisma/schema.prisma`
+- `server/prisma/migrations/20260725192000_invoice_source_traceability/migration.sql`
+- `server/src/modules/purchase/purchase.service.ts`
+- `server/src/modules/sales/sales.service.ts`
 
 ## Next Implementation Target
 
-Invoice conversion traceability for GRN-to-purchase-invoice and order/challan-to-sales-invoice.
+Partial receipt, partial delivery, and invoice quantity controls against source documents.

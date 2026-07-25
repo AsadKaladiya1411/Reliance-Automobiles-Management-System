@@ -244,6 +244,7 @@ export async function listPurchaseInvoices(companyId: string) {
     include: {
       supplier: true,
       warehouse: true,
+      goodsReceiptNote: true,
       lines: { include: { product: true, productVariant: true }, orderBy: { lineOrder: "asc" } },
     },
     orderBy: { invoiceDate: "desc" },
@@ -469,6 +470,7 @@ export async function postPurchaseInvoice(context: PurchaseContext, body: unknow
   const data = body as Record<string, unknown>;
   const supplierId = requiredString(data.supplierId, "Supplier");
   const warehouseId = requiredString(data.warehouseId, "Warehouse");
+  const goodsReceiptNoteId = optionalString(data.goodsReceiptNoteId);
   const invoiceDate = parseDate(data.invoiceDate);
   const taxMode = (optionalString(data.taxMode) ?? "CGST_SGST").toUpperCase();
   const rawLines = Array.isArray(data.lines) ? (data.lines as PurchaseLineInput[]) : [];
@@ -491,6 +493,22 @@ export async function postPurchaseInvoice(context: PurchaseContext, body: unknow
     }
 
     await validateWarehouse(tx, context.companyId, warehouseId);
+
+    if (goodsReceiptNoteId) {
+      const grn = await tx.goodsReceiptNote.findFirst({
+        where: {
+          id: goodsReceiptNoteId,
+          companyId: context.companyId,
+          supplierId,
+          warehouseId,
+          status: "APPROVED",
+        },
+      });
+
+      if (!grn) {
+        throw new ApiError(404, "GRN_NOT_FOUND", "Approved GRN not found for this supplier and warehouse.");
+      }
+    }
 
     const inventoryAccount = await requireAccount(tx, context.companyId, "1200");
     const gstInputAccount = await requireAccount(tx, context.companyId, "2200");
@@ -609,6 +627,7 @@ export async function postPurchaseInvoice(context: PurchaseContext, body: unknow
         companyId: context.companyId,
         supplierId,
         warehouseId,
+        goodsReceiptNoteId,
         invoiceNumber,
         supplierBillNumber: optionalString(data.supplierBillNumber),
         invoiceDate,
@@ -626,7 +645,7 @@ export async function postPurchaseInvoice(context: PurchaseContext, body: unknow
         narration: optionalString(data.narration),
         lines: { create: preparedLines },
       },
-      include: { supplier: true, warehouse: true, lines: { include: { product: true, productVariant: true } } },
+      include: { supplier: true, warehouse: true, goodsReceiptNote: true, lines: { include: { product: true, productVariant: true } } },
     });
 
     for (const line of preparedLines) {

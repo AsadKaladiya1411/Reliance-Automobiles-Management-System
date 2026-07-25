@@ -465,6 +465,7 @@ type PurchaseInvoice = {
   status: string;
   supplier: Supplier;
   warehouse: Warehouse;
+  goodsReceiptNote?: GoodsReceiptNote | null;
   lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; lineTotal?: string | number }>;
 };
 
@@ -498,6 +499,8 @@ type SalesInvoice = {
   status: string;
   customer: Customer;
   warehouse: Warehouse;
+  salesOrder?: SalesOrder | null;
+  deliveryChallan?: DeliveryChallan | null;
   lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; lineTotal?: string | number }>;
 };
 
@@ -1522,6 +1525,7 @@ function TransactionsView({
           variants={variants.data ?? []}
         />
         <PurchaseInvoicePanel
+          grns={grns.data ?? []}
           invoices={purchaseInvoices.data ?? []}
           suppliers={suppliers.data ?? []}
           variants={variants.data ?? []}
@@ -1536,7 +1540,9 @@ function TransactionsView({
         />
         <SalesInvoicePanel
           customers={customers.data ?? []}
+          deliveryChallans={deliveryChallans.data ?? []}
           invoices={salesInvoices.data ?? []}
+          orders={salesOrders.data ?? []}
           variants={variants.data ?? []}
           warehouses={warehouses.data ?? []}
         />
@@ -3010,11 +3016,13 @@ function BalanceSheetPanel({ statement }: { statement?: BalanceSheet }) {
 }
 
 function PurchaseInvoicePanel({
+  grns,
   invoices,
   suppliers,
   variants,
   warehouses,
 }: {
+  grns: GoodsReceiptNote[];
   invoices: PurchaseInvoice[];
   suppliers: Supplier[];
   variants: ProductVariant[];
@@ -3023,6 +3031,7 @@ function PurchaseInvoicePanel({
   const [form, setForm] = useState({
     supplierId: "",
     warehouseId: "",
+    goodsReceiptNoteId: "",
     invoiceDate: new Date().toISOString().slice(0, 10),
     supplierBillNumber: "",
     taxMode: "CGST_SGST",
@@ -3031,22 +3040,34 @@ function PurchaseInvoicePanel({
     unitCost: "0",
     narration: "Purchase invoice",
   });
+  const filteredGrns = grns.filter((grn) => {
+    const supplierMatches = !form.supplierId || grn.supplier.id === form.supplierId;
+    const warehouseMatches = !form.warehouseId || grn.warehouse.id === form.warehouseId;
+    return supplierMatches && warehouseMatches;
+  });
+  const selectedGrn = grns.find((grn) => grn.id === form.goodsReceiptNoteId);
+  const conversionLines = selectedGrn?.lines.map((line) => ({
+    productVariantId: line.productVariant.id,
+    quantity: line.quantity,
+    unitCost: form.unitCost,
+  }));
   const mutation = useMutation({
     mutationFn: async () => {
       await api.post("/purchase/invoices", {
         supplierId: form.supplierId,
         warehouseId: form.warehouseId,
+        goodsReceiptNoteId: form.goodsReceiptNoteId,
         invoiceDate: form.invoiceDate,
         supplierBillNumber: form.supplierBillNumber,
         taxMode: form.taxMode,
         narration: form.narration,
-        lines: [
-          {
-            productVariantId: form.productVariantId,
-            quantity: form.quantity,
-            unitCost: form.unitCost,
-          },
-        ],
+        lines: conversionLines?.length
+          ? conversionLines
+          : [{
+              productVariantId: form.productVariantId,
+              quantity: form.quantity,
+              unitCost: form.unitCost,
+            }],
       });
     },
     onSuccess: async () => {
@@ -3058,7 +3079,7 @@ function PurchaseInvoicePanel({
         queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
       ]);
-      setForm({ ...form, productVariantId: "", quantity: "1", unitCost: "0", supplierBillNumber: "" });
+      setForm({ ...form, goodsReceiptNoteId: "", productVariantId: "", quantity: "1", unitCost: "0", supplierBillNumber: "" });
     },
   });
   const cancelMutation = useMutation({
@@ -3092,13 +3113,30 @@ function PurchaseInvoicePanel({
         event.preventDefault();
         mutation.mutate();
       }}>
-        <select value={form.supplierId} onChange={(event) => setForm({ ...form, supplierId: event.target.value })}>
+        <select value={form.supplierId} onChange={(event) => setForm({ ...form, supplierId: event.target.value, goodsReceiptNoteId: "" })}>
           <option value="">Supplier</option>
           {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
         </select>
-        <select value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value })}>
+        <select value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value, goodsReceiptNoteId: "" })}>
           <option value="">Warehouse</option>
           {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
+        </select>
+        <select
+          value={form.goodsReceiptNoteId}
+          onChange={(event) => {
+            const grn = grns.find((item) => item.id === event.target.value);
+            setForm({
+              ...form,
+              supplierId: grn?.supplier.id ?? form.supplierId,
+              warehouseId: grn?.warehouse.id ?? form.warehouseId,
+              goodsReceiptNoteId: event.target.value,
+              productVariantId: "",
+              quantity: "1",
+            });
+          }}
+        >
+          <option value="">No GRN</option>
+          {filteredGrns.map((grn) => <option key={grn.id} value={grn.id}>{`${grn.grnNumber} / ${grn.supplier.name}`}</option>)}
         </select>
         <select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
           <option value="">Product variant</option>
@@ -3115,11 +3153,12 @@ function PurchaseInvoicePanel({
         <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
         <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
       </form>
+      {conversionLines?.length ? <p className="empty-text">{conversionLines.length} GRN line(s) will be posted with the entered unit cost.</p> : null}
       <InvoiceActionList
         items={invoices.map((invoice) => ({
           id: invoice.id,
           label: invoice.invoiceNumber,
-          meta: `${invoice.supplier.name} / ${invoice.grandTotal}`,
+          meta: `${invoice.supplier.name} / ${invoice.goodsReceiptNote?.grnNumber ?? "Direct"} / ${invoice.grandTotal}`,
           status: invoice.status,
         }))}
         onCancel={(invoiceId) => cancelMutation.mutate(invoiceId)}
@@ -3406,18 +3445,24 @@ function DeliveryChallanPanel({
 
 function SalesInvoicePanel({
   customers,
+  deliveryChallans,
   invoices,
+  orders,
   variants,
   warehouses,
 }: {
   customers: Customer[];
+  deliveryChallans: DeliveryChallan[];
   invoices: SalesInvoice[];
+  orders: SalesOrder[];
   variants: ProductVariant[];
   warehouses: Warehouse[];
 }) {
   const [form, setForm] = useState({
     customerId: "",
     warehouseId: "",
+    salesOrderId: "",
+    deliveryChallanId: "",
     invoiceDate: new Date().toISOString().slice(0, 10),
     taxMode: "CGST_SGST",
     productVariantId: "",
@@ -3425,21 +3470,42 @@ function SalesInvoicePanel({
     unitPrice: "0",
     narration: "Sales invoice",
   });
+  const customerOrders = orders.filter((order) => !form.customerId || order.customer.id === form.customerId);
+  const customerChallans = deliveryChallans.filter((challan) => {
+    const customerMatches = !form.customerId || challan.customer.id === form.customerId;
+    const warehouseMatches = !form.warehouseId || challan.warehouse.id === form.warehouseId;
+    const orderMatches = !form.salesOrderId || challan.salesOrder?.id === form.salesOrderId;
+    return customerMatches && warehouseMatches && orderMatches;
+  });
+  const selectedOrder = orders.find((order) => order.id === form.salesOrderId);
+  const selectedChallan = deliveryChallans.find((challan) => challan.id === form.deliveryChallanId);
+  const orderPriceByVariant = new Map(selectedOrder?.lines.map((line) => [line.productVariant.id, line.unitPrice]));
+  const conversionLines = selectedChallan?.lines.map((line) => ({
+    productVariantId: line.productVariant.id,
+    quantity: line.quantity,
+    unitPrice: orderPriceByVariant.get(line.productVariant.id) ?? form.unitPrice,
+  })) ?? selectedOrder?.lines.map((line) => ({
+    productVariantId: line.productVariant.id,
+    quantity: line.quantity,
+    unitPrice: line.unitPrice,
+  }));
   const mutation = useMutation({
     mutationFn: async () => {
       await api.post("/sales/invoices", {
         customerId: form.customerId,
         warehouseId: form.warehouseId,
+        salesOrderId: form.salesOrderId,
+        deliveryChallanId: form.deliveryChallanId,
         invoiceDate: form.invoiceDate,
         taxMode: form.taxMode,
         narration: form.narration,
-        lines: [
-          {
-            productVariantId: form.productVariantId,
-            quantity: form.quantity,
-            unitPrice: form.unitPrice,
-          },
-        ],
+        lines: conversionLines?.length
+          ? conversionLines
+          : [{
+              productVariantId: form.productVariantId,
+              quantity: form.quantity,
+              unitPrice: form.unitPrice,
+            }],
       });
     },
     onSuccess: async () => {
@@ -3451,7 +3517,7 @@ function SalesInvoicePanel({
         queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
       ]);
-      setForm({ ...form, productVariantId: "", quantity: "1", unitPrice: "0" });
+      setForm({ ...form, salesOrderId: "", deliveryChallanId: "", productVariantId: "", quantity: "1", unitPrice: "0" });
     },
   });
   const cancelMutation = useMutation({
@@ -3485,13 +3551,49 @@ function SalesInvoicePanel({
         event.preventDefault();
         mutation.mutate();
       }}>
-        <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value })}>
+        <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value, salesOrderId: "", deliveryChallanId: "" })}>
           <option value="">Customer</option>
           {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
         </select>
-        <select value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value })}>
+        <select value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value, deliveryChallanId: "" })}>
           <option value="">Warehouse</option>
           {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
+        </select>
+        <select
+          value={form.salesOrderId}
+          onChange={(event) => {
+            const order = orders.find((item) => item.id === event.target.value);
+            setForm({
+              ...form,
+              customerId: order?.customer.id ?? form.customerId,
+              salesOrderId: event.target.value,
+              deliveryChallanId: "",
+              productVariantId: "",
+              quantity: "1",
+              unitPrice: "0",
+            });
+          }}
+        >
+          <option value="">No sales order</option>
+          {customerOrders.map((order) => <option key={order.id} value={order.id}>{`${order.orderNumber} / ${order.grandTotal}`}</option>)}
+        </select>
+        <select
+          value={form.deliveryChallanId}
+          onChange={(event) => {
+            const challan = deliveryChallans.find((item) => item.id === event.target.value);
+            setForm({
+              ...form,
+              customerId: challan?.customer.id ?? form.customerId,
+              warehouseId: challan?.warehouse.id ?? form.warehouseId,
+              salesOrderId: challan?.salesOrder?.id ?? form.salesOrderId,
+              deliveryChallanId: event.target.value,
+              productVariantId: "",
+              quantity: "1",
+            });
+          }}
+        >
+          <option value="">No delivery challan</option>
+          {customerChallans.map((challan) => <option key={challan.id} value={challan.id}>{`${challan.challanNumber} / ${challan.customer.name}`}</option>)}
         </select>
         <select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
           <option value="">Product variant</option>
@@ -3507,11 +3609,12 @@ function SalesInvoicePanel({
         <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
         <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
       </form>
+      {conversionLines?.length ? <p className="empty-text">{conversionLines.length} source document line(s) will be posted.</p> : null}
       <InvoiceActionList
         items={invoices.map((invoice) => ({
           id: invoice.id,
           label: invoice.invoiceNumber,
-          meta: `${invoice.customer.name} / ${invoice.grandTotal}`,
+          meta: `${invoice.customer.name} / ${invoice.deliveryChallan?.challanNumber ?? invoice.salesOrder?.orderNumber ?? "Direct"} / ${invoice.grandTotal}`,
           status: invoice.status,
         }))}
         onCancel={(invoiceId) => cancelMutation.mutate(invoiceId)}
