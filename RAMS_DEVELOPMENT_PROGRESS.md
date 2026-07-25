@@ -4,7 +4,7 @@ Last updated: 2026-07-25
 
 ## Overall Completion
 
-Estimated completion: 61%
+Estimated completion: 62%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -15,7 +15,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Platform/Foundation | 74% | Web app, API, environment config, Prisma, setup flow, number series, audit logs, global API errors, same-origin mutation guard, and audit reporting are in place. Needs stronger tests, deployment hardening, logging, and operational docs. |
 | Authentication/RBAC | 71% | Login, registration, current-user session, Super Admin, Staff role, user-role administration, backend module permission middleware, role-aware navigation, and permission-aware Settings queries. Needs finer action-level controls and richer user lifecycle controls. |
 | Company/Financial Year/Settings | 65% | Company profile, financial years, number series, default seeding, audit view. Needs closing/opening year workflows and more settings. |
-| Masters | 70% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Needs edit/deactivate flows, import/export, search, pagination. |
+| Masters | 74% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, and Warehouses. Needs lifecycle support for remaining masters, import/export, search, pagination. |
 | Commercial Masters | 62% | Customers, suppliers, employees, vehicles, payment modes. Needs richer profiles, credit limits, contact/address handling, lifecycle controls. |
 | Inventory | 68% | Opening stock, stock balances, movements, adjustments, transfers, negative stock protection, reorder alerts. Needs valuation reports, batch/serial handling, stronger location selection, stock aging. |
 | Purchase | 60% | Purchase orders, GRN workflow, purchase invoice posting/cancel, purchase return, GST/input tax and supplier ledger integration. Needs order-to-invoice conversion, partial receipts, approval depth, landed cost. |
@@ -43,6 +43,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Project-wide audit completed with critical fixes applied.
 - Same-origin guard added for mutating API requests.
 - Permission-aware Settings data fetching added.
+- Added edit/deactivate lifecycle for Units, HSN codes, Brands, Categories, and Warehouses.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -65,7 +66,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 ## Remaining Tasks
 
 - Refine action-level permission mapping for special posting/approval routes.
-- Add edit/deactivate/detail/search/pagination patterns for master records.
+- Add edit/deactivate/detail/search/pagination patterns for remaining master and commercial master records.
 - Add richer customer/supplier ledgers with invoice allocation and settlement.
 - Add order/GRN/challan conversion flows to reduce duplicate manual entry.
 - Complete workshop service billing without double-consuming issued parts.
@@ -80,24 +81,21 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Project-wide audit and critical fix pass.
+Master-data lifecycle support for core simple masters.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 17 to 24 focused development sessions.
+Estimated remaining iterations: 16 to 23 focused development sessions.
 
 The largest remaining chunks are workshop billing, approval/permission enforcement, reporting/export depth, automated testing, and production deployment hardening.
 
 ## Files/Modules Modified In This Session
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
-- `RAMS_AUDIT_REPORT.md`
 - `client/src/App.tsx`
-- `server/src/app.ts`
-- `server/src/middleware/same-origin.ts`
-- `server/src/modules/auth/auth.middleware.ts`
 - `server/src/modules/masters/masters.routes.ts`
+- `server/src/modules/masters/masters.service.ts`
 
 ## Next Implementation Target
 
-Master-data edit/deactivate/detail/search patterns, reusing existing master services, list components, and record status fields.
+Commercial master lifecycle support for Customers, Suppliers, Employees, Vehicles, and Payment Modes.

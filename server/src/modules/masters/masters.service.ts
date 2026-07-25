@@ -42,6 +42,32 @@ async function auditCreate(context: MasterContext, entityType: string, entityId:
   });
 }
 
+async function auditUpdate(context: MasterContext, entityType: string, entityId: string, beforeData: unknown, afterData: unknown) {
+  await writeAuditLog({
+    ...context,
+    module: "masters",
+    action: "UPDATE",
+    entityType,
+    entityId,
+    description: `${entityType} updated.`,
+    beforeData,
+    afterData,
+  });
+}
+
+async function auditDeactivate(context: MasterContext, entityType: string, entityId: string, beforeData: unknown, afterData: unknown) {
+  await writeAuditLog({
+    ...context,
+    module: "masters",
+    action: "DELETE",
+    entityType,
+    entityId,
+    description: `${entityType} deactivated.`,
+    beforeData,
+    afterData,
+  });
+}
+
 export async function getMasterSummary(companyId: string) {
   const [
     units,
@@ -96,6 +122,44 @@ export async function createUnit(context: MasterContext, body: unknown) {
   return unit;
 }
 
+export async function updateUnit(context: MasterContext, unitId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const existing = await prisma.unit.findFirst({ where: { id: unitId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "UNIT_NOT_FOUND", "Unit not found.");
+  }
+
+  const updated = await prisma.unit.update({
+    where: { id: existing.id },
+    data: {
+      code: requiredString(data.code, "Code").toUpperCase(),
+      name: requiredString(data.name, "Name"),
+      symbol: requiredString(data.symbol, "Symbol"),
+    },
+  });
+  await auditUpdate(context, "Unit", updated.id, existing, updated);
+  return updated;
+}
+
+export async function deactivateUnit(context: MasterContext, unitId: string) {
+  const existing = await prisma.unit.findFirst({ where: { id: unitId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "UNIT_NOT_FOUND", "Unit not found.");
+  }
+
+  const inUse = await prisma.product.count({ where: { companyId: context.companyId, unitId } });
+
+  if (inUse > 0) {
+    throw new ApiError(400, "MASTER_IN_USE", "Unit is used by products and cannot be deactivated.");
+  }
+
+  const updated = await prisma.unit.update({ where: { id: existing.id }, data: { status: "INACTIVE" } });
+  await auditDeactivate(context, "Unit", updated.id, existing, updated);
+  return updated;
+}
+
 export async function listHsnCodes(companyId: string) {
   return prisma.hsnCode.findMany({ where: { companyId }, orderBy: { code: "asc" } });
 }
@@ -117,6 +181,49 @@ export async function createHsnCode(context: MasterContext, body: unknown) {
   });
   await auditCreate(context, "HsnCode", hsnCode.id, hsnCode);
   return hsnCode;
+}
+
+export async function updateHsnCode(context: MasterContext, hsnCodeId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const existing = await prisma.hsnCode.findFirst({ where: { id: hsnCodeId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "HSN_CODE_NOT_FOUND", "HSN code not found.");
+  }
+
+  const code = requiredString(data.code, "HSN code");
+
+  if (!/^\d{4}(\d{2})?(\d{2})?$/.test(code)) {
+    throw new ApiError(400, "INVALID_HSN", "HSN code must be 4, 6, or 8 digits.");
+  }
+
+  const updated = await prisma.hsnCode.update({
+    where: { id: existing.id },
+    data: {
+      code,
+      description: requiredString(data.description, "Description"),
+    },
+  });
+  await auditUpdate(context, "HsnCode", updated.id, existing, updated);
+  return updated;
+}
+
+export async function deactivateHsnCode(context: MasterContext, hsnCodeId: string) {
+  const existing = await prisma.hsnCode.findFirst({ where: { id: hsnCodeId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "HSN_CODE_NOT_FOUND", "HSN code not found.");
+  }
+
+  const inUse = await prisma.product.count({ where: { companyId: context.companyId, hsnCodeId } });
+
+  if (inUse > 0) {
+    throw new ApiError(400, "MASTER_IN_USE", "HSN code is used by products and cannot be deactivated.");
+  }
+
+  const updated = await prisma.hsnCode.update({ where: { id: existing.id }, data: { status: "INACTIVE" } });
+  await auditDeactivate(context, "HsnCode", updated.id, existing, updated);
+  return updated;
 }
 
 export async function listTaxRates(companyId: string) {
@@ -173,6 +280,44 @@ export async function createBrand(context: MasterContext, body: unknown) {
   return brand;
 }
 
+export async function updateBrand(context: MasterContext, brandId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const existing = await prisma.brand.findFirst({ where: { id: brandId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "BRAND_NOT_FOUND", "Brand not found.");
+  }
+
+  const updated = await prisma.brand.update({
+    where: { id: existing.id },
+    data: {
+      code: requiredString(data.code, "Code").toUpperCase(),
+      name: requiredString(data.name, "Name"),
+      description: optionalString(data.description),
+    },
+  });
+  await auditUpdate(context, "Brand", updated.id, existing, updated);
+  return updated;
+}
+
+export async function deactivateBrand(context: MasterContext, brandId: string) {
+  const existing = await prisma.brand.findFirst({ where: { id: brandId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "BRAND_NOT_FOUND", "Brand not found.");
+  }
+
+  const inUse = await prisma.product.count({ where: { companyId: context.companyId, brandId } });
+
+  if (inUse > 0) {
+    throw new ApiError(400, "MASTER_IN_USE", "Brand is used by products and cannot be deactivated.");
+  }
+
+  const updated = await prisma.brand.update({ where: { id: existing.id }, data: { status: "INACTIVE" } });
+  await auditDeactivate(context, "Brand", updated.id, existing, updated);
+  return updated;
+}
+
 export async function listCategories(companyId: string) {
   return prisma.category.findMany({ where: { companyId }, orderBy: { name: "asc" } });
 }
@@ -189,6 +334,47 @@ export async function createCategory(context: MasterContext, body: unknown) {
   });
   await auditCreate(context, "Category", category.id, category);
   return category;
+}
+
+export async function updateCategory(context: MasterContext, categoryId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const existing = await prisma.category.findFirst({ where: { id: categoryId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "CATEGORY_NOT_FOUND", "Category not found.");
+  }
+
+  const updated = await prisma.category.update({
+    where: { id: existing.id },
+    data: {
+      code: requiredString(data.code, "Code").toUpperCase(),
+      name: requiredString(data.name, "Name"),
+      description: optionalString(data.description),
+    },
+  });
+  await auditUpdate(context, "Category", updated.id, existing, updated);
+  return updated;
+}
+
+export async function deactivateCategory(context: MasterContext, categoryId: string) {
+  const existing = await prisma.category.findFirst({ where: { id: categoryId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "CATEGORY_NOT_FOUND", "Category not found.");
+  }
+
+  const [productCount, subCategoryCount] = await Promise.all([
+    prisma.product.count({ where: { companyId: context.companyId, categoryId } }),
+    prisma.subCategory.count({ where: { companyId: context.companyId, categoryId } }),
+  ]);
+
+  if (productCount > 0 || subCategoryCount > 0) {
+    throw new ApiError(400, "MASTER_IN_USE", "Category is used by products or sub-categories and cannot be deactivated.");
+  }
+
+  const updated = await prisma.category.update({ where: { id: existing.id }, data: { status: "INACTIVE" } });
+  await auditDeactivate(context, "Category", updated.id, existing, updated);
+  return updated;
 }
 
 export async function listSubCategories(companyId: string) {
@@ -308,6 +494,47 @@ export async function createWarehouse(context: MasterContext, body: unknown) {
   });
   await auditCreate(context, "Warehouse", warehouse.id, warehouse);
   return warehouse;
+}
+
+export async function updateWarehouse(context: MasterContext, warehouseId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const existing = await prisma.warehouse.findFirst({ where: { id: warehouseId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "WAREHOUSE_NOT_FOUND", "Warehouse not found.");
+  }
+
+  const updated = await prisma.warehouse.update({
+    where: { id: existing.id },
+    data: {
+      code: requiredString(data.code, "Code").toUpperCase(),
+      name: requiredString(data.name, "Name"),
+      address: optionalString(data.address),
+    },
+  });
+  await auditUpdate(context, "Warehouse", updated.id, existing, updated);
+  return updated;
+}
+
+export async function deactivateWarehouse(context: MasterContext, warehouseId: string) {
+  const existing = await prisma.warehouse.findFirst({ where: { id: warehouseId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "WAREHOUSE_NOT_FOUND", "Warehouse not found.");
+  }
+
+  const [stockBalanceCount, movementCount] = await Promise.all([
+    prisma.stockBalance.count({ where: { companyId: context.companyId, warehouseId, quantity: { gt: 0 } } }),
+    prisma.stockMovement.count({ where: { companyId: context.companyId, warehouseId } }),
+  ]);
+
+  if (stockBalanceCount > 0 || movementCount > 0) {
+    throw new ApiError(400, "MASTER_IN_USE", "Warehouse has stock or movements and cannot be deactivated.");
+  }
+
+  const updated = await prisma.warehouse.update({ where: { id: existing.id }, data: { status: "INACTIVE" } });
+  await auditDeactivate(context, "Warehouse", updated.id, existing, updated);
+  return updated;
 }
 
 export async function createWarehouseBlock(context: MasterContext, warehouseId: string, body: unknown) {

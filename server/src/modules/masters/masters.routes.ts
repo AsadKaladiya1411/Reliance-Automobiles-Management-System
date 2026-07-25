@@ -16,6 +16,11 @@ import {
   createWarehouseBlock,
   createWarehouseRack,
   createWarehouseShelf,
+  deactivateBrand,
+  deactivateCategory,
+  deactivateHsnCode,
+  deactivateUnit,
+  deactivateWarehouse,
   getMasterSummary,
   listBrands,
   listCategories,
@@ -26,6 +31,11 @@ import {
   listTaxRates,
   listUnits,
   listWarehouses,
+  updateBrand,
+  updateCategory,
+  updateHsnCode,
+  updateUnit,
+  updateWarehouse,
 } from "./masters.service";
 
 const router = Router();
@@ -59,12 +69,24 @@ router.get("/masters/units", asyncHandler(async (req, res) => {
 router.post("/masters/units", asyncHandler(async (req, res) => {
   sendSuccess(res, await createUnit(context(req), req.body), "Unit created.", 201);
 }));
+router.patch("/masters/units/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await updateUnit(context(req), routeParam(req.params.id, "id"), req.body), "Unit updated.");
+}));
+router.delete("/masters/units/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await deactivateUnit(context(req), routeParam(req.params.id, "id")), "Unit deactivated.");
+}));
 
 router.get("/masters/hsn-codes", asyncHandler(async (req, res) => {
   sendSuccess(res, await listHsnCodes(req.user!.companyId));
 }));
 router.post("/masters/hsn-codes", asyncHandler(async (req, res) => {
   sendSuccess(res, await createHsnCode(context(req), req.body), "HSN code created.", 201);
+}));
+router.patch("/masters/hsn-codes/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await updateHsnCode(context(req), routeParam(req.params.id, "id"), req.body), "HSN code updated.");
+}));
+router.delete("/masters/hsn-codes/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await deactivateHsnCode(context(req), routeParam(req.params.id, "id")), "HSN code deactivated.");
 }));
 
 router.get("/masters/tax-rates", asyncHandler(async (req, res) => {
@@ -80,12 +102,24 @@ router.get("/masters/brands", asyncHandler(async (req, res) => {
 router.post("/masters/brands", asyncHandler(async (req, res) => {
   sendSuccess(res, await createBrand(context(req), req.body), "Brand created.", 201);
 }));
+router.patch("/masters/brands/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await updateBrand(context(req), routeParam(req.params.id, "id"), req.body), "Brand updated.");
+}));
+router.delete("/masters/brands/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await deactivateBrand(context(req), routeParam(req.params.id, "id")), "Brand deactivated.");
+}));
 
 router.get("/masters/categories", asyncHandler(async (req, res) => {
   sendSuccess(res, await listCategories(req.user!.companyId));
 }));
 router.post("/masters/categories", asyncHandler(async (req, res) => {
   sendSuccess(res, await createCategory(context(req), req.body), "Category created.", 201);
+}));
+router.patch("/masters/categories/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await updateCategory(context(req), routeParam(req.params.id, "id"), req.body), "Category updated.");
+}));
+router.delete("/masters/categories/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await deactivateCategory(context(req), routeParam(req.params.id, "id")), "Category deactivated.");
 }));
 
 router.get("/masters/sub-categories", asyncHandler(async (req, res) => {
@@ -114,6 +148,12 @@ router.get("/masters/warehouses", asyncHandler(async (req, res) => {
 }));
 router.post("/masters/warehouses", asyncHandler(async (req, res) => {
   sendSuccess(res, await createWarehouse(context(req), req.body), "Warehouse created.", 201);
+}));
+router.patch("/masters/warehouses/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await updateWarehouse(context(req), routeParam(req.params.id, "id"), req.body), "Warehouse updated.");
+}));
+router.delete("/masters/warehouses/:id", asyncHandler(async (req, res) => {
+  sendSuccess(res, await deactivateWarehouse(context(req), routeParam(req.params.id, "id")), "Warehouse deactivated.");
 }));
 router.post("/masters/warehouses/:warehouseId/blocks", asyncHandler(async (req, res) => {
   sendSuccess(

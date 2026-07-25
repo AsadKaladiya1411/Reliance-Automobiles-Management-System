@@ -205,12 +205,14 @@ type Unit = {
   code: string;
   name: string;
   symbol: string;
+  status?: string;
 };
 
 type HsnCode = {
   id: string;
   code: string;
   description: string;
+  status?: string;
 };
 
 type TaxRate = {
@@ -225,12 +227,14 @@ type Brand = {
   id: string;
   code: string;
   name: string;
+  status?: string;
 };
 
 type Category = {
   id: string;
   code: string;
   name: string;
+  status?: string;
 };
 
 type Product = {
@@ -250,6 +254,7 @@ type Warehouse = {
   id: string;
   code: string;
   name: string;
+  status?: string;
 };
 
 type StockBalance = {
@@ -2262,13 +2267,32 @@ function SimpleCodeNamePanel({
   queryKeys,
   title,
 }: {
-  items: Array<{ id: string; code: string; name: string }>;
+  items: Array<{ id: string; code: string; name: string; status?: string }>;
   path: string;
   queryKeys: string[];
   title: string;
 }) {
   const [form, setForm] = useState({ code: "", name: "" });
+  const [editingId, setEditingId] = useState("");
   const mutation = useCreateMaster(path, queryKeys, () => setForm({ code: "", name: "" }));
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      await api.patch(`${path}/${editingId}`, form);
+    },
+    onSuccess: async () => {
+      await Promise.all(queryKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey: [queryKey] })));
+      setEditingId("");
+      setForm({ code: "", name: "" });
+    },
+  });
+  const deactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`${path}/${id}`);
+    },
+    onSuccess: async () => {
+      await Promise.all(queryKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey: [queryKey] })));
+    },
+  });
 
   return (
     <article className="setup-panel master-panel">
@@ -2277,14 +2301,35 @@ function SimpleCodeNamePanel({
         className="compact-form"
         onSubmit={(event) => {
           event.preventDefault();
+          if (editingId) {
+            updateMutation.mutate();
+            return;
+          }
           mutation.mutate(form);
         }}
       >
         <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
         <input placeholder="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+        <Button type="submit" variant="outline" disabled={mutation.isPending || updateMutation.isPending}>
+          {editingId ? "Save" : "Add"}
+        </Button>
+        {editingId ? (
+          <Button type="button" variant="outline" onClick={() => {
+            setEditingId("");
+            setForm({ code: "", name: "" });
+          }}>
+            Cancel
+          </Button>
+        ) : null}
       </form>
-      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: item.code }))} />
+      <EditableMasterList
+        items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.status ?? "ACTIVE"}`, raw: item }))}
+        onDeactivate={(id) => deactivateMutation.mutate(id)}
+        onEdit={(item) => {
+          setEditingId(item.id);
+          setForm({ code: item.raw.code, name: item.raw.name });
+        }}
+      />
     </article>
   );
 }
@@ -3686,9 +3731,34 @@ function JobCardList({
 
 function UnitMasterPanel({ items }: { items: Unit[] }) {
   const [form, setForm] = useState({ code: "", name: "", symbol: "" });
+  const [editingId, setEditingId] = useState("");
   const mutation = useCreateMaster("/masters/units", ["units", "master-summary"], () =>
     setForm({ code: "", name: "", symbol: "" }),
   );
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/masters/units/${editingId}`, form);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["units"] }),
+        queryClient.invalidateQueries({ queryKey: ["master-summary"] }),
+      ]);
+      setEditingId("");
+      setForm({ code: "", name: "", symbol: "" });
+    },
+  });
+  const deactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/masters/units/${id}`);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["units"] }),
+        queryClient.invalidateQueries({ queryKey: ["master-summary"] }),
+      ]);
+    },
+  });
 
   return (
     <article className="setup-panel master-panel">
@@ -3697,24 +3767,70 @@ function UnitMasterPanel({ items }: { items: Unit[] }) {
         className="compact-form"
         onSubmit={(event) => {
           event.preventDefault();
+          if (editingId) {
+            updateMutation.mutate();
+            return;
+          }
           mutation.mutate(form);
         }}
       >
         <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
         <input placeholder="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
         <input placeholder="Symbol" value={form.symbol} onChange={(event) => setForm({ ...form, symbol: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+        <Button type="submit" variant="outline" disabled={mutation.isPending || updateMutation.isPending}>
+          {editingId ? "Save" : "Add"}
+        </Button>
+        {editingId ? (
+          <Button type="button" variant="outline" onClick={() => {
+            setEditingId("");
+            setForm({ code: "", name: "", symbol: "" });
+          }}>
+            Cancel
+          </Button>
+        ) : null}
       </form>
-      <MasterList items={items.map((item) => ({ id: item.id, label: item.name, meta: item.symbol }))} />
+      <EditableMasterList
+        items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.symbol} / ${item.status ?? "ACTIVE"}`, raw: item }))}
+        onDeactivate={(id) => deactivateMutation.mutate(id)}
+        onEdit={(item) => {
+          setEditingId(item.id);
+          setForm({ code: item.raw.code, name: item.raw.name, symbol: item.raw.symbol });
+        }}
+      />
     </article>
   );
 }
 
 function HsnMasterPanel({ items }: { items: HsnCode[] }) {
   const [form, setForm] = useState({ code: "", description: "" });
+  const [editingId, setEditingId] = useState("");
   const mutation = useCreateMaster("/masters/hsn-codes", ["hsn-codes", "master-summary"], () =>
     setForm({ code: "", description: "" }),
   );
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/masters/hsn-codes/${editingId}`, form);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["hsn-codes"] }),
+        queryClient.invalidateQueries({ queryKey: ["master-summary"] }),
+      ]);
+      setEditingId("");
+      setForm({ code: "", description: "" });
+    },
+  });
+  const deactivateMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/masters/hsn-codes/${id}`);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["hsn-codes"] }),
+        queryClient.invalidateQueries({ queryKey: ["master-summary"] }),
+      ]);
+    },
+  });
 
   return (
     <article className="setup-panel master-panel">
@@ -3723,14 +3839,35 @@ function HsnMasterPanel({ items }: { items: HsnCode[] }) {
         className="compact-form"
         onSubmit={(event) => {
           event.preventDefault();
+          if (editingId) {
+            updateMutation.mutate();
+            return;
+          }
           mutation.mutate(form);
         }}
       >
         <input placeholder="HSN" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
         <input placeholder="Description" value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+        <Button type="submit" variant="outline" disabled={mutation.isPending || updateMutation.isPending}>
+          {editingId ? "Save" : "Add"}
+        </Button>
+        {editingId ? (
+          <Button type="button" variant="outline" onClick={() => {
+            setEditingId("");
+            setForm({ code: "", description: "" });
+          }}>
+            Cancel
+          </Button>
+        ) : null}
       </form>
-      <MasterList items={items.map((item) => ({ id: item.id, label: item.description, meta: item.code }))} />
+      <EditableMasterList
+        items={items.map((item) => ({ id: item.id, label: item.description, meta: `${item.code} / ${item.status ?? "ACTIVE"}`, raw: item }))}
+        onDeactivate={(id) => deactivateMutation.mutate(id)}
+        onEdit={(item) => {
+          setEditingId(item.id);
+          setForm({ code: item.raw.code, description: item.raw.description });
+        }}
+      />
     </article>
   );
 }
@@ -3887,6 +4024,37 @@ function MasterList({ items }: { items: Array<{ id: string; label: string; meta:
         <li key={item.id}>
           <span>{item.label}</span>
           <strong>{item.meta}</strong>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function EditableMasterList<T extends { id: string }>({
+  items,
+  onDeactivate,
+  onEdit,
+}: {
+  items: Array<{ id: string; label: string; meta: string; raw: T }>;
+  onDeactivate: (id: string) => void;
+  onEdit: (item: { id: string; label: string; meta: string; raw: T }) => void;
+}) {
+  if (items.length === 0) {
+    return <p className="empty-text">No records yet.</p>;
+  }
+
+  return (
+    <ul className="compact-list action-list">
+      {items.slice(0, 8).map((item) => (
+        <li key={item.id}>
+          <span>{item.label}</span>
+          <strong>{item.meta}</strong>
+          <Button type="button" variant="outline" onClick={() => onEdit(item)}>
+            Edit
+          </Button>
+          <Button type="button" variant="outline" onClick={() => onDeactivate(item.id)}>
+            Deactivate
+          </Button>
         </li>
       ))}
     </ul>
