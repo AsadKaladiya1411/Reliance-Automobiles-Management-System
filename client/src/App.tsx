@@ -530,7 +530,7 @@ type JobCard = {
   vehicle: Vehicle;
 };
 
-type AppView = "dashboard" | "masters" | "inventory" | "workshop" | "transactions" | "settings";
+type AppView = "dashboard" | "masters" | "inventory" | "workshop" | "transactions" | "reports" | "settings";
 
 const navItems: Array<{ id: AppView; label: string; icon: string }> = [
   { id: "dashboard", label: "Dashboard", icon: "DB" },
@@ -538,6 +538,7 @@ const navItems: Array<{ id: AppView; label: string; icon: string }> = [
   { id: "inventory", label: "Inventory", icon: "IN" },
   { id: "workshop", label: "Workshop", icon: "WS" },
   { id: "transactions", label: "Transactions", icon: "TR" },
+  { id: "reports", label: "Reports", icon: "RP" },
   { id: "settings", label: "Settings", icon: "ST" },
 ];
 
@@ -1073,6 +1074,18 @@ function DashboardShell({ user }: { user: AuthUser }) {
           />
         ) : null}
 
+        {activeView === "reports" ? (
+          <ReportsView
+            accountingSummary={accountingSummary.data}
+            gstSummary={gstSummary.data}
+            inventorySummary={inventorySummary.data}
+            partyLedgerSummary={partyLedgerSummary.data}
+            purchaseSummary={purchaseSummary.data}
+            salesSummary={salesSummary.data}
+            workshopSummary={workshopSummary.data}
+          />
+        ) : null}
+
         {activeView === "settings" ? (
           <SettingsView
             company={company.data}
@@ -1489,6 +1502,110 @@ function TransactionsView({
         <PartyLedgerPanel items={partyLedger.data ?? []} />
       </section>
       <ModuleGrid filter={["Purchase", "Sales", "Workshop", "Accounting"]} />
+    </>
+  );
+}
+
+function ReportsView({
+  accountingSummary,
+  gstSummary,
+  inventorySummary,
+  partyLedgerSummary,
+  purchaseSummary,
+  salesSummary,
+  workshopSummary,
+}: {
+  accountingSummary?: AccountingSummary;
+  gstSummary?: GstSummary;
+  inventorySummary?: InventorySummary;
+  partyLedgerSummary?: PartyLedgerSummary;
+  purchaseSummary?: PurchaseSummary;
+  salesSummary?: SalesSummary;
+  workshopSummary?: WorkshopSummary;
+}) {
+  const auditLogs = useAuditLogs();
+  const balanceSheet = useQuery({
+    queryKey: ["balance-sheet"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<BalanceSheet>>("/accounting/balance-sheet");
+      return response.data.data;
+    },
+  });
+  const profitAndLoss = useQuery({
+    queryKey: ["profit-and-loss"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<ProfitAndLoss>>("/accounting/profit-and-loss");
+      return response.data.data;
+    },
+  });
+  const trialBalance = useQuery({
+    queryKey: ["trial-balance"],
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<TrialBalance>>("/accounting/trial-balance");
+      return response.data.data;
+    },
+  });
+  const outstanding = usePartyOutstanding();
+  const reorderItems = useMasterList<ReorderItem>("reorder-items", "/inventory/reorder-items");
+
+  return (
+    <>
+      <section className="view-header">
+        <h2>Reports</h2>
+        <p>Financial, GST, inventory, party outstanding, workshop, and audit reporting for posted business activity.</p>
+      </section>
+
+      <section className="reports-grid">
+        <article className="setup-panel wide-panel">
+          <h2>Business Snapshot</h2>
+          <div className="readiness-grid">
+            <ReadinessMetric label="Net Purchase" value={purchaseSummary?.grandTotal} />
+            <ReadinessMetric label="Net Sales" value={salesSummary?.grandTotal} />
+            <ReadinessMetric label="COGS" value={salesSummary?.costOfGoodsSold} />
+            <ReadinessMetric label="Stock Value" value={inventorySummary?.stockValue} />
+            <ReadinessMetric label="Posted Journals" value={accountingSummary?.postedJournals} />
+            <ReadinessMetric label="Debit Total" value={accountingSummary?.debitTotal} />
+            <ReadinessMetric label="Credit Total" value={accountingSummary?.creditTotal} />
+            <ReadinessMetric label="Customer Balance" value={partyLedgerSummary?.customerBalance} />
+            <ReadinessMetric label="Supplier Balance" value={partyLedgerSummary?.supplierBalance} />
+            <ReadinessMetric label="GST Payable" value={gstSummary?.netPayable} />
+            <ReadinessMetric label="Open Jobs" value={workshopSummary?.open} />
+          </div>
+        </article>
+
+        <ProfitAndLossPanel statement={profitAndLoss.data} />
+        <BalanceSheetPanel statement={balanceSheet.data} />
+        <TrialBalancePanel trialBalance={trialBalance.data} />
+
+        <section className="setup-panel">
+          <h2>GST Summary</h2>
+          <div className="readiness-grid">
+            <ReadinessMetric label="Input CGST" value={gstSummary?.inputCgst} />
+            <ReadinessMetric label="Input SGST" value={gstSummary?.inputSgst} />
+            <ReadinessMetric label="Input IGST" value={gstSummary?.inputIgst} />
+            <ReadinessMetric label="Output CGST" value={gstSummary?.outputCgst} />
+            <ReadinessMetric label="Output SGST" value={gstSummary?.outputSgst} />
+            <ReadinessMetric label="Output IGST" value={gstSummary?.outputIgst} />
+            <ReadinessMetric label="Input Tax" value={gstSummary?.inputTax} />
+            <ReadinessMetric label="Output Tax" value={gstSummary?.outputTax} />
+          </div>
+        </section>
+
+        <OutstandingPanel outstanding={outstanding.data} />
+
+        <section className="setup-panel">
+          <h2>Low Stock and Reorder</h2>
+          <MasterList
+            items={(reorderItems.data ?? []).map((item) => ({
+              id: item.product.id,
+              label: `${item.product.code} / ${item.product.name}`,
+              meta: `${item.availableQuantity} ${item.unit.symbol} available / shortage ${item.shortageQuantity}`,
+            }))}
+          />
+        </section>
+
+        <AuditLogPanel items={auditLogs.data ?? []} />
+      </section>
     </>
   );
 }
