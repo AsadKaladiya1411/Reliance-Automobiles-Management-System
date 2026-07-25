@@ -863,7 +863,6 @@ function LoginForm({ onRegister }: { onRegister: () => void }) {
 
 function RegisterForm({ onLogin }: { onLogin: () => void }) {
   const [form, setForm] = useState({
-    fullName: "",
     username: "",
     email: "",
     password: "",
@@ -885,8 +884,8 @@ function RegisterForm({ onLogin }: { onLogin: () => void }) {
   function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
-    if (!form.fullName.trim() || !form.username.trim()) {
-      setError("Full name and username are required.");
+    if (!form.username.trim() || !form.email.trim()) {
+      setError("Username and email are required.");
       return;
     }
     if (form.password.length < 8) {
@@ -899,10 +898,6 @@ function RegisterForm({ onLogin }: { onLogin: () => void }) {
   return (
     <AuthPanel title="Register for RAMS" subtitle="Create a staff account for the configured company.">
       <form className="auth-form" onSubmit={submit}>
-        <label>
-          Full name
-          <input value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} />
-        </label>
         <label>
           Username
           <input autoComplete="username" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} />

@@ -85,13 +85,13 @@ router.post(
 router.post(
   "/auth/register",
   asyncHandler(async (req, res) => {
-    const { fullName, username, email, password } = req.body;
+    const { username, email, password } = req.body;
 
-    if (!fullName || !username || !password) {
-      throw new ApiError(400, "INVALID_REGISTER_REQUEST", "Full name, username, and password are required.");
+    if (!username || !email || !password) {
+      throw new ApiError(400, "INVALID_REGISTER_REQUEST", "Username, email, and password are required.");
     }
 
-    const user = await registerUser({ fullName, username, email, password }, requestContext(req));
+    const user = await registerUser({ username, email, password }, requestContext(req));
     const token = signAuthToken(user);
 
     res.cookie(env.cookieName, token, {

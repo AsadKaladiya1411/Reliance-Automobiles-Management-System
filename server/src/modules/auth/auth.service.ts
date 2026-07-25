@@ -22,7 +22,6 @@ type LoginInput = {
 };
 
 type RegisterInput = {
-  fullName: string;
   username: string;
   email?: string;
   password: string;
@@ -308,8 +307,8 @@ export async function login(input: LoginInput, context: RequestContext) {
 }
 
 export async function registerUser(input: RegisterInput, context: RequestContext) {
-  if (!input.fullName.trim() || !input.username.trim()) {
-    throw new ApiError(400, "INVALID_REGISTER_REQUEST", "Full name and username are required.");
+  if (!input.username.trim()) {
+    throw new ApiError(400, "INVALID_REGISTER_REQUEST", "Username is required.");
   }
 
   assertPassword(input.password);
@@ -395,7 +394,7 @@ export async function registerUser(input: RegisterInput, context: RequestContext
         companyId: company.id,
         username,
         email,
-        fullName: input.fullName.trim(),
+        fullName: username,
         passwordHash,
         passwordChangedAt: new Date(),
         userRoles: { create: { roleId: role.id } },
