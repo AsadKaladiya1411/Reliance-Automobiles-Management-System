@@ -27,6 +27,12 @@ type RegisterInput = {
   password: string;
 };
 
+type AuthContext = RequestContext & {
+  companyId: string;
+  userId: string;
+  roles: string[];
+};
+
 function normalizeUsername(username: string) {
   return username.trim().toLowerCase();
 }
@@ -34,6 +40,12 @@ function normalizeUsername(username: string) {
 function assertPassword(password: string) {
   if (password.length < 8) {
     throw new ApiError(400, "WEAK_PASSWORD", "Password must be at least 8 characters.");
+  }
+}
+
+function assertSuperAdmin(context: AuthContext) {
+  if (!context.roles.includes("SUPER_ADMIN")) {
+    throw new ApiError(403, "FORBIDDEN", "Only Super Admin users can manage users and roles.");
   }
 }
 
@@ -434,6 +446,117 @@ export async function registerUser(input: RegisterInput, context: RequestContext
   });
 
   return result;
+}
+
+export async function listUsers(companyId: string) {
+  return prisma.user.findMany({
+    where: { companyId, deletedAt: null },
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      fullName: true,
+      phone: true,
+      status: true,
+      lastLoginAt: true,
+      createdAt: true,
+      userRoles: {
+        select: {
+          role: {
+            select: { id: true, code: true, name: true },
+          },
+        },
+        orderBy: { role: { name: "asc" } },
+      },
+    },
+    orderBy: { username: "asc" },
+  });
+}
+
+export async function listRoles(companyId: string) {
+  return prisma.role.findMany({
+    where: { companyId, status: "ACTIVE" },
+    include: {
+      rolePermissions: {
+        include: { permission: true },
+        orderBy: [{ permission: { module: "asc" } }, { permission: { action: "asc" } }],
+      },
+    },
+    orderBy: { name: "asc" },
+  });
+}
+
+export async function updateUserRoles(context: AuthContext, userId: string, body: unknown) {
+  assertSuperAdmin(context);
+
+  const data = body as Record<string, unknown>;
+  const roleIds = Array.isArray(data.roleIds)
+    ? Array.from(new Set(data.roleIds.filter((roleId): roleId is string => typeof roleId === "string" && roleId.trim() !== "")))
+    : [];
+
+  if (roleIds.length === 0) {
+    throw new ApiError(400, "ROLES_REQUIRED", "Select at least one role.");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.findFirst({
+      where: { id: userId, companyId: context.companyId, deletedAt: null },
+      include: { userRoles: { include: { role: true } } },
+    });
+
+    if (!user) {
+      throw new ApiError(404, "USER_NOT_FOUND", "User not found.");
+    }
+
+    const roles = await tx.role.findMany({
+      where: { companyId: context.companyId, id: { in: roleIds }, status: "ACTIVE" },
+    });
+
+    if (roles.length !== roleIds.length) {
+      throw new ApiError(400, "INVALID_ROLE", "One or more selected roles are invalid.");
+    }
+
+    await tx.userRole.deleteMany({ where: { userId } });
+    await tx.userRole.createMany({ data: roles.map((role) => ({ userId, roleId: role.id })) });
+
+    const updated = await tx.user.findUniqueOrThrow({
+      where: { id: user.id },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        fullName: true,
+        phone: true,
+        status: true,
+        lastLoginAt: true,
+        createdAt: true,
+        userRoles: {
+          select: {
+            role: { select: { id: true, code: true, name: true } },
+          },
+          orderBy: { role: { name: "asc" } },
+        },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        module: "settings",
+        action: "UPDATE",
+        entityType: "UserRoles",
+        entityId: user.id,
+        description: "User roles updated.",
+        beforeData: user.userRoles.map((userRole) => userRole.role.code),
+        afterData: updated.userRoles.map((userRole) => userRole.role.code),
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return updated;
+  });
 }
 
 export async function getUserById(userId: string) {

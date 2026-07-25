@@ -48,6 +48,25 @@ type AuthUser = {
   permissions: string[];
 };
 
+type AdminRole = {
+  id: string;
+  code: string;
+  name: string;
+  rolePermissions?: Array<{
+    permission: { module: string; action: string };
+  }>;
+};
+
+type AdminUser = {
+  id: string;
+  username: string;
+  email?: string | null;
+  fullName: string;
+  status: string;
+  lastLoginAt?: string | null;
+  userRoles: Array<{ role: { id: string; code: string; name: string } }>;
+};
+
 type Company = {
   id: string;
   name: string;
@@ -1621,6 +1640,9 @@ function SettingsView({
   financialYears: FinancialYear[];
   numberSeries: NumberSeries[];
 }) {
+  const roles = useMasterList<AdminRole>("auth-roles", "/auth/roles");
+  const users = useMasterList<AdminUser>("auth-users", "/auth/users");
+
   return (
     <>
       <section className="view-header">
@@ -1648,9 +1670,53 @@ function SettingsView({
 
         <FinancialYearPanel financialYears={financialYears} />
         <NumberSeriesPanel numberSeries={numberSeries} />
+        <UserRolePanel roles={roles.data ?? []} users={users.data ?? []} />
         <AuditLogPanel items={auditLogs} />
       </section>
     </>
+  );
+}
+
+function UserRolePanel({ roles, users }: { roles: AdminRole[]; users: AdminUser[] }) {
+  const [form, setForm] = useState({ userId: "", roleId: "" });
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/auth/users/${form.userId}/roles`, { roleIds: [form.roleId] });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["auth-users"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
+      ]);
+      setForm({ userId: "", roleId: "" });
+    },
+  });
+
+  return (
+    <article className="setup-panel wide-panel">
+      <h2>User Access</h2>
+      <form className="inline-form" onSubmit={(event) => {
+        event.preventDefault();
+        mutation.mutate();
+      }}>
+        <select value={form.userId} onChange={(event) => setForm({ ...form, userId: event.target.value })}>
+          <option value="">User</option>
+          {users.map((user) => <option key={user.id} value={user.id}>{`${user.username} / ${user.fullName}`}</option>)}
+        </select>
+        <select value={form.roleId} onChange={(event) => setForm({ ...form, roleId: event.target.value })}>
+          <option value="">Role</option>
+          {roles.map((role) => <option key={role.id} value={role.id}>{`${role.code} / ${role.name}`}</option>)}
+        </select>
+        <Button type="submit" variant="outline" disabled={mutation.isPending || !form.userId || !form.roleId}>Assign</Button>
+      </form>
+      <MasterList
+        items={users.map((user) => ({
+          id: user.id,
+          label: `${user.username} / ${user.status}`,
+          meta: user.userRoles.map((userRole) => userRole.role.code).join(", ") || "No role",
+        }))}
+      />
+    </article>
   );
 }
 

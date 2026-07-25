@@ -4,7 +4,16 @@ import { env } from "../../config/env";
 import { ApiError } from "../../utils/api-error";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
-import { bootstrapSystem, getSetupStatus, login, registerUser, signAuthToken } from "./auth.service";
+import {
+  bootstrapSystem,
+  getSetupStatus,
+  listRoles,
+  listUsers,
+  login,
+  registerUser,
+  signAuthToken,
+  updateUserRoles,
+} from "./auth.service";
 import { requireAuth } from "./auth.middleware";
 
 const router = Router();
@@ -118,6 +127,44 @@ router.get(
   requireAuth,
   asyncHandler(async (req, res) => {
     sendSuccess(res, { user: req.user }, "Authenticated user.");
+  }),
+);
+
+router.get(
+  "/auth/users",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    sendSuccess(res, await listUsers(req.user!.companyId));
+  }),
+);
+
+router.get(
+  "/auth/roles",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    sendSuccess(res, await listRoles(req.user!.companyId));
+  }),
+);
+
+router.patch(
+  "/auth/users/:id/roles",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    sendSuccess(
+      res,
+      await updateUserRoles(
+        {
+          companyId: req.user!.companyId,
+          userId: req.user!.id,
+          roles: req.user!.roles,
+          ipAddress: req.ip,
+          userAgent: req.get("user-agent"),
+        },
+        String(req.params.id),
+        req.body,
+      ),
+      "User roles updated.",
+    );
   }),
 );
 

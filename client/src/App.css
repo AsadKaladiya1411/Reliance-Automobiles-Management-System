@@ -236,11 +236,14 @@ h1 {
   margin-bottom: 12px;
 }
 
-.inline-form input {
+.inline-form input,
+.inline-form select {
   min-width: 0;
   height: 34px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
+  background: #ffffff;
+  color: #111827;
   padding: 0 8px;
   font-size: 13px;
 }
