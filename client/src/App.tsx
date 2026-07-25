@@ -789,7 +789,7 @@ function SetupForm() {
   );
 }
 
-function LoginForm() {
+function LoginForm({ onRegister }: { onRegister: () => void }) {
   const [form, setForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
 
@@ -836,6 +836,72 @@ function LoginForm() {
           {mutation.isPending ? "Signing in..." : "Sign In"}
         </Button>
       </form>
+      <p className="auth-switch">
+        New to RAMS? <button type="button" onClick={onRegister}>Register account</button>
+      </p>
+    </AuthPanel>
+  );
+}
+
+function RegisterForm({ onLogin }: { onLogin: () => void }) {
+  const [form, setForm] = useState({
+    fullName: "",
+    username: "",
+    email: "",
+    password: "",
+  });
+  const [error, setError] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/auth/register", form);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries();
+    },
+    onError: () => {
+      setError("Registration failed. Use a unique username and a password of at least 8 characters.");
+    },
+  });
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    mutation.mutate();
+  }
+
+  return (
+    <AuthPanel title="Register for RAMS" subtitle="Create a staff account for the configured company.">
+      <form className="auth-form" onSubmit={submit}>
+        <label>
+          Full name
+          <input value={form.fullName} onChange={(event) => setForm({ ...form, fullName: event.target.value })} />
+        </label>
+        <label>
+          Username
+          <input autoComplete="username" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} />
+        </label>
+        <label>
+          Email
+          <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
+        </label>
+        <label>
+          Password
+          <input
+            autoComplete="new-password"
+            type="password"
+            value={form.password}
+            onChange={(event) => setForm({ ...form, password: event.target.value })}
+          />
+        </label>
+        {error ? <p className="form-error">{error}</p> : null}
+        <Button type="submit" disabled={mutation.isPending}>
+          {mutation.isPending ? "Creating..." : "Register"}
+        </Button>
+      </form>
+      <p className="auth-switch">
+        Already registered? <button type="button" onClick={onLogin}>Sign in</button>
+      </p>
     </AuthPanel>
   );
 }
@@ -3700,6 +3766,7 @@ function App() {
 }
 
 function AppContent() {
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const setup = useSetupStatus();
   const currentUser = useCurrentUser();
 
@@ -3712,7 +3779,9 @@ function AppContent() {
   }
 
   if (!currentUser.data) {
-    return <LoginForm />;
+    return authMode === "register"
+      ? <RegisterForm onLogin={() => setAuthMode("login")} />
+      : <LoginForm onRegister={() => setAuthMode("register")} />;
   }
 
   return <DashboardShell user={currentUser.data} />;

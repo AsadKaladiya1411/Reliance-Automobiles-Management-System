@@ -526,3 +526,25 @@ h1 {
   color: #b42318;
   font-size: 13px;
 }
+
+.auth-switch {
+  margin-top: 16px;
+  text-align: center;
+  color: #667085;
+  font-size: 13px;
+}
+
+.auth-switch button {
+  border: 0;
+  background: transparent;
+  color: #0f766e;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.auth-switch button:hover {
+  color: #115e59;
+  text-decoration: underline;
+}

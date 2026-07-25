@@ -4,7 +4,7 @@ import { env } from "../../config/env";
 import { ApiError } from "../../utils/api-error";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
-import { bootstrapSystem, getSetupStatus, login, signAuthToken } from "./auth.service";
+import { bootstrapSystem, getSetupStatus, login, registerUser, signAuthToken } from "./auth.service";
 import { requireAuth } from "./auth.middleware";
 
 const router = Router();
@@ -79,6 +79,29 @@ router.post(
     });
 
     sendSuccess(res, { user }, "Login successful.");
+  }),
+);
+
+router.post(
+  "/auth/register",
+  asyncHandler(async (req, res) => {
+    const { fullName, username, email, password } = req.body;
+
+    if (!fullName || !username || !password) {
+      throw new ApiError(400, "INVALID_REGISTER_REQUEST", "Full name, username, and password are required.");
+    }
+
+    const user = await registerUser({ fullName, username, email, password }, requestContext(req));
+    const token = signAuthToken(user);
+
+    res.cookie(env.cookieName, token, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: env.nodeEnv === "production",
+      maxAge: 8 * 60 * 60 * 1000,
+    });
+
+    sendSuccess(res, { user }, "Registration successful.", 201);
   }),
 );
 

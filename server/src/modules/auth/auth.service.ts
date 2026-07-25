@@ -21,6 +21,13 @@ type LoginInput = {
   password: string;
 };
 
+type RegisterInput = {
+  fullName: string;
+  username: string;
+  email?: string;
+  password: string;
+};
+
 function normalizeUsername(username: string) {
   return username.trim().toLowerCase();
 }
@@ -298,6 +305,132 @@ export async function login(input: LoginInput, context: RequestContext) {
   });
 
   return authUser;
+}
+
+export async function registerUser(input: RegisterInput, context: RequestContext) {
+  assertPassword(input.password);
+
+  const company = await prisma.company.findFirst({
+    where: { status: "ACTIVE" },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (!company) {
+    throw new ApiError(400, "SETUP_REQUIRED", "Initial system setup must be completed before user registration.");
+  }
+
+  const username = normalizeUsername(input.username);
+  const email = input.email?.trim().toLowerCase() || null;
+  const passwordHash = await bcrypt.hash(input.password, env.passwordSaltRounds);
+
+  const result = await prisma.$transaction(async (tx) => {
+    const existing = await tx.user.findFirst({
+      where: {
+        companyId: company.id,
+        OR: [
+          { username },
+          ...(email ? [{ email }] : []),
+        ],
+      },
+    });
+
+    if (existing) {
+      throw new ApiError(409, "USER_ALREADY_EXISTS", "Username or email is already registered.");
+    }
+
+    const role = await tx.role.upsert({
+      where: { companyId_code: { companyId: company.id, code: "STAFF" } },
+      create: {
+        companyId: company.id,
+        code: "STAFF",
+        name: "Staff",
+        description: "Default registered user role",
+        isSystem: true,
+      },
+      update: { status: "ACTIVE", isSystem: true },
+    });
+    const permissionModules = [
+      "dashboard",
+      "masters",
+      "inventory",
+      "purchase",
+      "sales",
+      "workshop",
+      "accounting",
+      "gst",
+      "reports",
+    ];
+
+    for (const module of permissionModules) {
+      const permission = await tx.permission.upsert({
+        where: {
+          companyId_module_action: {
+            companyId: company.id,
+            module,
+            action: "read",
+          },
+        },
+        create: {
+          companyId: company.id,
+          module,
+          action: "read",
+          description: `read ${module}`,
+        },
+        update: {},
+      });
+
+      await tx.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: role.id, permissionId: permission.id } },
+        create: { roleId: role.id, permissionId: permission.id },
+        update: {},
+      });
+    }
+
+    const user = await tx.user.create({
+      data: {
+        companyId: company.id,
+        username,
+        email,
+        fullName: input.fullName.trim(),
+        passwordHash,
+        passwordChangedAt: new Date(),
+        userRoles: { create: { roleId: role.id } },
+      },
+      include: {
+        userRoles: {
+          include: {
+            role: {
+              include: {
+                rolePermissions: {
+                  include: {
+                    permission: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId: company.id,
+        actorUserId: user.id,
+        module: "auth",
+        action: "CREATE",
+        entityType: "User",
+        entityId: user.id,
+        description: "User registered.",
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return toAuthUser(user);
+  });
+
+  return result;
 }
 
 export async function getUserById(userId: string) {
