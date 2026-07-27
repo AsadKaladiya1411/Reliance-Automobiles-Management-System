@@ -3041,6 +3041,11 @@ function BalanceSheetPanel({ statement }: { statement?: BalanceSheet }) {
   );
 }
 
+function priceForVariant(variants: ProductVariant[], variantId: string) {
+  const variant = variants.find((item) => item.id === variantId);
+  return variant ? String(variant.salePrice ?? 0) : "0";
+}
+
 function PurchaseInvoicePanel({
   grns,
   invoices,
@@ -3251,7 +3256,14 @@ function SalesQuotationPanel({
           <option value="">Customer</option>
           {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
         </select>
-        <select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
+        <select
+          value={form.productVariantId}
+          onChange={(event) => setForm({
+            ...form,
+            productVariantId: event.target.value,
+            unitPrice: priceForVariant(variants, event.target.value),
+          })}
+        >
           <option value="">Product variant</option>
           {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
         </select>
@@ -3363,7 +3375,14 @@ function SalesOrderPanel({
             <option key={quotation.id} value={quotation.id}>{`${quotation.quotationNumber} / ${quotation.grandTotal}`}</option>
           ))}
         </select>
-        <select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
+        <select
+          value={form.productVariantId}
+          onChange={(event) => setForm({
+            ...form,
+            productVariantId: event.target.value,
+            unitPrice: priceForVariant(variants, event.target.value),
+          })}
+        >
           <option value="">Product variant</option>
           {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
         </select>
@@ -3647,7 +3666,14 @@ function SalesInvoicePanel({
           <option value="">No delivery challan</option>
           {customerChallans.map((challan) => <option key={challan.id} value={challan.id}>{`${challan.challanNumber} / ${challan.customer.name}`}</option>)}
         </select>
-        <select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
+        <select
+          value={form.productVariantId}
+          onChange={(event) => setForm({
+            ...form,
+            productVariantId: event.target.value,
+            unitPrice: priceForVariant(variants, event.target.value),
+          })}
+        >
           <option value="">Product variant</option>
           {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
         </select>

@@ -85,6 +85,32 @@ function calculateDiscount(line: SalesLineInput, grossAmount: Prisma.Decimal) {
   return discountAmount;
 }
 
+function unitPriceOrDefault(line: SalesLineInput, defaultPrice: Prisma.Decimal) {
+  const rawPrice = line.unitPrice;
+
+  if (rawPrice === undefined || rawPrice === null || rawPrice === "") {
+    if (defaultPrice.lte(0)) {
+      throw new ApiError(400, "SALE_PRICE_REQUIRED", "Unit price is required because the product variant has no default sale price.");
+    }
+    return defaultPrice.toDecimalPlaces(2);
+  }
+
+  const number = Number(rawPrice);
+
+  if (!Number.isFinite(number) || number < 0) {
+    throw new ApiError(400, "INVALID_SALES_NUMBER", "Unit price cannot be negative.");
+  }
+
+  if (number === 0) {
+    if (defaultPrice.lte(0)) {
+      throw new ApiError(400, "SALE_PRICE_REQUIRED", "Unit price is required because the product variant has no default sale price.");
+    }
+    return defaultPrice.toDecimalPlaces(2);
+  }
+
+  return new Prisma.Decimal(number.toFixed(2));
+}
+
 function parseDate(value: unknown) {
   const date = value ? new Date(String(value)) : new Date();
 
@@ -387,7 +413,7 @@ async function preparePlanningLines(tx: Prisma.TransactionClient, companyId: str
     }
 
     const quantity = positiveDecimal(line.quantity, "Quantity", 3);
-    const unitPrice = positiveDecimal(line.unitPrice, "Unit price", 2);
+    const unitPrice = unitPriceOrDefault(line, new Prisma.Decimal(variant.salePrice ?? 0));
     const grossAmount = quantity.mul(unitPrice).toDecimalPlaces(2);
     const discountAmount = calculateDiscount(line, grossAmount);
     const taxableAmount = grossAmount.minus(discountAmount).toDecimalPlaces(2);
@@ -737,7 +763,7 @@ export async function postSalesInvoice(context: SalesContext, body: unknown) {
       }
 
       const quantity = positiveDecimal(line.quantity, "Quantity", 3);
-      const unitPrice = positiveDecimal(line.unitPrice, "Unit price", 2);
+      const unitPrice = unitPriceOrDefault(line, new Prisma.Decimal(variant.salePrice ?? 0));
       const location = await validateLineLocation(tx, context.companyId, warehouseId, line);
       const key = locationKey({ warehouseId, ...location });
       const balance = await tx.stockBalance.findUnique({
