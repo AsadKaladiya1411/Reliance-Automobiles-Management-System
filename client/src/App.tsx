@@ -518,7 +518,7 @@ type SalesQuotation = {
   grandTotal: string | number;
   status: string;
   customer: Customer;
-  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; unitPrice: string | number; lineTotal: string | number }>;
+  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; unitPrice: string | number; discountAmount?: string | number; lineTotal: string | number }>;
 };
 
 type SalesOrder = {
@@ -533,7 +533,7 @@ type SalesOrder = {
   deliveredQuantity?: string | number;
   customer: Customer;
   quotation?: SalesQuotation | null;
-  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; unitPrice: string | number; lineTotal: string | number }>;
+  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; unitPrice: string | number; discountAmount?: string | number; lineTotal: string | number }>;
 };
 
 type DeliveryChallan = {
@@ -3195,6 +3195,7 @@ function SalesQuotationPanel({
     validUntil: "",
     quantity: "1",
     unitPrice: "0",
+    discountAmount: "0",
     narration: "Sales quotation",
   });
   const mutation = useMutation({
@@ -3204,7 +3205,12 @@ function SalesQuotationPanel({
         quotationDate: form.quotationDate,
         validUntil: form.validUntil,
         narration: form.narration,
-        lines: [{ productVariantId: form.productVariantId, quantity: form.quantity, unitPrice: form.unitPrice }],
+        lines: [{
+          productVariantId: form.productVariantId,
+          quantity: form.quantity,
+          unitPrice: form.unitPrice,
+          discountAmount: form.discountAmount,
+        }],
       });
     },
     onSuccess: async () => {
@@ -3213,7 +3219,7 @@ function SalesQuotationPanel({
         queryClient.invalidateQueries({ queryKey: ["sales-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
       ]);
-      setForm({ ...form, productVariantId: "", quantity: "1", unitPrice: "0", narration: "Sales quotation" });
+      setForm({ ...form, productVariantId: "", quantity: "1", unitPrice: "0", discountAmount: "0", narration: "Sales quotation" });
     },
   });
 
@@ -3236,6 +3242,7 @@ function SalesQuotationPanel({
         <input type="date" value={form.validUntil} onChange={(event) => setForm({ ...form, validUntil: event.target.value })} />
         <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
         <input placeholder="Unit price" value={form.unitPrice} onChange={(event) => setForm({ ...form, unitPrice: event.target.value })} />
+        <input placeholder="Discount amount" value={form.discountAmount} onChange={(event) => setForm({ ...form, discountAmount: event.target.value })} />
         <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
         <Button type="submit" variant="outline" disabled={mutation.isPending}>Create</Button>
       </form>
@@ -3269,6 +3276,7 @@ function SalesOrderPanel({
     expectedDate: "",
     quantity: "1",
     unitPrice: "0",
+    discountAmount: "0",
     narration: "Sales order",
   });
   const customerQuotations = quotations.filter((quotation) => !form.customerId || quotation.customer.id === form.customerId);
@@ -3277,6 +3285,7 @@ function SalesOrderPanel({
     productVariantId: line.productVariant.id,
     quantity: line.quantity,
     unitPrice: line.unitPrice,
+    discountAmount: line.discountAmount ?? 0,
   }));
   const mutation = useMutation({
     mutationFn: async () => {
@@ -3288,7 +3297,12 @@ function SalesOrderPanel({
         narration: form.narration,
         lines: conversionLines?.length
           ? conversionLines
-          : [{ productVariantId: form.productVariantId, quantity: form.quantity, unitPrice: form.unitPrice }],
+          : [{
+              productVariantId: form.productVariantId,
+              quantity: form.quantity,
+              unitPrice: form.unitPrice,
+              discountAmount: form.discountAmount,
+            }],
       });
     },
     onSuccess: async () => {
@@ -3297,7 +3311,7 @@ function SalesOrderPanel({
         queryClient.invalidateQueries({ queryKey: ["sales-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
       ]);
-      setForm({ ...form, quotationId: "", productVariantId: "", quantity: "1", unitPrice: "0", narration: "Sales order" });
+      setForm({ ...form, quotationId: "", productVariantId: "", quantity: "1", unitPrice: "0", discountAmount: "0", narration: "Sales order" });
     },
   });
 
@@ -3323,6 +3337,7 @@ function SalesOrderPanel({
               productVariantId: "",
               quantity: "1",
               unitPrice: "0",
+              discountAmount: "0",
             });
           }}
         >
@@ -3339,6 +3354,7 @@ function SalesOrderPanel({
         <input type="date" value={form.expectedDate} onChange={(event) => setForm({ ...form, expectedDate: event.target.value })} />
         <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
         <input placeholder="Unit price" value={form.unitPrice} onChange={(event) => setForm({ ...form, unitPrice: event.target.value })} />
+        <input placeholder="Discount amount" value={form.discountAmount} onChange={(event) => setForm({ ...form, discountAmount: event.target.value })} />
         <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
         <Button type="submit" variant="outline" disabled={mutation.isPending}>Create</Button>
       </form>
@@ -3480,6 +3496,7 @@ function SalesInvoicePanel({
     productVariantId: "",
     quantity: "1",
     unitPrice: "0",
+    discountAmount: "0",
     narration: "Sales invoice",
   });
   const customerOrders = orders.filter((order) => !form.customerId || order.customer.id === form.customerId);
@@ -3492,14 +3509,17 @@ function SalesInvoicePanel({
   const selectedOrder = orders.find((order) => order.id === form.salesOrderId);
   const selectedChallan = deliveryChallans.find((challan) => challan.id === form.deliveryChallanId);
   const orderPriceByVariant = new Map(selectedOrder?.lines.map((line) => [line.productVariant.id, line.unitPrice]));
+  const orderDiscountByVariant = new Map(selectedOrder?.lines.map((line) => [line.productVariant.id, line.discountAmount ?? 0]));
   const conversionLines = selectedChallan?.lines.map((line) => ({
     productVariantId: line.productVariant.id,
     quantity: line.quantity,
     unitPrice: orderPriceByVariant.get(line.productVariant.id) ?? form.unitPrice,
+    discountAmount: orderDiscountByVariant.get(line.productVariant.id) ?? form.discountAmount,
   })) ?? selectedOrder?.lines.map((line) => ({
     productVariantId: line.productVariant.id,
     quantity: line.quantity,
     unitPrice: line.unitPrice,
+    discountAmount: line.discountAmount ?? 0,
   }));
   const mutation = useMutation({
     mutationFn: async () => {
@@ -3517,6 +3537,7 @@ function SalesInvoicePanel({
               productVariantId: form.productVariantId,
               quantity: form.quantity,
               unitPrice: form.unitPrice,
+              discountAmount: form.discountAmount,
             }],
       });
     },
@@ -3529,7 +3550,7 @@ function SalesInvoicePanel({
         queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
       ]);
-      setForm({ ...form, salesOrderId: "", deliveryChallanId: "", productVariantId: "", quantity: "1", unitPrice: "0" });
+      setForm({ ...form, salesOrderId: "", deliveryChallanId: "", productVariantId: "", quantity: "1", unitPrice: "0", discountAmount: "0" });
     },
   });
   const cancelMutation = useMutation({
@@ -3583,6 +3604,7 @@ function SalesInvoicePanel({
               productVariantId: "",
               quantity: "1",
               unitPrice: "0",
+              discountAmount: "0",
             });
           }}
         >
@@ -3601,6 +3623,7 @@ function SalesInvoicePanel({
               deliveryChallanId: event.target.value,
               productVariantId: "",
               quantity: "1",
+              discountAmount: "0",
             });
           }}
         >
@@ -3618,6 +3641,7 @@ function SalesInvoicePanel({
         </select>
         <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
         <input placeholder="Unit price" value={form.unitPrice} onChange={(event) => setForm({ ...form, unitPrice: event.target.value })} />
+        <input placeholder="Discount amount" value={form.discountAmount} onChange={(event) => setForm({ ...form, discountAmount: event.target.value })} />
         <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
         <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
       </form>

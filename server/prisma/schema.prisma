@@ -1151,6 +1151,7 @@ model SalesQuotationLine {
   productVariantId String  @db.Uuid
   quantity         Decimal @db.Decimal(14, 3)
   unitPrice        Decimal @db.Decimal(14, 2)
+  discountAmount   Decimal @default(0) @db.Decimal(14, 2)
   taxableAmount    Decimal @db.Decimal(14, 2)
   taxAmount        Decimal @default(0) @db.Decimal(14, 2)
   lineTotal        Decimal @db.Decimal(14, 2)
@@ -1198,6 +1199,7 @@ model SalesOrderLine {
   productVariantId String  @db.Uuid
   quantity         Decimal @db.Decimal(14, 3)
   unitPrice        Decimal @db.Decimal(14, 2)
+  discountAmount   Decimal @default(0) @db.Decimal(14, 2)
   taxableAmount    Decimal @db.Decimal(14, 2)
   taxAmount        Decimal @default(0) @db.Decimal(14, 2)
   lineTotal        Decimal @db.Decimal(14, 2)
@@ -1305,6 +1307,7 @@ model SalesInvoiceLine {
   hsnCode          String?  @db.VarChar(8)
   quantity         Decimal  @db.Decimal(14, 3)
   unitPrice        Decimal  @db.Decimal(14, 2)
+  discountAmount   Decimal  @default(0) @db.Decimal(14, 2)
   unitCost         Decimal  @default(0) @db.Decimal(14, 2)
   taxableAmount    Decimal  @db.Decimal(14, 2)
   cgstRate         Decimal  @default(0) @db.Decimal(5, 2)

@@ -16,6 +16,8 @@ type SalesLineInput = {
   shelfId?: unknown;
   quantity?: unknown;
   unitPrice?: unknown;
+  discountAmount?: unknown;
+  discountPercent?: unknown;
 };
 
 type ReturnLineInput = {
@@ -48,6 +50,39 @@ function positiveDecimal(value: unknown, field: string, scale = 2) {
   }
 
   return new Prisma.Decimal(number.toFixed(scale));
+}
+
+function nonNegativeDecimal(value: unknown, field: string, scale = 2) {
+  if (value === undefined || value === null || value === "") {
+    return new Prisma.Decimal(0);
+  }
+
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || number < 0) {
+    throw new ApiError(400, "INVALID_SALES_NUMBER", `${field} cannot be negative.`);
+  }
+
+  return new Prisma.Decimal(number.toFixed(scale));
+}
+
+function calculateDiscount(line: SalesLineInput, grossAmount: Prisma.Decimal) {
+  const hasDiscountAmount = line.discountAmount !== undefined && line.discountAmount !== null && line.discountAmount !== "";
+  const hasDiscountPercent = line.discountPercent !== undefined && line.discountPercent !== null && line.discountPercent !== "";
+
+  if (hasDiscountAmount && hasDiscountPercent) {
+    throw new ApiError(400, "DISCOUNT_INPUT_CONFLICT", "Use either discount amount or discount percent, not both.");
+  }
+
+  const discountAmount = hasDiscountPercent
+    ? grossAmount.mul(nonNegativeDecimal(line.discountPercent, "Discount percent", 2)).div(100).toDecimalPlaces(2)
+    : nonNegativeDecimal(line.discountAmount, "Discount amount", 2);
+
+  if (discountAmount.gte(grossAmount)) {
+    throw new ApiError(400, "DISCOUNT_EXCEEDS_LINE_AMOUNT", "Discount must be less than the line gross amount.");
+  }
+
+  return discountAmount;
 }
 
 function parseDate(value: unknown) {
@@ -335,7 +370,9 @@ async function preparePlanningLines(tx: Prisma.TransactionClient, companyId: str
 
     const quantity = positiveDecimal(line.quantity, "Quantity", 3);
     const unitPrice = positiveDecimal(line.unitPrice, "Unit price", 2);
-    const taxableAmount = quantity.mul(unitPrice).toDecimalPlaces(2);
+    const grossAmount = quantity.mul(unitPrice).toDecimalPlaces(2);
+    const discountAmount = calculateDiscount(line, grossAmount);
+    const taxableAmount = grossAmount.minus(discountAmount).toDecimalPlaces(2);
     const taxAmount = taxableAmount.mul(variant.product.taxRate?.igstRate ?? new Prisma.Decimal(0)).div(100).toDecimalPlaces(2);
 
     preparedLines.push({
@@ -343,6 +380,7 @@ async function preparePlanningLines(tx: Prisma.TransactionClient, companyId: str
       productVariantId,
       quantity,
       unitPrice,
+      discountAmount,
       taxableAmount,
       taxAmount,
       lineTotal: taxableAmount.plus(taxAmount).toDecimalPlaces(2),
@@ -700,7 +738,9 @@ export async function postSalesInvoice(context: SalesContext, body: unknown) {
       }
 
       const unitCost = new Prisma.Decimal(balance.averageCost ?? 0);
-      const taxableAmount = quantity.mul(unitPrice).toDecimalPlaces(2);
+      const grossAmount = quantity.mul(unitPrice).toDecimalPlaces(2);
+      const discountAmount = calculateDiscount(line, grossAmount);
+      const taxableAmount = grossAmount.minus(discountAmount).toDecimalPlaces(2);
       const taxRate = variant.product.taxRate;
       const cgstRate = taxMode === "CGST_SGST" ? taxRate?.cgstRate ?? new Prisma.Decimal(0) : new Prisma.Decimal(0);
       const sgstRate = taxMode === "CGST_SGST" ? taxRate?.sgstRate ?? new Prisma.Decimal(0) : new Prisma.Decimal(0);
@@ -720,6 +760,7 @@ export async function postSalesInvoice(context: SalesContext, body: unknown) {
         hsnCode: variant.product.hsnCode?.code,
         quantity,
         unitPrice,
+        discountAmount,
         unitCost,
         taxableAmount,
         cgstRate,

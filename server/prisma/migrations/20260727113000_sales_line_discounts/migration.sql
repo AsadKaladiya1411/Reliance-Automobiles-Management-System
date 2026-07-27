@@ -1,0 +1,3 @@
+ALTER TABLE "SalesQuotationLine" ADD COLUMN "discountAmount" DECIMAL(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE "SalesOrderLine" ADD COLUMN "discountAmount" DECIMAL(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE "SalesInvoiceLine" ADD COLUMN "discountAmount" DECIMAL(14,2) NOT NULL DEFAULT 0;
