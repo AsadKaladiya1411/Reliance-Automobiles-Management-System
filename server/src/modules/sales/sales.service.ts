@@ -119,6 +119,24 @@ function quantityStatus(done: Prisma.Decimal, expected: Prisma.Decimal, none: st
   return done.gte(expected) ? complete : partial;
 }
 
+async function getCustomerLedgerPosition(tx: Prisma.TransactionClient, companyId: string, customerId: string) {
+  const ledgerTotals = await tx.partyLedgerEntry.aggregate({
+    where: { companyId, partyType: "CUSTOMER", customerId },
+    _sum: { debitAmount: true, creditAmount: true },
+  });
+  const debit = new Prisma.Decimal(ledgerTotals._sum.debitAmount ?? 0);
+  const credit = new Prisma.Decimal(ledgerTotals._sum.creditAmount ?? 0);
+  const outstanding = debit.minus(credit).toDecimalPlaces(2);
+  const oldestOpenDebit = outstanding.gt(0)
+    ? await tx.partyLedgerEntry.findFirst({
+        where: { companyId, partyType: "CUSTOMER", customerId, debitAmount: { gt: 0 } },
+        orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
+      })
+    : null;
+
+  return { outstanding, oldestOpenDebit };
+}
+
 async function nextDocumentNumber(tx: Prisma.TransactionClient, companyId: string, documentType: string) {
   const series = await tx.numberSeries.findFirst({
     where: { companyId, documentType, status: "ACTIVE" },
@@ -817,6 +835,22 @@ export async function postSalesInvoice(context: SalesContext, body: unknown) {
     const totalTaxAmount = cgstAmount.plus(sgstAmount).plus(igstAmount).toDecimalPlaces(2);
     const grandTotal = taxableAmount.plus(totalTaxAmount).toDecimalPlaces(2);
     const costOfGoodsSold = preparedLines.reduce((total, line) => total.plus(line.costAmount), new Prisma.Decimal(0));
+    const ledgerPosition = await getCustomerLedgerPosition(tx, context.companyId, customerId);
+    const creditLimit = new Prisma.Decimal(customer.creditLimit ?? 0);
+    const projectedOutstanding = ledgerPosition.outstanding.plus(grandTotal).toDecimalPlaces(2);
+
+    if (creditLimit.gt(0) && projectedOutstanding.gt(creditLimit)) {
+      throw new ApiError(400, "CUSTOMER_CREDIT_LIMIT_EXCEEDED", "Sales invoice would exceed the customer's credit limit.");
+    }
+
+    if (customer.creditDays > 0 && ledgerPosition.oldestOpenDebit) {
+      const oldestAllowedDate = new Date(invoiceDate);
+      oldestAllowedDate.setDate(oldestAllowedDate.getDate() - customer.creditDays);
+
+      if (ledgerPosition.oldestOpenDebit.entryDate < oldestAllowedDate) {
+        throw new ApiError(400, "CUSTOMER_OVERDUE_BALANCE", "Customer has overdue outstanding balance beyond allowed credit days.");
+      }
+    }
 
     const journalEntry = await tx.journalEntry.create({
       data: {

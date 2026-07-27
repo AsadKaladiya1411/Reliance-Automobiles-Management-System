@@ -4,7 +4,7 @@ Last updated: 2026-07-25
 
 ## Overall Completion
 
-Estimated completion: 70%
+Estimated completion: 71%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -16,10 +16,10 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Authentication/RBAC | 71% | Login, registration, current-user session, Super Admin, Staff role, user-role administration, backend module permission middleware, role-aware navigation, and permission-aware Settings queries. Needs finer action-level controls and richer user lifecycle controls. |
 | Company/Financial Year/Settings | 65% | Company profile, financial years, number series, default seeding, audit view. Needs closing/opening year workflows and more settings. |
 | Masters | 82% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, Product Variants, Tax Rates, and warehouse hierarchy records. Needs import/export and server-side pagination for large datasets. |
-| Commercial Masters | 68% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls and dependency safeguards. Needs richer profiles, credit limits, contact/address handling, search, pagination, and import/export. |
+| Commercial Masters | 70% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls, customer credit limit/day settings, and dependency safeguards. Needs richer profiles, contact/address handling, search, pagination, and import/export. |
 | Inventory | 68% | Opening stock, stock balances, movements, adjustments, transfers, negative stock protection, reorder alerts. Needs valuation reports, batch/serial handling, stronger location selection, stock aging. |
 | Purchase | 67% | Purchase orders, PO-to-GRN line conversion, GRN workflow, GRN-to-purchase-invoice traceability, source quantity controls, partial receipt/invoice indicators, purchase invoice posting/cancel, purchase return, GST/input tax and supplier ledger integration. Needs approval depth, landed cost. |
-| Sales | 69% | Quotations, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, source quantity controls, partial delivery/invoice indicators, sales line discounts, sales invoice posting/cancel, sales return, GST/output tax and customer ledger integration. Needs pricing rules and credit checks. |
+| Sales | 71% | Quotations, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, source quantity controls, partial delivery/invoice indicators, sales line discounts, customer credit-limit/overdue checks, sales invoice posting/cancel, sales return, GST/output tax and customer ledger integration. Needs pricing rules. |
 | Accounting | 63% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding. Needs fiscal period controls, voucher types, reconciliation, account mappings. |
 | GST/Tax | 50% | CGST/SGST/IGST calculations and summary reports. Needs detailed GST registers, GSTR exports, tax reconciliation. |
 | Payments/Notes | 58% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact. Needs allocation against invoices and settlement tracking. |
@@ -53,6 +53,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added backend source quantity controls to prevent invoicing more than remaining GRN/order/challan quantities.
 - Added computed partial receipt, delivery, and source invoice indicators to purchase/sales planning lists.
 - Added sales line discount support across quotations, orders, and invoices with GST/accounting calculated on net taxable value.
+- Added customer credit limit/day editing, outstanding credit status display, and sales invoice posting blocks for credit-limit or overdue customers.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -77,7 +78,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Refine action-level permission mapping for special posting/approval routes.
 - Add detail views, import/export, and server-side pagination for master records.
 - Add richer customer/supplier ledgers with invoice allocation and settlement.
-- Add customer credit limit checks and overdue/outstanding controls.
+- Add sales pricing rule foundation and default product price application.
 - Complete workshop service billing without double-consuming issued parts.
 - Add labor billing/accounting for workshop jobs.
 - Add configurable approval workflow foundation beyond simple statuses.
@@ -90,11 +91,11 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Sales commercial discount controls.
+Customer credit limit and overdue outstanding controls.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 10 to 16 focused development sessions.
+Estimated remaining iterations: 9 to 16 focused development sessions.
 
 The largest remaining chunks are workshop billing, approval/permission enforcement, reporting/export depth, automated testing, and production deployment hardening.
 
@@ -102,6 +103,7 @@ The largest remaining chunks are workshop billing, approval/permission enforceme
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `client/src/App.tsx`
+- `server/src/modules/accounting/accounting.service.ts`
 - `server/prisma/schema.prisma`
 - `server/prisma/migrations/20260725192000_invoice_source_traceability/migration.sql`
 - `server/prisma/migrations/20260727113000_sales_line_discounts/migration.sql`
@@ -110,4 +112,4 @@ The largest remaining chunks are workshop billing, approval/permission enforceme
 
 ## Next Implementation Target
 
-Customer credit limit checks and overdue/outstanding controls.
+Sales pricing rule foundation and default product price application.

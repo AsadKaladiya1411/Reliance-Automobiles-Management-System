@@ -187,10 +187,13 @@ type GstSummary = {
 
 type PartyOutstanding = {
   customers: Array<{
-    party?: { id: string; code: string; name: string; phone?: string | null };
+    party?: { id: string; code: string; name: string; phone?: string | null; creditLimit?: string | number; creditDays?: number };
     debit: string | number;
     credit: string | number;
     balance: string | number;
+    creditLimit?: string | number;
+    creditAvailable?: string | number;
+    creditStatus?: string;
   }>;
   suppliers: Array<{
     party?: { id: string; code: string; name: string; phone?: string | null };
@@ -308,6 +311,8 @@ type Customer = {
   phone?: string | null;
   gstin?: string | null;
   customerType: string;
+  creditLimit?: string | number;
+  creditDays?: number;
   status?: string;
 };
 
@@ -2395,19 +2400,19 @@ function SimpleCodeNamePanel({
 }
 
 function CustomerPanel({ items }: { items: Customer[] }) {
-  const [form, setForm] = useState({ code: "", name: "", customerType: "Retail", phone: "", gstin: "" });
+  const [form, setForm] = useState({ code: "", name: "", customerType: "Retail", phone: "", gstin: "", creditLimit: "0", creditDays: "0" });
   const [editingId, setEditingId] = useState("");
-  const mutation = useCreateMaster("/commercial-masters/customers", ["customers", "commercial-master-summary"], () =>
-    setForm({ code: "", name: "", customerType: "Retail", phone: "", gstin: "" }),
+  const mutation = useCreateMaster("/commercial-masters/customers", ["customers", "commercial-master-summary", "party-outstanding"], () =>
+    setForm({ code: "", name: "", customerType: "Retail", phone: "", gstin: "", creditLimit: "0", creditDays: "0" }),
   );
   const updateMutation = useMutation({
     mutationFn: async () => {
       await api.patch(`/commercial-masters/customers/${editingId}`, form);
     },
     onSuccess: async () => {
-      await invalidateKeys(["customers", "commercial-master-summary"]);
+      await invalidateKeys(["customers", "commercial-master-summary", "party-outstanding"]);
       setEditingId("");
-      setForm({ code: "", name: "", customerType: "Retail", phone: "", gstin: "" });
+      setForm({ code: "", name: "", customerType: "Retail", phone: "", gstin: "", creditLimit: "0", creditDays: "0" });
     },
   });
   const deactivateMutation = useMutation({
@@ -2415,7 +2420,7 @@ function CustomerPanel({ items }: { items: Customer[] }) {
       await api.delete(`/commercial-masters/customers/${id}`);
     },
     onSuccess: async () => {
-      await invalidateKeys(["customers", "commercial-master-summary"]);
+      await invalidateKeys(["customers", "commercial-master-summary", "party-outstanding"]);
     },
   });
 
@@ -2435,20 +2440,27 @@ function CustomerPanel({ items }: { items: Customer[] }) {
         <input placeholder="Type" value={form.customerType} onChange={(event) => setForm({ ...form, customerType: event.target.value })} />
         <input placeholder="Phone" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
         <input placeholder="GSTIN" value={form.gstin} onChange={(event) => setForm({ ...form, gstin: event.target.value })} />
+        <input placeholder="Credit limit" value={form.creditLimit} onChange={(event) => setForm({ ...form, creditLimit: event.target.value })} />
+        <input placeholder="Credit days" value={form.creditDays} onChange={(event) => setForm({ ...form, creditDays: event.target.value })} />
         <Button type="submit" variant="outline" disabled={mutation.isPending || updateMutation.isPending}>
           {editingId ? "Save" : "Add"}
         </Button>
         {editingId ? (
           <Button type="button" variant="outline" onClick={() => {
             setEditingId("");
-            setForm({ code: "", name: "", customerType: "Retail", phone: "", gstin: "" });
+            setForm({ code: "", name: "", customerType: "Retail", phone: "", gstin: "", creditLimit: "0", creditDays: "0" });
           }}>
             Cancel
           </Button>
         ) : null}
       </form>
       <EditableMasterList
-        items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.customerType} / ${item.status ?? "ACTIVE"}`, raw: item }))}
+        items={items.map((item) => ({
+          id: item.id,
+          label: item.name,
+          meta: `${item.code} / ${item.customerType} / Limit ${item.creditLimit ?? 0} / ${item.creditDays ?? 0} days / ${item.status ?? "ACTIVE"}`,
+          raw: item,
+        }))}
         onDeactivate={(id) => deactivateMutation.mutate(id)}
         onEdit={(item) => {
           setEditingId(item.id);
@@ -2458,6 +2470,8 @@ function CustomerPanel({ items }: { items: Customer[] }) {
             customerType: item.raw.customerType,
             phone: item.raw.phone ?? "",
             gstin: item.raw.gstin ?? "",
+            creditLimit: String(item.raw.creditLimit ?? 0),
+            creditDays: String(item.raw.creditDays ?? 0),
           });
         }}
       />
@@ -3090,6 +3104,9 @@ function PurchaseInvoicePanel({
         queryClient.invalidateQueries({ queryKey: ["stock-balances"] }),
         queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
+        queryClient.invalidateQueries({ queryKey: ["party-ledger"] }),
+        queryClient.invalidateQueries({ queryKey: ["party-ledger-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["party-outstanding"] }),
       ]);
       setForm({ ...form, goodsReceiptNoteId: "", productVariantId: "", quantity: "1", unitCost: "0", supplierBillNumber: "" });
     },
@@ -3840,7 +3857,7 @@ function OutstandingPanel({ outstanding }: { outstanding?: PartyOutstanding }) {
             items={customerItems.map((entry) => ({
               id: entry.party?.id ?? `${entry.party?.name}-${entry.balance}`,
               label: entry.party?.name ?? "Customer",
-              meta: `${entry.party?.code ?? ""} / ${entry.balance}`,
+              meta: `${entry.party?.code ?? ""} / Balance ${entry.balance} / Limit ${entry.creditLimit ?? entry.party?.creditLimit ?? 0} / Available ${entry.creditAvailable ?? 0} / ${entry.creditStatus ?? "OK"}`,
             }))}
           />
         </div>

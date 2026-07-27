@@ -377,7 +377,7 @@ export async function getPartyOutstanding(companyId: string) {
   const [customers, suppliers] = await Promise.all([
     prisma.customer.findMany({
       where: { id: { in: customerLedger.map((entry) => entry.customerId).filter(Boolean) as string[] } },
-      select: { id: true, code: true, name: true, phone: true },
+      select: { id: true, code: true, name: true, phone: true, creditLimit: true, creditDays: true },
     }),
     prisma.supplier.findMany({
       where: { id: { in: supplierLedger.map((entry) => entry.supplierId).filter(Boolean) as string[] } },
@@ -392,11 +392,20 @@ export async function getPartyOutstanding(companyId: string) {
       .map((entry) => {
         const debit = new Prisma.Decimal(entry._sum.debitAmount ?? 0);
         const credit = new Prisma.Decimal(entry._sum.creditAmount ?? 0);
+        const party = customerMap.get(entry.customerId ?? "");
+        const balance = debit.minus(credit);
+        const creditLimit = new Prisma.Decimal(party?.creditLimit ?? 0);
+        const creditAvailable = creditLimit.gt(0) ? creditLimit.minus(balance) : new Prisma.Decimal(0);
+        const creditStatus = creditLimit.gt(0) && balance.gt(creditLimit) ? "LIMIT_EXCEEDED" : "OK";
+
         return {
-          party: customerMap.get(entry.customerId ?? ""),
+          party,
           debit,
           credit,
-          balance: debit.minus(credit),
+          balance,
+          creditLimit,
+          creditAvailable,
+          creditStatus,
         };
       })
       .filter((entry) => entry.party && !entry.balance.equals(0)),
