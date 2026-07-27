@@ -50,6 +50,32 @@ function positiveDecimal(value: unknown, field: string, scale = 2) {
   return new Prisma.Decimal(number.toFixed(scale));
 }
 
+function unitCostOrDefault(line: PurchaseLineInput, defaultCost: Prisma.Decimal) {
+  const rawCost = line.unitCost;
+
+  if (rawCost === undefined || rawCost === null || rawCost === "") {
+    if (defaultCost.lte(0)) {
+      throw new ApiError(400, "PURCHASE_PRICE_REQUIRED", "Unit cost is required because the product variant has no default purchase price.");
+    }
+    return defaultCost.toDecimalPlaces(2);
+  }
+
+  const number = Number(rawCost);
+
+  if (!Number.isFinite(number) || number < 0) {
+    throw new ApiError(400, "INVALID_PURCHASE_NUMBER", "Unit cost cannot be negative.");
+  }
+
+  if (number === 0) {
+    if (defaultCost.lte(0)) {
+      throw new ApiError(400, "PURCHASE_PRICE_REQUIRED", "Unit cost is required because the product variant has no default purchase price.");
+    }
+    return defaultCost.toDecimalPlaces(2);
+  }
+
+  return new Prisma.Decimal(number.toFixed(2));
+}
+
 function parseDate(value: unknown) {
   const date = value ? new Date(String(value)) : new Date();
 
@@ -389,7 +415,7 @@ export async function createPurchaseOrder(context: PurchaseContext, body: unknow
       }
 
       const quantity = positiveDecimal(line.quantity, "Quantity", 3);
-      const unitCost = positiveDecimal(line.unitCost, "Unit cost", 2);
+      const unitCost = unitCostOrDefault(line, new Prisma.Decimal(variant.purchasePrice ?? 0));
       const taxableAmount = quantity.mul(unitCost).toDecimalPlaces(2);
       const taxRate = variant.product.taxRate;
       const taxAmount = taxableAmount.mul(taxRate?.igstRate ?? new Prisma.Decimal(0)).div(100).toDecimalPlaces(2);
@@ -642,7 +668,7 @@ export async function postPurchaseInvoice(context: PurchaseContext, body: unknow
       }
 
       const quantity = positiveDecimal(line.quantity, "Quantity", 3);
-      const unitCost = positiveDecimal(line.unitCost, "Unit cost", 2);
+      const unitCost = unitCostOrDefault(line, new Prisma.Decimal(variant.purchasePrice ?? 0));
       const taxableAmount = quantity.mul(unitCost).toDecimalPlaces(2);
       const taxRate = variant.product.taxRate;
       const cgstRate = taxMode === "CGST_SGST" ? taxRate?.cgstRate ?? new Prisma.Decimal(0) : new Prisma.Decimal(0);

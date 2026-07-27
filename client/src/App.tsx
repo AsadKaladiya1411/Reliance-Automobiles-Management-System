@@ -2071,7 +2071,14 @@ function PurchaseOrderPanel({
           <option value="">Supplier</option>
           {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
         </select>
-        <select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
+        <select
+          value={form.productVariantId}
+          onChange={(event) => setForm({
+            ...form,
+            productVariantId: event.target.value,
+            unitCost: costForVariant(variants, event.target.value),
+          })}
+        >
           <option value="">Product variant</option>
           {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
         </select>
@@ -3046,6 +3053,11 @@ function priceForVariant(variants: ProductVariant[], variantId: string) {
   return variant ? String(variant.salePrice ?? 0) : "0";
 }
 
+function costForVariant(variants: ProductVariant[], variantId: string) {
+  const variant = variants.find((item) => item.id === variantId);
+  return variant ? String(variant.purchasePrice ?? 0) : "0";
+}
+
 function PurchaseInvoicePanel({
   grns,
   invoices,
@@ -3172,7 +3184,14 @@ function PurchaseInvoicePanel({
           <option value="">No GRN</option>
           {filteredGrns.map((grn) => <option key={grn.id} value={grn.id}>{`${grn.grnNumber} / ${grn.supplier.name}`}</option>)}
         </select>
-        <select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
+        <select
+          value={form.productVariantId}
+          onChange={(event) => setForm({
+            ...form,
+            productVariantId: event.target.value,
+            unitCost: costForVariant(variants, event.target.value),
+          })}
+        >
           <option value="">Product variant</option>
           {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
         </select>
