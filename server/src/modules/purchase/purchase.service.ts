@@ -82,6 +82,18 @@ function addQuantity(map: Map<string, Prisma.Decimal>, productVariantId: string,
   map.set(productVariantId, (map.get(productVariantId) ?? new Prisma.Decimal(0)).plus(quantity));
 }
 
+function sumQuantities(lines: Array<{ quantity: Prisma.Decimal | number | string }>) {
+  return lines.reduce((total, line) => total.plus(line.quantity), new Prisma.Decimal(0));
+}
+
+function quantityStatus(done: Prisma.Decimal, expected: Prisma.Decimal, none: string, partial: string, complete: string) {
+  if (expected.lte(0) || done.lte(0)) {
+    return none;
+  }
+
+  return done.gte(expected) ? complete : partial;
+}
+
 async function nextDocumentNumber(
   tx: Prisma.TransactionClient,
   companyId: string,
@@ -217,7 +229,7 @@ export async function getPurchaseSummary(companyId: string) {
 }
 
 export async function listPurchaseOrders(companyId: string) {
-  return prisma.purchaseOrder.findMany({
+  const orders = await prisma.purchaseOrder.findMany({
     where: { companyId },
     include: {
       supplier: true,
@@ -226,10 +238,48 @@ export async function listPurchaseOrders(companyId: string) {
     orderBy: [{ orderDate: "desc" }, { createdAt: "desc" }],
     take: 50,
   });
+  const orderIds = orders.map((order) => order.id);
+  const received = orderIds.length
+    ? await prisma.goodsReceiptNoteLine.groupBy({
+        by: ["goodsReceiptNoteId"],
+        where: { companyId, goodsReceiptNote: { purchaseOrderId: { in: orderIds }, status: "APPROVED" } },
+        _sum: { quantity: true },
+      })
+    : [];
+  const grns = orderIds.length
+    ? await prisma.goodsReceiptNote.findMany({
+        where: { companyId, purchaseOrderId: { in: orderIds }, status: "APPROVED" },
+        select: { id: true, purchaseOrderId: true },
+      })
+    : [];
+  const grnToOrder = new Map(grns.map((grn) => [grn.id, grn.purchaseOrderId]));
+  const receivedByOrder = new Map<string, Prisma.Decimal>();
+
+  for (const row of received) {
+    const purchaseOrderId = grnToOrder.get(row.goodsReceiptNoteId);
+    if (purchaseOrderId) {
+      receivedByOrder.set(
+        purchaseOrderId,
+        (receivedByOrder.get(purchaseOrderId) ?? new Prisma.Decimal(0)).plus(row._sum.quantity ?? 0),
+      );
+    }
+  }
+
+  return orders.map((order) => {
+    const orderedQuantity = sumQuantities(order.lines);
+    const receivedQuantity = receivedByOrder.get(order.id) ?? new Prisma.Decimal(0);
+
+    return {
+      ...order,
+      orderedQuantity,
+      receivedQuantity,
+      receiptStatus: quantityStatus(receivedQuantity, orderedQuantity, "NOT_RECEIVED", "PARTIALLY_RECEIVED", "RECEIVED"),
+    };
+  });
 }
 
 export async function listGoodsReceiptNotes(companyId: string) {
-  return prisma.goodsReceiptNote.findMany({
+  const grns = await prisma.goodsReceiptNote.findMany({
     where: { companyId },
     include: {
       supplier: true,
@@ -239,6 +289,44 @@ export async function listGoodsReceiptNotes(companyId: string) {
     },
     orderBy: [{ grnDate: "desc" }, { createdAt: "desc" }],
     take: 50,
+  });
+  const grnIds = grns.map((grn) => grn.id);
+  const invoiced = grnIds.length
+    ? await prisma.purchaseInvoiceLine.groupBy({
+        by: ["purchaseInvoiceId"],
+        where: { companyId, purchaseInvoice: { goodsReceiptNoteId: { in: grnIds }, status: "POSTED" } },
+        _sum: { quantity: true },
+      })
+    : [];
+  const invoices = grnIds.length
+    ? await prisma.purchaseInvoice.findMany({
+        where: { companyId, goodsReceiptNoteId: { in: grnIds }, status: "POSTED" },
+        select: { id: true, goodsReceiptNoteId: true },
+      })
+    : [];
+  const invoiceToGrn = new Map(invoices.map((invoice) => [invoice.id, invoice.goodsReceiptNoteId]));
+  const invoicedByGrn = new Map<string, Prisma.Decimal>();
+
+  for (const row of invoiced) {
+    const goodsReceiptNoteId = invoiceToGrn.get(row.purchaseInvoiceId);
+    if (goodsReceiptNoteId) {
+      invoicedByGrn.set(
+        goodsReceiptNoteId,
+        (invoicedByGrn.get(goodsReceiptNoteId) ?? new Prisma.Decimal(0)).plus(row._sum.quantity ?? 0),
+      );
+    }
+  }
+
+  return grns.map((grn) => {
+    const receivedQuantity = sumQuantities(grn.lines);
+    const invoicedQuantity = invoicedByGrn.get(grn.id) ?? new Prisma.Decimal(0);
+
+    return {
+      ...grn,
+      receivedQuantity,
+      invoicedQuantity,
+      invoiceStatus: quantityStatus(invoicedQuantity, receivedQuantity, "NOT_INVOICED", "PARTIALLY_INVOICED", "INVOICED"),
+    };
   });
 }
 

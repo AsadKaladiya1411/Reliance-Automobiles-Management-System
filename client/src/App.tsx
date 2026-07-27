@@ -476,6 +476,9 @@ type PurchaseOrder = {
   expectedDate?: string | null;
   grandTotal: string | number;
   status: string;
+  receiptStatus?: string;
+  orderedQuantity?: string | number;
+  receivedQuantity?: string | number;
   supplier: Supplier;
   lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; unitCost: string | number; lineTotal: string | number }>;
 };
@@ -485,6 +488,9 @@ type GoodsReceiptNote = {
   grnNumber: string;
   grnDate: string;
   status: string;
+  invoiceStatus?: string;
+  receivedQuantity?: string | number;
+  invoicedQuantity?: string | number;
   supplier: Supplier;
   warehouse: Warehouse;
   purchaseOrder?: PurchaseOrder | null;
@@ -522,6 +528,9 @@ type SalesOrder = {
   expectedDate?: string | null;
   grandTotal: string | number;
   status: string;
+  deliveryStatus?: string;
+  orderedQuantity?: string | number;
+  deliveredQuantity?: string | number;
   customer: Customer;
   quotation?: SalesQuotation | null;
   lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; unitPrice: string | number; lineTotal: string | number }>;
@@ -532,6 +541,9 @@ type DeliveryChallan = {
   challanNumber: string;
   challanDate: string;
   status: string;
+  invoiceStatus?: string;
+  deliveredQuantity?: string | number;
+  invoicedQuantity?: string | number;
   customer: Customer;
   warehouse: Warehouse;
   salesOrder?: SalesOrder | null;
@@ -2069,7 +2081,7 @@ function PurchaseOrderPanel({
         items={items.map((order) => ({
           id: order.id,
           label: order.orderNumber,
-          meta: `${order.supplier.name} / ${order.status} / ${order.grandTotal}`,
+          meta: `${order.supplier.name} / ${order.receiptStatus ?? order.status} / ${order.receivedQuantity ?? 0} of ${order.orderedQuantity ?? "-"} received / ${order.grandTotal}`,
         }))}
       />
     </article>
@@ -2170,7 +2182,7 @@ function GoodsReceiptNotePanel({
         items={items.map((grn) => ({
           id: grn.id,
           label: grn.grnNumber,
-          meta: `${grn.supplier.name} / ${grn.warehouse.name} / ${grn.status}`,
+          meta: `${grn.supplier.name} / ${grn.warehouse.name} / ${grn.invoiceStatus ?? grn.status} / ${grn.invoicedQuantity ?? 0} of ${grn.receivedQuantity ?? "-"} invoiced`,
         }))}
       />
     </article>
@@ -3335,7 +3347,7 @@ function SalesOrderPanel({
         items={items.map((order) => ({
           id: order.id,
           label: order.orderNumber,
-          meta: `${order.customer.name} / ${order.status} / ${order.grandTotal}`,
+          meta: `${order.customer.name} / ${order.deliveryStatus ?? order.status} / ${order.deliveredQuantity ?? 0} of ${order.orderedQuantity ?? "-"} delivered / ${order.grandTotal}`,
         }))}
       />
     </article>
@@ -3436,7 +3448,7 @@ function DeliveryChallanPanel({
         items={items.map((challan) => ({
           id: challan.id,
           label: challan.challanNumber,
-          meta: `${challan.customer.name} / ${challan.warehouse.name} / ${challan.status}`,
+          meta: `${challan.customer.name} / ${challan.warehouse.name} / ${challan.invoiceStatus ?? challan.status} / ${challan.invoicedQuantity ?? 0} of ${challan.deliveredQuantity ?? "-"} invoiced`,
         }))}
       />
     </article>
