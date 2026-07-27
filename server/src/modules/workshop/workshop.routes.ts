@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request } from "express";
-import { requireAuth, requireModuleAccess } from "../auth/auth.middleware";
+import { requireAuth, requireModuleAccess, requirePermission } from "../auth/auth.middleware";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
 import { createJobCard, getWorkshopSummary, issueJobCardParts, listJobCards, updateJobCardStatus } from "./workshop.service";
@@ -30,11 +30,11 @@ router.post("/workshop/job-cards", asyncHandler(async (req, res) => {
   sendSuccess(res, await createJobCard(context(req), req.body), "Job card created.", 201);
 }));
 
-router.patch("/workshop/job-cards/:id/status", asyncHandler(async (req, res) => {
+router.patch("/workshop/job-cards/:id/status", requirePermission("workshop", "update"), asyncHandler(async (req, res) => {
   sendSuccess(res, await updateJobCardStatus(context(req), String(req.params.id), req.body), "Job card status updated.");
 }));
 
-router.post("/workshop/job-cards/:id/issue-parts", asyncHandler(async (req, res) => {
+router.post("/workshop/job-cards/:id/issue-parts", requirePermission("workshop", "post"), asyncHandler(async (req, res) => {
   sendSuccess(res, await issueJobCardParts(context(req), String(req.params.id), req.body), "Workshop parts issued.");
 }));
 

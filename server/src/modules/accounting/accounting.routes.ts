@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request } from "express";
-import { requireAuth, requireModuleAccess } from "../auth/auth.middleware";
+import { requireAuth, requireModuleAccess, requirePermission } from "../auth/auth.middleware";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
 import {
@@ -86,11 +86,11 @@ router.get("/accounting/party-outstanding", asyncHandler(async (req, res) => {
   sendSuccess(res, await getPartyOutstanding(req.user!.companyId));
 }));
 
-router.post("/accounting/journal-entries", asyncHandler(async (req, res) => {
+router.post("/accounting/journal-entries", requirePermission("accounting", "post"), asyncHandler(async (req, res) => {
   sendSuccess(res, await postJournalEntry(context(req), req.body), "Journal entry posted.", 201);
 }));
 
-router.post("/accounting/contra-vouchers", asyncHandler(async (req, res) => {
+router.post("/accounting/contra-vouchers", requirePermission("accounting", "post"), asyncHandler(async (req, res) => {
   sendSuccess(res, await postContraVoucher(context(req), req.body), "Contra voucher posted.", 201);
 }));
 

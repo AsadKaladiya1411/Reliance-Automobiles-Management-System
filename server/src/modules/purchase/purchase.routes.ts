@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request } from "express";
-import { requireAuth, requireModuleAccess } from "../auth/auth.middleware";
+import { requireAuth, requireModuleAccess, requirePermission } from "../auth/auth.middleware";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
 import {
@@ -49,7 +49,7 @@ router.get("/purchase/returns", asyncHandler(async (req, res) => {
   sendSuccess(res, await listPurchaseReturns(req.user!.companyId));
 }));
 
-router.post("/purchase/invoices", asyncHandler(async (req, res) => {
+router.post("/purchase/invoices", requirePermission("purchase", "post"), asyncHandler(async (req, res) => {
   sendSuccess(res, await postPurchaseInvoice(context(req), req.body), "Purchase invoice posted.", 201);
 }));
 
@@ -61,11 +61,11 @@ router.post("/purchase/grns", asyncHandler(async (req, res) => {
   sendSuccess(res, await createGoodsReceiptNote(context(req), req.body), "GRN created.", 201);
 }));
 
-router.post("/purchase/invoices/:id/cancel", asyncHandler(async (req, res) => {
+router.post("/purchase/invoices/:id/cancel", requirePermission("purchase", "approve"), asyncHandler(async (req, res) => {
   sendSuccess(res, await cancelPurchaseInvoice(context(req), String(req.params.id), req.body), "Purchase invoice cancelled.");
 }));
 
-router.post("/purchase/returns", asyncHandler(async (req, res) => {
+router.post("/purchase/returns", requirePermission("purchase", "post"), asyncHandler(async (req, res) => {
   sendSuccess(res, await postPurchaseReturn(context(req), req.body), "Purchase return posted.", 201);
 }));
 

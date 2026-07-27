@@ -62,3 +62,20 @@ export function requireModuleAccess(module: string): RequestHandler {
     next();
   };
 }
+
+export function requirePermission(module: string, action: string): RequestHandler {
+  return (req, _res, next) => {
+    const user = req.user;
+
+    if (!user) {
+      throw new ApiError(401, "AUTHENTICATION_REQUIRED", "Authentication required.");
+    }
+
+    if (user.roles.includes("SUPER_ADMIN") || hasPermission(user.permissions, module, action)) {
+      next();
+      return;
+    }
+
+    throw new ApiError(403, "FORBIDDEN", "You do not have permission to perform this action.");
+  };
+}

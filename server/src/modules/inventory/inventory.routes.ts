@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request } from "express";
-import { requireAuth, requireModuleAccess } from "../auth/auth.middleware";
+import { requireAuth, requireModuleAccess, requirePermission } from "../auth/auth.middleware";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
 import {
@@ -56,6 +56,7 @@ router.get(
 
 router.post(
   "/inventory/opening-stock",
+  requirePermission("inventory", "post"),
   asyncHandler(async (req, res) => {
     sendSuccess(res, await postOpeningStock(context(req), req.body), "Opening stock posted.", 201);
   }),
@@ -63,6 +64,7 @@ router.post(
 
 router.post(
   "/inventory/stock-adjustments",
+  requirePermission("inventory", "post"),
   asyncHandler(async (req, res) => {
     sendSuccess(res, await postStockAdjustment(context(req), req.body), "Stock adjustment posted.", 201);
   }),
@@ -70,6 +72,7 @@ router.post(
 
 router.post(
   "/inventory/stock-transfers",
+  requirePermission("inventory", "post"),
   asyncHandler(async (req, res) => {
     sendSuccess(res, await postStockTransfer(context(req), req.body), "Stock transfer posted.", 201);
   }),

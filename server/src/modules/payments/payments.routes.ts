@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { Request } from "express";
-import { requireAuth, requireModuleAccess } from "../auth/auth.middleware";
+import { requireAuth, requireModuleAccess, requirePermission } from "../auth/auth.middleware";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
 import { getPaymentSummary, listPayments, postPayment } from "./payments.service";
@@ -26,7 +26,7 @@ router.get("/payments", asyncHandler(async (req, res) => {
   sendSuccess(res, await listPayments(req.user!.companyId));
 }));
 
-router.post("/payments", asyncHandler(async (req, res) => {
+router.post("/payments", requirePermission("accounting", "post"), asyncHandler(async (req, res) => {
   sendSuccess(res, await postPayment(context(req), req.body), "Payment posted.", 201);
 }));
 

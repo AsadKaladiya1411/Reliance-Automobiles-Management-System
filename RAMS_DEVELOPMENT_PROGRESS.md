@@ -4,7 +4,7 @@ Last updated: 2026-07-25
 
 ## Overall Completion
 
-Estimated completion: 73%
+Estimated completion: 74%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -13,7 +13,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Module | Completion | Notes |
 | --- | ---: | --- |
 | Platform/Foundation | 74% | Web app, API, environment config, Prisma, setup flow, number series, audit logs, global API errors, same-origin mutation guard, and audit reporting are in place. Needs stronger tests, deployment hardening, logging, and operational docs. |
-| Authentication/RBAC | 71% | Login, registration, current-user session, Super Admin, Staff role, user-role administration, backend module permission middleware, role-aware navigation, and permission-aware Settings queries. Needs finer action-level controls and richer user lifecycle controls. |
+| Authentication/RBAC | 74% | Login, registration, current-user session, Super Admin, Staff role, user-role administration, backend module permission middleware, explicit sensitive-route permission guards, role-aware navigation, and permission-aware Settings queries. Needs permission management UI and richer user lifecycle controls. |
 | Company/Financial Year/Settings | 65% | Company profile, financial years, number series, default seeding, audit view. Needs closing/opening year workflows and more settings. |
 | Masters | 82% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, Product Variants, Tax Rates, and warehouse hierarchy records. Needs import/export and server-side pagination for large datasets. |
 | Commercial Masters | 70% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls, customer credit limit/day settings, and dependency safeguards. Needs richer profiles, contact/address handling, search, pagination, and import/export. |
@@ -56,6 +56,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added customer credit limit/day editing, outstanding credit status display, and sales invoice posting blocks for credit-limit or overdue customers.
 - Added default product variant sale-price application in sales quotations, orders, and invoices with server-side fallback.
 - Added default product variant purchase-cost application in purchase orders and purchase invoices with server-side fallback.
+- Added explicit RBAC permission guards for sensitive posting, cancellation, stock movement, accounting, payments, notes, and workshop issue/status routes.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -77,10 +78,8 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Remaining Tasks
 
-- Refine action-level permission mapping for special posting/approval routes.
 - Add detail views, import/export, and server-side pagination for master records.
 - Add richer customer/supplier ledgers with invoice allocation and settlement.
-- Add approval workflow hardening for posting and sensitive document actions.
 - Complete workshop service billing without double-consuming issued parts.
 - Add labor billing/accounting for workshop jobs.
 - Add configurable approval workflow foundation beyond simple statuses.
@@ -93,11 +92,11 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Purchase cost defaults.
+Approval and sensitive action hardening.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 8 to 15 focused development sessions.
+Estimated remaining iterations: 8 to 14 focused development sessions.
 
 The largest remaining chunks are workshop billing, approval/permission enforcement, reporting/export depth, automated testing, and production deployment hardening.
 
@@ -106,12 +105,20 @@ The largest remaining chunks are workshop billing, approval/permission enforceme
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `client/src/App.tsx`
 - `server/src/modules/accounting/accounting.service.ts`
+- `server/src/modules/accounting/accounting.routes.ts`
+- `server/src/modules/auth/auth.middleware.ts`
+- `server/src/modules/inventory/inventory.routes.ts`
+- `server/src/modules/notes/notes.routes.ts`
+- `server/src/modules/payments/payments.routes.ts`
 - `server/prisma/schema.prisma`
 - `server/prisma/migrations/20260725192000_invoice_source_traceability/migration.sql`
 - `server/prisma/migrations/20260727113000_sales_line_discounts/migration.sql`
 - `server/src/modules/purchase/purchase.service.ts`
+- `server/src/modules/purchase/purchase.routes.ts`
 - `server/src/modules/sales/sales.service.ts`
+- `server/src/modules/sales/sales.routes.ts`
+- `server/src/modules/workshop/workshop.routes.ts`
 
 ## Next Implementation Target
 
-Approval workflow hardening for posting and sensitive document actions.
+Workshop service billing without double-consuming issued parts.
