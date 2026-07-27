@@ -31,6 +31,7 @@ const defaultNumberSeries = [
   { documentType: "PAYMENT_RECEIPT", prefix: "RCPT-", padding: 5 },
   { documentType: "PAYMENT_VOUCHER", prefix: "PV-", padding: 5 },
   { documentType: "JOB_CARD", prefix: "JC-", padding: 5 },
+  { documentType: "WORKSHOP_INVOICE", prefix: "WI-", padding: 5 },
 ] as const;
 
 const defaultPaymentModes = [

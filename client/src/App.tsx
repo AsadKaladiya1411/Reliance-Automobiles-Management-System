@@ -594,6 +594,9 @@ type JobCard = {
   complaint: string;
   estimatedTotal: string | number;
   partsIssuedAt?: string | null;
+  billingNumber?: string | null;
+  billingAmount?: string | number;
+  billedAt?: string | null;
   customer: Customer;
   vehicle: Vehicle;
 };
@@ -4164,6 +4167,27 @@ function JobCardPanel({
       ]);
     },
   });
+  const billingMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.post(`/workshop/job-cards/${id}/bill`, { billingDate: new Date().toISOString().slice(0, 10) });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["job-cards"] }),
+        queryClient.invalidateQueries({ queryKey: ["workshop-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
+        queryClient.invalidateQueries({ queryKey: ["party-ledger"] }),
+        queryClient.invalidateQueries({ queryKey: ["party-ledger-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["party-outstanding"] }),
+        queryClient.invalidateQueries({ queryKey: ["trial-balance"] }),
+        queryClient.invalidateQueries({ queryKey: ["general-ledger"] }),
+        queryClient.invalidateQueries({ queryKey: ["profit-and-loss"] }),
+        queryClient.invalidateQueries({ queryKey: ["balance-sheet"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
+      ]);
+    },
+  });
 
   return (
     <article className="setup-panel master-panel wide-panel">
@@ -4209,6 +4233,7 @@ function JobCardPanel({
       <JobCardList
         canIssueParts={Boolean(form.issueWarehouseId)}
         items={items}
+        onBill={(id) => billingMutation.mutate(id)}
         onIssueParts={(id) => issueMutation.mutate(id)}
         onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
       />
@@ -4220,10 +4245,12 @@ function JobCardList({
   canIssueParts,
   items,
   onIssueParts,
+  onBill,
   onStatusChange,
 }: {
   canIssueParts: boolean;
   items: JobCard[];
+  onBill: (id: string) => void;
   onIssueParts: (id: string) => void;
   onStatusChange: (id: string, status: string) => void;
 }) {
@@ -4236,7 +4263,7 @@ function JobCardList({
       {items.slice(0, 8).map((item) => (
         <li key={item.id}>
           <span>{`${item.jobCardNumber} / ${item.vehicle.registrationNumber}`}</span>
-          <strong>{`${item.customer.name} / ${item.status} / ${item.estimatedTotal}`}</strong>
+          <strong>{`${item.customer.name} / ${item.status} / ${item.billingNumber ?? "Unbilled"} / ${item.billingAmount ?? item.estimatedTotal}`}</strong>
           <select value={item.status} onChange={(event) => onStatusChange(item.id, event.target.value)}>
             <option value="OPEN">OPEN</option>
             <option value="IN_PROGRESS">IN_PROGRESS</option>
@@ -4247,6 +4274,11 @@ function JobCardList({
           {!item.partsIssuedAt && !["CANCELLED", "DELIVERED"].includes(item.status) ? (
             <Button type="button" variant="outline" disabled={!canIssueParts} onClick={() => onIssueParts(item.id)}>
               Issue Parts
+            </Button>
+          ) : null}
+          {!item.billedAt && !["CANCELLED"].includes(item.status) ? (
+            <Button type="button" variant="outline" onClick={() => onBill(item.id)}>
+              Bill
             </Button>
           ) : null}
         </li>

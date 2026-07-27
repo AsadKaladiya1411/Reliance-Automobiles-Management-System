@@ -3,7 +3,7 @@ import type { Request } from "express";
 import { requireAuth, requireModuleAccess, requirePermission } from "../auth/auth.middleware";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
-import { createJobCard, getWorkshopSummary, issueJobCardParts, listJobCards, updateJobCardStatus } from "./workshop.service";
+import { createJobCard, getWorkshopSummary, issueJobCardParts, listJobCards, postJobCardBilling, updateJobCardStatus } from "./workshop.service";
 
 const router = Router();
 
@@ -36,6 +36,10 @@ router.patch("/workshop/job-cards/:id/status", requirePermission("workshop", "up
 
 router.post("/workshop/job-cards/:id/issue-parts", requirePermission("workshop", "post"), asyncHandler(async (req, res) => {
   sendSuccess(res, await issueJobCardParts(context(req), String(req.params.id), req.body), "Workshop parts issued.");
+}));
+
+router.post("/workshop/job-cards/:id/bill", requirePermission("workshop", "post"), asyncHandler(async (req, res) => {
+  sendSuccess(res, await postJobCardBilling(context(req), String(req.params.id), req.body), "Workshop job card billed.");
 }));
 
 export default router;

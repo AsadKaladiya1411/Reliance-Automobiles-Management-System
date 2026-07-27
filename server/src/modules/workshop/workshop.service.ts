@@ -108,6 +108,20 @@ async function nextJournalNumber(tx: Prisma.TransactionClient, companyId: string
   return formatDocumentNumber(series);
 }
 
+async function nextWorkshopInvoiceNumber(tx: Prisma.TransactionClient, companyId: string) {
+  const series = await tx.numberSeries.findFirst({
+    where: { companyId, documentType: "WORKSHOP_INVOICE", status: "ACTIVE" },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (!series) {
+    throw new ApiError(400, "NUMBER_SERIES_MISSING", "Create a WORKSHOP_INVOICE number series before billing job cards.");
+  }
+
+  await tx.numberSeries.update({ where: { id: series.id }, data: { nextNumber: { increment: 1 } } });
+  return formatDocumentNumber(series);
+}
+
 async function requireAccount(tx: Prisma.TransactionClient, companyId: string, code: string) {
   const account = await tx.account.findFirst({ where: { companyId, code, status: "ACTIVE" } });
 
@@ -449,6 +463,132 @@ export async function issueJobCardParts(context: WorkshopContext, jobCardId: str
         entityId: jobCard.id,
         description: "Workshop parts issued.",
         afterData: json({ jobCard: updated, movements, journalEntry }),
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function postJobCardBilling(context: WorkshopContext, jobCardId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const billingDate = parseDate(data.billingDate);
+
+  return prisma.$transaction(async (tx) => {
+    const jobCard = await tx.jobCard.findFirst({
+      where: { id: jobCardId, companyId: context.companyId },
+      include: {
+        customer: true,
+        vehicle: true,
+        parts: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } },
+        laborLines: { orderBy: { lineOrder: "asc" } },
+      },
+    });
+
+    if (!jobCard) {
+      throw new ApiError(404, "JOB_CARD_NOT_FOUND", "Job card not found.");
+    }
+
+    if (jobCard.status === "CANCELLED") {
+      throw new ApiError(400, "JOB_CARD_CANCELLED", "Cancelled job cards cannot be billed.");
+    }
+
+    if (jobCard.billedAt) {
+      throw new ApiError(400, "JOB_CARD_ALREADY_BILLED", "Job card has already been billed.");
+    }
+
+    if (jobCard.parts.length > 0 && !jobCard.partsIssuedAt) {
+      throw new ApiError(400, "JOB_CARD_PARTS_NOT_ISSUED", "Issue job card parts before billing so stock is consumed exactly once.");
+    }
+
+    const partsTotal = jobCard.parts.reduce((total, part) => total.plus(part.estimatedAmount), new Prisma.Decimal(0));
+    const laborTotal = jobCard.laborLines.reduce((total, labor) => total.plus(labor.estimatedAmount), new Prisma.Decimal(0));
+    const billingAmount = nonNegativeDecimal(data.billingAmount, "Billing amount").gt(0)
+      ? nonNegativeDecimal(data.billingAmount, "Billing amount")
+      : partsTotal.plus(laborTotal).toDecimalPlaces(2);
+
+    if (billingAmount.lte(0)) {
+      throw new ApiError(400, "JOB_CARD_BILLING_AMOUNT_REQUIRED", "Billing amount must be greater than zero.");
+    }
+
+    const [receivableAccount, revenueAccount] = await Promise.all([
+      requireAccount(tx, context.companyId, "1100"),
+      requireAccount(tx, context.companyId, "4000"),
+    ]);
+    const [billingNumber, journalNumber] = await Promise.all([
+      nextWorkshopInvoiceNumber(tx, context.companyId),
+      nextJournalNumber(tx, context.companyId),
+    ]);
+
+    const journalEntry = await tx.journalEntry.create({
+      data: {
+        companyId: context.companyId,
+        entryNumber: journalNumber,
+        entryDate: billingDate,
+        sourceModule: "workshop",
+        sourceType: "WORKSHOP_INVOICE",
+        sourceId: jobCard.id,
+        narration: `Workshop invoice ${billingNumber}`,
+        status: "POSTED",
+        postedByUserId: context.userId,
+        postedAt: new Date(),
+        lines: {
+          create: [
+            { accountId: receivableAccount.id, debitAmount: billingAmount, narration: billingNumber, lineOrder: 1 },
+            { accountId: revenueAccount.id, creditAmount: billingAmount, narration: billingNumber, lineOrder: 2 },
+          ],
+        },
+      },
+    });
+
+    const updated = await tx.jobCard.update({
+      where: { id: jobCard.id },
+      data: {
+        status: "DELIVERED",
+        billingNumber,
+        billingAmount,
+        billingJournalEntryId: journalEntry.id,
+        billedByUserId: context.userId,
+        billedAt: new Date(),
+      },
+      include: {
+        customer: true,
+        vehicle: true,
+        advisor: true,
+        technician: true,
+        parts: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } },
+        laborLines: { orderBy: { lineOrder: "asc" } },
+      },
+    });
+
+    await tx.partyLedgerEntry.create({
+      data: {
+        companyId: context.companyId,
+        partyType: "CUSTOMER",
+        customerId: jobCard.customerId,
+        journalEntryId: journalEntry.id,
+        entryType: "INVOICE",
+        documentType: "WORKSHOP_INVOICE",
+        documentId: jobCard.id,
+        documentNumber: billingNumber,
+        entryDate: billingDate,
+        debitAmount: billingAmount,
+        narration: `Workshop invoice ${billingNumber}`,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        module: "workshop",
+        action: "POST",
+        entityType: "WorkshopInvoice",
+        entityId: jobCard.id,
+        description: "Workshop job card billed.",
+        afterData: json({ jobCard: updated, journalEntry }),
         ipAddress: context.ipAddress,
         userAgent: context.userAgent,
       },

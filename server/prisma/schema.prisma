@@ -1445,6 +1445,11 @@ model JobCard {
   partsIssueJournalEntryId String? @db.Uuid
   partsIssuedByUserId String?     @db.Uuid
   partsIssuedAt     DateTime?
+  billingNumber     String?       @db.VarChar(80)
+  billingAmount     Decimal       @default(0) @db.Decimal(14, 2)
+  billingJournalEntryId String?   @db.Uuid
+  billedByUserId    String?       @db.Uuid
+  billedAt          DateTime?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 
@@ -1457,7 +1462,9 @@ model JobCard {
   laborLines JobCardLabor[]
 
   @@unique([companyId, jobCardNumber])
+  @@unique([companyId, billingNumber])
   @@index([companyId, status, jobDate])
+  @@index([companyId, billedAt])
   @@index([companyId, customerId, jobDate])
   @@index([companyId, vehicleId, jobDate])
 }

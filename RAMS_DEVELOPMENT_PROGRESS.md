@@ -4,7 +4,7 @@ Last updated: 2026-07-25
 
 ## Overall Completion
 
-Estimated completion: 74%
+Estimated completion: 75%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -23,7 +23,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Accounting | 63% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding. Needs fiscal period controls, voucher types, reconciliation, account mappings. |
 | GST/Tax | 50% | CGST/SGST/IGST calculations and summary reports. Needs detailed GST registers, GSTR exports, tax reconciliation. |
 | Payments/Notes | 58% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact. Needs allocation against invoices and settlement tracking. |
-| Workshop/Service | 45% | Job cards, vehicle complaints, parts/labor estimates, status changes, parts issue posting. Needs service billing, labor posting, technician workflow, inspections, delivery closeout. |
+| Workshop/Service | 52% | Job cards, vehicle complaints, parts/labor estimates, status changes, parts issue posting, and workshop billing to customer ledger/accounting without double-consuming issued parts. Needs GST/service HSN handling, technician workflow, inspections, and richer delivery closeout. |
 | Reports/Analytics | 45% | Reports workspace, business snapshot, financial statements, GST summary, outstanding, reorder, audit. Needs date filters, exports, drilldowns, dashboards, operational analytics. |
 | UI/UX | 49% | Responsive desktop-focused shell, working forms/lists, list search, global API errors, reports workspace, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
 | Testing/Quality | 18% | Typecheck, lint, and build pass. Needs automated unit/integration tests, transaction tests, API tests, frontend workflow tests. |
@@ -57,6 +57,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added default product variant sale-price application in sales quotations, orders, and invoices with server-side fallback.
 - Added default product variant purchase-cost application in purchase orders and purchase invoices with server-side fallback.
 - Added explicit RBAC permission guards for sensitive posting, cancellation, stock movement, accounting, payments, notes, and workshop issue/status routes.
+- Added workshop invoice posting from job cards with receivable/revenue accounting and customer ledger impact without additional inventory consumption.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -80,8 +81,8 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 - Add detail views, import/export, and server-side pagination for master records.
 - Add richer customer/supplier ledgers with invoice allocation and settlement.
-- Complete workshop service billing without double-consuming issued parts.
 - Add labor billing/accounting for workshop jobs.
+- Add GST/service HSN handling for workshop billing.
 - Add configurable approval workflow foundation beyond simple statuses.
 - Add detailed GST registers and export-ready reports.
 - Add date range filters, exports, and drilldowns for reports.
@@ -92,11 +93,11 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Approval and sensitive action hardening.
+Workshop job card billing.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 8 to 14 focused development sessions.
+Estimated remaining iterations: 7 to 14 focused development sessions.
 
 The largest remaining chunks are workshop billing, approval/permission enforcement, reporting/export depth, automated testing, and production deployment hardening.
 
@@ -109,8 +110,10 @@ The largest remaining chunks are workshop billing, approval/permission enforceme
 - `server/src/modules/auth/auth.middleware.ts`
 - `server/src/modules/inventory/inventory.routes.ts`
 - `server/src/modules/notes/notes.routes.ts`
+- `server/src/modules/number-series/number-series.service.ts`
 - `server/src/modules/payments/payments.routes.ts`
 - `server/prisma/schema.prisma`
+- `server/prisma/migrations/20260727123000_workshop_billing/migration.sql`
 - `server/prisma/migrations/20260725192000_invoice_source_traceability/migration.sql`
 - `server/prisma/migrations/20260727113000_sales_line_discounts/migration.sql`
 - `server/src/modules/purchase/purchase.service.ts`
@@ -118,7 +121,8 @@ The largest remaining chunks are workshop billing, approval/permission enforceme
 - `server/src/modules/sales/sales.service.ts`
 - `server/src/modules/sales/sales.routes.ts`
 - `server/src/modules/workshop/workshop.routes.ts`
+- `server/src/modules/workshop/workshop.service.ts`
 
 ## Next Implementation Target
 
-Workshop service billing without double-consuming issued parts.
+GST/service HSN handling for workshop billing.
