@@ -4,7 +4,7 @@ Last updated: 2026-07-30
 
 ## Overall Completion
 
-Estimated completion: 78%
+Estimated completion: 79%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -20,12 +20,12 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Inventory | 68% | Opening stock, stock balances, movements, adjustments, transfers, negative stock protection, reorder alerts. Needs valuation reports, batch/serial handling, stronger location selection, stock aging. |
 | Purchase | 68% | Purchase orders, PO-to-GRN line conversion, GRN workflow, GRN-to-purchase-invoice traceability, source quantity controls, partial receipt/invoice indicators, default purchase cost application, purchase invoice posting/cancel, purchase return, GST/input tax and supplier ledger integration. Needs approval depth, landed cost. |
 | Sales | 72% | Quotations, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, source quantity controls, partial delivery/invoice indicators, sales line discounts, default sale price application, customer credit-limit/overdue checks, sales invoice posting/cancel, sales return, GST/output tax and customer ledger integration. Needs richer pricing rules. |
-| Accounting | 63% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding. Needs fiscal period controls, voucher types, reconciliation, account mappings. |
-| GST/Tax | 53% | CGST/SGST/IGST calculations and summary reports across purchase, sales, returns, and workshop billing. Needs detailed GST registers, GSTR exports, tax reconciliation. |
+| Accounting | 64% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding, and date-aware GST reporting endpoints. Needs fiscal period controls, voucher types, reconciliation, account mappings. |
+| GST/Tax | 60% | CGST/SGST/IGST calculations, summary reports, input/output GST registers, workshop GST inclusion, date filters, and CSV exports. Needs GSTR formats and tax reconciliation. |
 | Payments/Notes | 58% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact. Needs allocation against invoices and settlement tracking. |
 | Workshop/Service | 65% | Job cards, vehicle complaints, parts/labor estimates, technician assignment, technician progress statuses/notes, service history, inspection/QC notes and checklist, status transitions, parts issue posting, GST-aware workshop billing, and delivery closeout timestamps/notes. Needs richer task allocation and customer-facing service summaries. |
-| Reports/Analytics | 45% | Reports workspace, business snapshot, financial statements, GST summary, outstanding, reorder, audit. Needs date filters, exports, drilldowns, dashboards, operational analytics. |
-| UI/UX | 49% | Responsive desktop-focused shell, working forms/lists, list search, global API errors, reports workspace, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
+| Reports/Analytics | 49% | Reports workspace, business snapshot, financial statements, GST summary/registers, CSV exports, outstanding, reorder, audit. Needs broader date filters, drilldowns, dashboards, operational analytics. |
+| UI/UX | 50% | Responsive desktop-focused shell, working forms/lists, list search, global API errors, reports workspace, GST report filters/exports, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
 | Testing/Quality | 18% | Typecheck, lint, and build pass. Needs automated unit/integration tests, transaction tests, API tests, frontend workflow tests. |
 | Deployment/Operations | 22% | Build scripts and environment config exist. Needs production deployment packaging, migrations process, logging, backup/restore, monitoring, release docs. |
 
@@ -61,6 +61,9 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added GST-aware workshop billing with service tax-rate selection, CGST/SGST/IGST posting, HSN capture, and GST summary inclusion.
 - Added workshop inspection/QC capture, READY/DELIVERED transition safeguards, and delivery closeout timestamps/notes.
 - Added workshop service history view and technician progress tracking with notes, started timestamps, completed timestamps, and audit logging.
+- Added date-filtered GST summary and detailed input/output GST registers across purchases, purchase returns, sales, sales returns, and workshop invoices.
+- Fixed GST summary net payable calculation to include workshop billing tax in total output tax.
+- Added CSV exports for GST input and output registers in the Reports workspace.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -86,8 +89,8 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Add richer customer/supplier ledgers with invoice allocation and settlement.
 - Add richer technician task allocation, labor execution tracking, and customer-facing service summaries for workshop jobs.
 - Add configurable approval workflow foundation beyond simple statuses.
-- Add detailed GST registers and export-ready reports.
-- Add date range filters, exports, and drilldowns for reports.
+- Add GSTR-ready export formats, GST reconciliation checks, and tax drilldowns.
+- Add date range filters, exports, and drilldowns for non-GST reports.
 - Add production-grade test harness and transaction integrity tests.
 - Add server logging strategy, request correlation, and operational monitoring hooks.
 - Add migration/deployment runbook and backup/restore guidance.
@@ -95,11 +98,11 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Workshop service history and technician progress workflow.
+Detailed GST registers, report filters, and CSV exports.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 6 to 12 focused development sessions.
+Estimated remaining iterations: 6 to 11 focused development sessions.
 
 The largest remaining chunks are configurable approvals, reporting/export depth, automated testing, richer settlement workflows, and production deployment hardening.
 
@@ -107,11 +110,9 @@ The largest remaining chunks are configurable approvals, reporting/export depth,
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `client/src/App.tsx`
-- `server/prisma/schema.prisma`
-- `server/prisma/migrations/20260730110000_workshop_technician_history/migration.sql`
-- `server/src/modules/workshop/workshop.routes.ts`
-- `server/src/modules/workshop/workshop.service.ts`
+- `server/src/modules/accounting/accounting.routes.ts`
+- `server/src/modules/accounting/accounting.service.ts`
 
 ## Next Implementation Target
 
-Detailed GST registers, report filters, exports, and drilldowns.
+Invoice allocation and settlement tracking for customer/supplier ledgers.

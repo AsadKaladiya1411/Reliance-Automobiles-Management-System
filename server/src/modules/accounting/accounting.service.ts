@@ -60,6 +60,26 @@ function amount(value: unknown) {
   return new Prisma.Decimal(number.toFixed(2));
 }
 
+function optionalDate(value: unknown, field: string) {
+  if (typeof value !== "string" || value.trim() === "") {
+    return undefined;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    throw new ApiError(400, "INVALID_DATE", `${field} is invalid.`);
+  }
+
+  return date;
+}
+
+function dateRange(from?: Date, to?: Date) {
+  return {
+    ...(from ? { gte: from } : {}),
+    ...(to ? { lte: to } : {}),
+  };
+}
+
 function entryDate(value: unknown) {
   const date = value ? new Date(String(value)) : new Date();
 
@@ -424,26 +444,26 @@ export async function getPartyOutstanding(companyId: string) {
   };
 }
 
-export async function getGstSummary(companyId: string) {
+export async function getGstSummary(companyId: string, from?: Date, to?: Date) {
   const [purchaseTotals, purchaseReturnTotals, salesTotals, salesReturnTotals, workshopTotals] = await Promise.all([
     prisma.purchaseInvoice.aggregate({
-      where: { companyId, status: "POSTED" },
+      where: { companyId, status: "POSTED", invoiceDate: dateRange(from, to) },
       _sum: { cgstAmount: true, sgstAmount: true, igstAmount: true, totalTaxAmount: true },
     }),
     prisma.purchaseReturn.aggregate({
-      where: { companyId },
+      where: { companyId, returnDate: dateRange(from, to) },
       _sum: { cgstAmount: true, sgstAmount: true, igstAmount: true, totalTaxAmount: true },
     }),
     prisma.salesInvoice.aggregate({
-      where: { companyId, status: "POSTED" },
+      where: { companyId, status: "POSTED", invoiceDate: dateRange(from, to) },
       _sum: { cgstAmount: true, sgstAmount: true, igstAmount: true, totalTaxAmount: true },
     }),
     prisma.salesReturn.aggregate({
-      where: { companyId },
+      where: { companyId, returnDate: dateRange(from, to) },
       _sum: { cgstAmount: true, sgstAmount: true, igstAmount: true, totalTaxAmount: true },
     }),
     prisma.jobCard.aggregate({
-      where: { companyId, billedAt: { not: null } },
+      where: { companyId, billedAt: { not: null, ...dateRange(from, to) } },
       _sum: {
         billingCgstAmount: true,
         billingSgstAmount: true,
@@ -465,7 +485,9 @@ export async function getGstSummary(companyId: string) {
     .plus(workshopTotals._sum.billingIgstAmount ?? 0)
     .minus(salesReturnTotals._sum.igstAmount ?? 0);
   const inputTax = new Prisma.Decimal(purchaseTotals._sum.totalTaxAmount ?? 0).minus(purchaseReturnTotals._sum.totalTaxAmount ?? 0);
-  const outputTax = new Prisma.Decimal(salesTotals._sum.totalTaxAmount ?? 0).minus(salesReturnTotals._sum.totalTaxAmount ?? 0);
+  const outputTax = new Prisma.Decimal(salesTotals._sum.totalTaxAmount ?? 0)
+    .plus(workshopTotals._sum.billingTotalTaxAmount ?? 0)
+    .minus(salesReturnTotals._sum.totalTaxAmount ?? 0);
 
   return {
     inputCgst,
@@ -477,6 +499,170 @@ export async function getGstSummary(companyId: string) {
     inputTax,
     outputTax,
     netPayable: outputTax.minus(inputTax),
+  };
+}
+
+export function parseReportDateRange(query: Record<string, unknown>) {
+  const from = optionalDate(query.from, "From date");
+  const to = optionalDate(query.to, "To date");
+
+  if (from && to && from > to) {
+    throw new ApiError(400, "INVALID_DATE_RANGE", "From date must be before or equal to To date.");
+  }
+
+  return { from, to };
+}
+
+function sumRegisterRows(rows: Array<{ taxableAmount: Prisma.Decimal; cgstAmount: Prisma.Decimal; sgstAmount: Prisma.Decimal; igstAmount: Prisma.Decimal; totalTaxAmount: Prisma.Decimal; grandTotal: Prisma.Decimal }>) {
+  return rows.reduce(
+    (totals, row) => ({
+      taxableAmount: totals.taxableAmount.plus(row.taxableAmount),
+      cgstAmount: totals.cgstAmount.plus(row.cgstAmount),
+      sgstAmount: totals.sgstAmount.plus(row.sgstAmount),
+      igstAmount: totals.igstAmount.plus(row.igstAmount),
+      totalTaxAmount: totals.totalTaxAmount.plus(row.totalTaxAmount),
+      grandTotal: totals.grandTotal.plus(row.grandTotal),
+    }),
+    {
+      taxableAmount: new Prisma.Decimal(0),
+      cgstAmount: new Prisma.Decimal(0),
+      sgstAmount: new Prisma.Decimal(0),
+      igstAmount: new Prisma.Decimal(0),
+      totalTaxAmount: new Prisma.Decimal(0),
+      grandTotal: new Prisma.Decimal(0),
+    },
+  );
+}
+
+export async function getGstRegisters(companyId: string, from?: Date, to?: Date) {
+  const [purchaseInvoices, purchaseReturns, salesInvoices, salesReturns, workshopInvoices] = await Promise.all([
+    prisma.purchaseInvoice.findMany({
+      where: { companyId, status: "POSTED", invoiceDate: dateRange(from, to) },
+      include: { supplier: true, lines: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } } },
+      orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
+      take: 250,
+    }),
+    prisma.purchaseReturn.findMany({
+      where: { companyId, returnDate: dateRange(from, to) },
+      include: { supplier: true, lines: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } } },
+      orderBy: [{ returnDate: "desc" }, { createdAt: "desc" }],
+      take: 250,
+    }),
+    prisma.salesInvoice.findMany({
+      where: { companyId, status: "POSTED", invoiceDate: dateRange(from, to) },
+      include: { customer: true, lines: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } } },
+      orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
+      take: 250,
+    }),
+    prisma.salesReturn.findMany({
+      where: { companyId, returnDate: dateRange(from, to) },
+      include: { customer: true, lines: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } } },
+      orderBy: [{ returnDate: "desc" }, { createdAt: "desc" }],
+      take: 250,
+    }),
+    prisma.jobCard.findMany({
+      where: { companyId, billedAt: { not: null, ...dateRange(from, to) } },
+      include: { customer: true, vehicle: true },
+      orderBy: [{ billedAt: "desc" }, { jobDate: "desc" }],
+      take: 250,
+    }),
+  ]);
+
+  const inputRows = [
+    ...purchaseInvoices.map((invoice) => ({
+      id: invoice.id,
+      module: "purchase",
+      documentType: "PURCHASE_INVOICE",
+      documentNumber: invoice.invoiceNumber,
+      documentDate: invoice.invoiceDate,
+      partyName: invoice.supplier.name,
+      partyGstin: invoice.supplier.gstin,
+      taxMode: invoice.taxMode,
+      hsnCodes: [...new Set(invoice.lines.map((line) => line.hsnCode).filter(Boolean))],
+      taxableAmount: invoice.taxableAmount,
+      cgstAmount: invoice.cgstAmount,
+      sgstAmount: invoice.sgstAmount,
+      igstAmount: invoice.igstAmount,
+      totalTaxAmount: invoice.totalTaxAmount,
+      grandTotal: invoice.grandTotal,
+    })),
+    ...purchaseReturns.map((purchaseReturn) => ({
+      id: purchaseReturn.id,
+      module: "purchase",
+      documentType: "PURCHASE_RETURN",
+      documentNumber: purchaseReturn.returnNumber,
+      documentDate: purchaseReturn.returnDate,
+      partyName: purchaseReturn.supplier.name,
+      partyGstin: purchaseReturn.supplier.gstin,
+      taxMode: "RETURN",
+      hsnCodes: [...new Set(purchaseReturn.lines.map((line) => line.hsnCode).filter(Boolean))],
+      taxableAmount: purchaseReturn.taxableAmount.neg(),
+      cgstAmount: purchaseReturn.cgstAmount.neg(),
+      sgstAmount: purchaseReturn.sgstAmount.neg(),
+      igstAmount: purchaseReturn.igstAmount.neg(),
+      totalTaxAmount: purchaseReturn.totalTaxAmount.neg(),
+      grandTotal: purchaseReturn.grandTotal.neg(),
+    })),
+  ];
+  const outputRows = [
+    ...salesInvoices.map((invoice) => ({
+      id: invoice.id,
+      module: "sales",
+      documentType: "SALES_INVOICE",
+      documentNumber: invoice.invoiceNumber,
+      documentDate: invoice.invoiceDate,
+      partyName: invoice.customer.name,
+      partyGstin: invoice.customer.gstin,
+      taxMode: invoice.taxMode,
+      hsnCodes: [...new Set(invoice.lines.map((line) => line.hsnCode).filter(Boolean))],
+      taxableAmount: invoice.taxableAmount,
+      cgstAmount: invoice.cgstAmount,
+      sgstAmount: invoice.sgstAmount,
+      igstAmount: invoice.igstAmount,
+      totalTaxAmount: invoice.totalTaxAmount,
+      grandTotal: invoice.grandTotal,
+    })),
+    ...salesReturns.map((salesReturn) => ({
+      id: salesReturn.id,
+      module: "sales",
+      documentType: "SALES_RETURN",
+      documentNumber: salesReturn.returnNumber,
+      documentDate: salesReturn.returnDate,
+      partyName: salesReturn.customer.name,
+      partyGstin: salesReturn.customer.gstin,
+      taxMode: "RETURN",
+      hsnCodes: [...new Set(salesReturn.lines.map((line) => line.hsnCode).filter(Boolean))],
+      taxableAmount: salesReturn.taxableAmount.neg(),
+      cgstAmount: salesReturn.cgstAmount.neg(),
+      sgstAmount: salesReturn.sgstAmount.neg(),
+      igstAmount: salesReturn.igstAmount.neg(),
+      totalTaxAmount: salesReturn.totalTaxAmount.neg(),
+      grandTotal: salesReturn.grandTotal.neg(),
+    })),
+    ...workshopInvoices.map((jobCard) => ({
+      id: jobCard.id,
+      module: "workshop",
+      documentType: "WORKSHOP_INVOICE",
+      documentNumber: jobCard.billingNumber ?? jobCard.jobCardNumber,
+      documentDate: jobCard.billedAt ?? jobCard.jobDate,
+      partyName: `${jobCard.customer.name} / ${jobCard.vehicle.registrationNumber}`,
+      partyGstin: jobCard.customer.gstin,
+      taxMode: jobCard.billingTaxMode,
+      hsnCodes: jobCard.billingHsnCode ? [jobCard.billingHsnCode] : [],
+      taxableAmount: jobCard.billingTaxableAmount,
+      cgstAmount: jobCard.billingCgstAmount,
+      sgstAmount: jobCard.billingSgstAmount,
+      igstAmount: jobCard.billingIgstAmount,
+      totalTaxAmount: jobCard.billingTotalTaxAmount,
+      grandTotal: jobCard.billingAmount,
+    })),
+  ];
+
+  return {
+    inputRows,
+    outputRows,
+    inputTotals: sumRegisterRows(inputRows),
+    outputTotals: sumRegisterRows(outputRows),
   };
 }
 

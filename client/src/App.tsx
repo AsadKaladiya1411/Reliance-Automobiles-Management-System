@@ -185,6 +185,31 @@ type GstSummary = {
   netPayable: string | number;
 };
 
+type GstRegisterRow = {
+  id: string;
+  module: string;
+  documentType: string;
+  documentNumber: string;
+  documentDate: string;
+  partyName: string;
+  partyGstin?: string | null;
+  taxMode: string;
+  hsnCodes: string[];
+  taxableAmount: string | number;
+  cgstAmount: string | number;
+  sgstAmount: string | number;
+  igstAmount: string | number;
+  totalTaxAmount: string | number;
+  grandTotal: string | number;
+};
+
+type GstRegisters = {
+  inputRows: GstRegisterRow[];
+  outputRows: GstRegisterRow[];
+  inputTotals: Omit<GstRegisterRow, "id" | "module" | "documentType" | "documentNumber" | "documentDate" | "partyName" | "partyGstin" | "taxMode" | "hsnCodes">;
+  outputTotals: Omit<GstRegisterRow, "id" | "module" | "documentType" | "documentNumber" | "documentDate" | "partyName" | "partyGstin" | "taxMode" | "hsnCodes">;
+};
+
 type PartyOutstanding = {
   customers: Array<{
     party?: { id: string; code: string; name: string; phone?: string | null; creditLimit?: string | number; creditDays?: number };
@@ -796,6 +821,40 @@ function useGstSummary() {
     queryKey: ["gst-summary"],
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<GstSummary>>("/accounting/gst-summary");
+      return response.data.data;
+    },
+  });
+}
+
+function gstDateParams(filters: { from: string; to: string }) {
+  const params = new URLSearchParams();
+  if (filters.from) {
+    params.set("from", filters.from);
+  }
+  if (filters.to) {
+    params.set("to", filters.to);
+  }
+
+  return params.toString();
+}
+
+function useFilteredGstSummary(filters: { from: string; to: string }) {
+  return useQuery({
+    queryKey: ["gst-summary", filters],
+    queryFn: async () => {
+      const query = gstDateParams(filters);
+      const response = await api.get<ApiEnvelope<GstSummary>>(`/accounting/gst-summary${query ? `?${query}` : ""}`);
+      return response.data.data;
+    },
+  });
+}
+
+function useGstRegisters(filters: { from: string; to: string }) {
+  return useQuery({
+    queryKey: ["gst-registers", filters],
+    queryFn: async () => {
+      const query = gstDateParams(filters);
+      const response = await api.get<ApiEnvelope<GstRegisters>>(`/accounting/gst-registers${query ? `?${query}` : ""}`);
       return response.data.data;
     },
   });
@@ -1640,7 +1699,10 @@ function ReportsView({
   salesSummary?: SalesSummary;
   workshopSummary?: WorkshopSummary;
 }) {
+  const [gstFilters, setGstFilters] = useState({ from: "", to: "" });
   const auditLogs = useAuditLogs();
+  const filteredGstSummary = useFilteredGstSummary(gstFilters);
+  const gstRegisters = useGstRegisters(gstFilters);
   const balanceSheet = useQuery({
     queryKey: ["balance-sheet"],
     queryFn: async () => {
@@ -1694,19 +1756,12 @@ function ReportsView({
         <BalanceSheetPanel statement={balanceSheet.data} />
         <TrialBalancePanel trialBalance={trialBalance.data} />
 
-        <section className="setup-panel">
-          <h2>GST Summary</h2>
-          <div className="readiness-grid">
-            <ReadinessMetric label="Input CGST" value={gstSummary?.inputCgst} />
-            <ReadinessMetric label="Input SGST" value={gstSummary?.inputSgst} />
-            <ReadinessMetric label="Input IGST" value={gstSummary?.inputIgst} />
-            <ReadinessMetric label="Output CGST" value={gstSummary?.outputCgst} />
-            <ReadinessMetric label="Output SGST" value={gstSummary?.outputSgst} />
-            <ReadinessMetric label="Output IGST" value={gstSummary?.outputIgst} />
-            <ReadinessMetric label="Input Tax" value={gstSummary?.inputTax} />
-            <ReadinessMetric label="Output Tax" value={gstSummary?.outputTax} />
-          </div>
-        </section>
+        <GstRegisterPanel
+          filters={gstFilters}
+          registers={gstRegisters.data}
+          summary={filteredGstSummary.data ?? gstSummary}
+          onFilterChange={setGstFilters}
+        />
 
         <OutstandingPanel outstanding={outstanding.data} />
 
@@ -1724,6 +1779,116 @@ function ReportsView({
         <AuditLogPanel items={auditLogs.data ?? []} />
       </section>
     </>
+  );
+}
+
+function csvValue(value: unknown) {
+  const text = Array.isArray(value) ? value.join(" | ") : String(value ?? "");
+  return `"${text.replaceAll("\"", "\"\"")}"`;
+}
+
+function exportGstRows(fileName: string, rows: GstRegisterRow[]) {
+  const headers = [
+    "Document Date",
+    "Document Type",
+    "Document Number",
+    "Module",
+    "Party",
+    "GSTIN",
+    "Tax Mode",
+    "HSN Codes",
+    "Taxable",
+    "CGST",
+    "SGST",
+    "IGST",
+    "Total Tax",
+    "Grand Total",
+  ];
+  const body = rows.map((row) => [
+    row.documentDate.slice(0, 10),
+    row.documentType,
+    row.documentNumber,
+    row.module,
+    row.partyName,
+    row.partyGstin ?? "",
+    row.taxMode,
+    row.hsnCodes,
+    row.taxableAmount,
+    row.cgstAmount,
+    row.sgstAmount,
+    row.igstAmount,
+    row.totalTaxAmount,
+    row.grandTotal,
+  ]);
+  const csv = [headers, ...body].map((line) => line.map(csvValue).join(",")).join("\n");
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function GstRegisterPanel({
+  filters,
+  onFilterChange,
+  registers,
+  summary,
+}: {
+  filters: { from: string; to: string };
+  onFilterChange: (filters: { from: string; to: string }) => void;
+  registers?: GstRegisters;
+  summary?: GstSummary;
+}) {
+  const inputRows = registers?.inputRows ?? [];
+  const outputRows = registers?.outputRows ?? [];
+
+  return (
+    <section className="setup-panel wide-panel">
+      <h2>GST Registers</h2>
+      <form className="compact-form" onSubmit={(event) => event.preventDefault()}>
+        <input type="date" value={filters.from} onChange={(event) => onFilterChange({ ...filters, from: event.target.value })} />
+        <input type="date" value={filters.to} onChange={(event) => onFilterChange({ ...filters, to: event.target.value })} />
+        <Button type="button" variant="outline" onClick={() => onFilterChange({ from: "", to: "" })}>
+          Clear
+        </Button>
+        <Button type="button" variant="outline" disabled={inputRows.length === 0} onClick={() => exportGstRows("rams-gst-input-register.csv", inputRows)}>
+          Export Input
+        </Button>
+        <Button type="button" variant="outline" disabled={outputRows.length === 0} onClick={() => exportGstRows("rams-gst-output-register.csv", outputRows)}>
+          Export Output
+        </Button>
+      </form>
+      <div className="readiness-grid">
+        <ReadinessMetric label="Input CGST" value={summary?.inputCgst} />
+        <ReadinessMetric label="Input SGST" value={summary?.inputSgst} />
+        <ReadinessMetric label="Input IGST" value={summary?.inputIgst} />
+        <ReadinessMetric label="Output CGST" value={summary?.outputCgst} />
+        <ReadinessMetric label="Output SGST" value={summary?.outputSgst} />
+        <ReadinessMetric label="Output IGST" value={summary?.outputIgst} />
+        <ReadinessMetric label="Input Tax" value={summary?.inputTax} />
+        <ReadinessMetric label="Output Tax" value={summary?.outputTax} />
+        <ReadinessMetric label="Net Payable" value={summary?.netPayable} />
+      </div>
+      <div className="split-list-grid">
+        <GstRegisterList title="Input Register" rows={inputRows} />
+        <GstRegisterList title="Output Register" rows={outputRows} />
+      </div>
+    </section>
+  );
+}
+
+function GstRegisterList({ rows, title }: { rows: GstRegisterRow[]; title: string }) {
+  return (
+    <article className="inline-panel">
+      <h3>{title}</h3>
+      <MasterList
+        items={rows.slice(0, 12).map((row) => ({
+          id: row.id,
+          label: `${row.documentNumber} / ${row.partyName}`,
+          meta: `${row.documentDate.slice(0, 10)} / ${row.documentType} / HSN ${row.hsnCodes.join(", ") || "-"} / Tax ${row.totalTaxAmount} / Total ${row.grandTotal}`,
+        }))}
+      />
+    </article>
   );
 }
 

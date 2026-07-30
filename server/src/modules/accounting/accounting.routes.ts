@@ -7,6 +7,7 @@ import {
   createAccount,
   getAccountingSummary,
   getBalanceSheet,
+  getGstRegisters,
   getGstSummary,
   getPartyOutstanding,
   getPartyLedgerSummary,
@@ -18,6 +19,7 @@ import {
   listPartyLedgerEntries,
   postContraVoucher,
   postJournalEntry,
+  parseReportDateRange,
   seedDefaultAccounts,
 } from "./accounting.service";
 
@@ -79,7 +81,13 @@ router.get("/accounting/party-ledger", asyncHandler(async (req, res) => {
 }));
 
 router.get("/accounting/gst-summary", asyncHandler(async (req, res) => {
-  sendSuccess(res, await getGstSummary(req.user!.companyId));
+  const { from, to } = parseReportDateRange(req.query);
+  sendSuccess(res, await getGstSummary(req.user!.companyId, from, to));
+}));
+
+router.get("/accounting/gst-registers", asyncHandler(async (req, res) => {
+  const { from, to } = parseReportDateRange(req.query);
+  sendSuccess(res, await getGstRegisters(req.user!.companyId, from, to));
 }));
 
 router.get("/accounting/party-outstanding", asyncHandler(async (req, res) => {
