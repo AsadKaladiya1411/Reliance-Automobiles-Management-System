@@ -2,6 +2,7 @@ import { Prisma } from "../../generated/prisma/client";
 import prisma from "../../lib/prisma";
 import type { RequestContext } from "../../types/request-context";
 import { ApiError } from "../../utils/api-error";
+import { calculateGstSummaryFromTotals } from "./gst-summary.utils";
 import { formatDocumentNumber } from "../number-series/number-series.service";
 
 type AccountingContext = RequestContext & {
@@ -472,34 +473,13 @@ export async function getGstSummary(companyId: string, from?: Date, to?: Date) {
       },
     }),
   ]);
-  const inputCgst = new Prisma.Decimal(purchaseTotals._sum.cgstAmount ?? 0).minus(purchaseReturnTotals._sum.cgstAmount ?? 0);
-  const inputSgst = new Prisma.Decimal(purchaseTotals._sum.sgstAmount ?? 0).minus(purchaseReturnTotals._sum.sgstAmount ?? 0);
-  const inputIgst = new Prisma.Decimal(purchaseTotals._sum.igstAmount ?? 0).minus(purchaseReturnTotals._sum.igstAmount ?? 0);
-  const outputCgst = new Prisma.Decimal(salesTotals._sum.cgstAmount ?? 0)
-    .plus(workshopTotals._sum.billingCgstAmount ?? 0)
-    .minus(salesReturnTotals._sum.cgstAmount ?? 0);
-  const outputSgst = new Prisma.Decimal(salesTotals._sum.sgstAmount ?? 0)
-    .plus(workshopTotals._sum.billingSgstAmount ?? 0)
-    .minus(salesReturnTotals._sum.sgstAmount ?? 0);
-  const outputIgst = new Prisma.Decimal(salesTotals._sum.igstAmount ?? 0)
-    .plus(workshopTotals._sum.billingIgstAmount ?? 0)
-    .minus(salesReturnTotals._sum.igstAmount ?? 0);
-  const inputTax = new Prisma.Decimal(purchaseTotals._sum.totalTaxAmount ?? 0).minus(purchaseReturnTotals._sum.totalTaxAmount ?? 0);
-  const outputTax = new Prisma.Decimal(salesTotals._sum.totalTaxAmount ?? 0)
-    .plus(workshopTotals._sum.billingTotalTaxAmount ?? 0)
-    .minus(salesReturnTotals._sum.totalTaxAmount ?? 0);
-
-  return {
-    inputCgst,
-    inputSgst,
-    inputIgst,
-    outputCgst,
-    outputSgst,
-    outputIgst,
-    inputTax,
-    outputTax,
-    netPayable: outputTax.minus(inputTax),
-  };
+  return calculateGstSummaryFromTotals({
+    purchaseTotals: purchaseTotals._sum,
+    purchaseReturnTotals: purchaseReturnTotals._sum,
+    salesTotals: salesTotals._sum,
+    salesReturnTotals: salesReturnTotals._sum,
+    workshopTotals: workshopTotals._sum,
+  });
 }
 
 export function parseReportDateRange(query: Record<string, unknown>) {

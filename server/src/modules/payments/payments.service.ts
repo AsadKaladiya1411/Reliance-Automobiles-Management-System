@@ -3,6 +3,7 @@ import prisma from "../../lib/prisma";
 import type { RequestContext } from "../../types/request-context";
 import { ApiError } from "../../utils/api-error";
 import { formatDocumentNumber } from "../number-series/number-series.service";
+import { mergePaymentAllocations, validatePaymentAllocations } from "./payment-allocation.utils";
 
 type PaymentContext = RequestContext & {
   companyId: string;
@@ -221,7 +222,6 @@ export async function postPayment(context: PaymentContext, body: unknown) {
     }
 
     const openDocuments = await openSettlementDocuments(tx, context.companyId, partyType as "CUSTOMER" | "SUPPLIER", customerId ?? supplierId ?? "");
-    const openByDocument = new Map(openDocuments.map((document) => [`${document.documentType}:${document.documentNumber}`, document]));
     const rawPreparedAllocations = rawAllocations
       .map((allocation) => ({
         documentType: requiredString(allocation.documentType, "Allocation document type"),
@@ -230,40 +230,8 @@ export async function postPayment(context: PaymentContext, body: unknown) {
         allocatedAmount: positiveAmount(allocation.amount),
       }))
       .filter((allocation) => allocation.allocatedAmount.gt(0));
-    const allocationMap = new Map<string, {
-      documentType: string;
-      documentNumber: string;
-      documentId?: string;
-      allocatedAmount: Prisma.Decimal;
-    }>();
-
-    for (const allocation of rawPreparedAllocations) {
-      const key = `${allocation.documentType}:${allocation.documentNumber}`;
-      const existing = allocationMap.get(key);
-      allocationMap.set(key, {
-        ...allocation,
-        allocatedAmount: existing ? existing.allocatedAmount.plus(allocation.allocatedAmount) : allocation.allocatedAmount,
-      });
-    }
-
-    const allocations = [...allocationMap.values()];
-    const allocatedTotal = allocations.reduce((total, allocation) => total.plus(allocation.allocatedAmount), new Prisma.Decimal(0));
-
-    if (allocatedTotal.gt(amount)) {
-      throw new ApiError(400, "PAYMENT_ALLOCATION_EXCEEDS_PAYMENT", "Allocated amount cannot exceed payment amount.");
-    }
-
-    for (const allocation of allocations) {
-      const openDocument = openByDocument.get(`${allocation.documentType}:${allocation.documentNumber}`);
-
-      if (!openDocument) {
-        throw new ApiError(400, "PAYMENT_ALLOCATION_DOCUMENT_NOT_OPEN", `${allocation.documentNumber} is not open for settlement.`);
-      }
-
-      if (allocation.allocatedAmount.gt(openDocument.openAmount)) {
-        throw new ApiError(400, "PAYMENT_ALLOCATION_EXCEEDS_OPEN_AMOUNT", `${allocation.documentNumber} allocation exceeds open amount.`);
-      }
-    }
+    const allocations = mergePaymentAllocations(rawPreparedAllocations);
+    validatePaymentAllocations(amount, allocations, openDocuments);
 
     const journalEntry = await tx.journalEntry.create({
       data: {

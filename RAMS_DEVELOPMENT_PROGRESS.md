@@ -4,7 +4,7 @@ Last updated: 2026-07-30
 
 ## Overall Completion
 
-Estimated completion: 82%
+Estimated completion: 83%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -12,7 +12,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 | Module | Completion | Notes |
 | --- | ---: | --- |
-| Platform/Foundation | 76% | Web app, API, environment config, Prisma, setup flow, number series, audit logs, approval foundation, global API errors, same-origin mutation guard, and audit reporting are in place. Needs stronger tests, deployment hardening, logging, and operational docs. |
+| Platform/Foundation | 77% | Web app, API, environment config, Prisma, setup flow, number series, audit logs, approval foundation, global API errors, same-origin mutation guard, audit reporting, and test script foundation are in place. Needs broader tests, deployment hardening, logging, and operational docs. |
 | Authentication/RBAC | 74% | Login, registration, current-user session, Super Admin, Staff role, user-role administration, backend module permission middleware, explicit sensitive-route permission guards, role-aware navigation, and permission-aware Settings queries. Needs permission management UI and richer user lifecycle controls. |
 | Company/Financial Year/Settings | 68% | Company profile, financial years, number series, approval rules/requests, default seeding, audit view. Needs closing/opening year workflows and more settings. |
 | Masters | 82% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, Product Variants, Tax Rates, and warehouse hierarchy records. Needs import/export and server-side pagination for large datasets. |
@@ -21,12 +21,12 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Purchase | 70% | Purchase orders, approval-rule-aware PO/GRN creation, PO-to-GRN line conversion, GRN workflow, GRN-to-purchase-invoice traceability, source quantity controls, partial receipt/invoice indicators, default purchase cost application, purchase invoice posting/cancel, purchase return, GST/input tax and supplier ledger integration. Needs landed cost. |
 | Sales | 74% | Quotations, orders, delivery challans, approval-rule-aware planning creation, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, source quantity controls, partial delivery/invoice indicators, sales line discounts, default sale price application, customer credit-limit/overdue checks, sales invoice posting/cancel, sales return, GST/output tax and customer ledger integration. Needs richer pricing rules. |
 | Accounting | 65% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding, settlement-open-document queries, and date-aware GST reporting endpoints. Needs fiscal period controls, voucher types, reconciliation, account mappings. |
-| GST/Tax | 60% | CGST/SGST/IGST calculations, summary reports, input/output GST registers, workshop GST inclusion, date filters, and CSV exports. Needs GSTR formats and tax reconciliation. |
+| GST/Tax | 61% | CGST/SGST/IGST calculations, summary reports, input/output GST registers, workshop GST inclusion, date filters, CSV exports, and unit coverage for GST net payable logic. Needs GSTR formats and tax reconciliation. |
 | Payments/Notes | 63% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact, payment allocations against open customer/supplier documents, and settlement visibility. Needs multi-document allocation UI polish and settlement aging. |
 | Workshop/Service | 65% | Job cards, vehicle complaints, parts/labor estimates, technician assignment, technician progress statuses/notes, service history, inspection/QC notes and checklist, status transitions, parts issue posting, GST-aware workshop billing, and delivery closeout timestamps/notes. Needs richer task allocation and customer-facing service summaries. |
 | Reports/Analytics | 50% | Reports workspace, business snapshot, financial statements, GST summary/registers, CSV exports, outstanding, reorder, audit, and approval visibility in Settings. Needs broader date filters, drilldowns, dashboards, operational analytics. |
 | UI/UX | 50% | Responsive desktop-focused shell, working forms/lists, list search, global API errors, reports workspace, GST report filters/exports, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
-| Testing/Quality | 18% | Typecheck, lint, and build pass. Needs automated unit/integration tests, transaction tests, API tests, frontend workflow tests. |
+| Testing/Quality | 26% | Typecheck, lint, build, and Node test runner are configured with focused unit coverage for GST totals, payment allocation validation, and document numbering. Needs transaction tests, API tests, frontend workflow tests. |
 | Deployment/Operations | 22% | Build scripts and environment config exist. Needs production deployment packaging, migrations process, logging, backup/restore, monitoring, release docs. |
 
 ## Completed Tasks
@@ -68,6 +68,8 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added approval workflow foundation with configurable approval rules, auditable approval requests, approval/rejection decisions, and Settings UI.
 - Integrated approval rules with purchase orders, GRNs, sales quotations, sales orders, and delivery challans so matching rules create pending documents and approval requests atomically.
 - Approval decisions now promote supported pending planning documents to approved status and refresh purchase/sales planning caches.
+- Added Node test runner scripts and focused TypeScript unit tests for GST net payable calculation, payment allocation validation, duplicate allocation merging, and document number formatting.
+- Extracted pure GST summary and document-numbering utilities to reduce database/env coupling in testable business logic.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -95,29 +97,36 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Extend approval-rule integration to workshop/accounting posting workflows where approval should block posting.
 - Add GSTR-ready export formats, GST reconciliation checks, and tax drilldowns.
 - Add date range filters, exports, and drilldowns for non-GST reports.
-- Add production-grade test harness and transaction integrity tests.
+- Add transaction integrity tests, API tests, and frontend workflow tests.
 - Add server logging strategy, request correlation, and operational monitoring hooks.
 - Add migration/deployment runbook and backup/restore guidance.
 - Improve frontend tables, filters, loading states, and form validation ergonomics.
 
 ## Current Feature Being Implemented
 
-Approval-rule integration with purchase and sales planning documents.
+Production-grade automated tests for posting, approvals, settlement, and tax workflows.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 5 to 8 focused development sessions.
+Estimated remaining iterations: 4 to 8 focused development sessions.
 
 The largest remaining chunks are configurable approvals, reporting/export depth, automated testing, richer settlement workflows, and production deployment hardening.
 
 ## Files/Modules Modified In This Session
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
-- `client/src/App.tsx`
-- `server/src/modules/approvals/approvals.service.ts`
-- `server/src/modules/purchase/purchase.service.ts`
-- `server/src/modules/sales/sales.service.ts`
+- `package.json`
+- `server/package.json`
+- `server/src/modules/accounting/accounting.service.ts`
+- `server/src/modules/accounting/gst-summary.utils.ts`
+- `server/src/modules/accounting/gst-summary.utils.test.ts`
+- `server/src/modules/number-series/number-series.service.ts`
+- `server/src/modules/number-series/number-series.service.test.ts`
+- `server/src/modules/number-series/number-series.utils.ts`
+- `server/src/modules/payments/payment-allocation.utils.ts`
+- `server/src/modules/payments/payment-allocation.utils.test.ts`
+- `server/src/modules/payments/payments.service.ts`
 
 ## Next Implementation Target
 
-Production-grade automated tests for posting, approvals, settlement, and tax workflows.
+Server logging, request correlation, and operational monitoring hooks.

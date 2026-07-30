@@ -2,6 +2,7 @@ import prisma from "../../lib/prisma";
 import { ApiError } from "../../utils/api-error";
 import type { RequestContext } from "../../types/request-context";
 import { writeAuditLog } from "../audit/audit.service";
+import { formatDocumentNumber } from "./number-series.utils";
 
 type UpsertNumberSeriesInput = {
   documentType: string;
@@ -41,14 +42,7 @@ const defaultPaymentModes = [
   { code: "CARD", name: "Card", paymentType: "Card", requiresReference: true, isDefault: false },
 ] as const;
 
-export function formatDocumentNumber(input: {
-  prefix: string;
-  suffix: string;
-  padding: number;
-  nextNumber: number;
-}) {
-  return `${input.prefix}${String(input.nextNumber).padStart(input.padding, "0")}${input.suffix}`;
-}
+export { formatDocumentNumber };
 
 export async function listNumberSeries(companyId: string) {
   return prisma.numberSeries.findMany({
