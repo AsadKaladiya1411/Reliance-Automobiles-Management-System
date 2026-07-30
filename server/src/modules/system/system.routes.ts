@@ -2,6 +2,7 @@ import { Router } from "express";
 import prisma from "../../lib/prisma";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
+import { getRuntimeMetrics } from "../../utils/runtime-metrics";
 
 const router = Router();
 
@@ -13,6 +14,7 @@ router.get(
     sendSuccess(res, {
       service: "RAMS API",
       database: "connected",
+      runtime: getRuntimeMetrics(),
       timestamp: new Date().toISOString(),
     });
   }),
@@ -34,8 +36,16 @@ router.get(
       openFinancialYears,
       numberSeriesCount,
       activeUsers: userCount,
+      runtime: getRuntimeMetrics(),
       timestamp: new Date().toISOString(),
     });
+  }),
+);
+
+router.get(
+  "/metrics",
+  asyncHandler(async (_req, res) => {
+    sendSuccess(res, getRuntimeMetrics());
   }),
 );
 

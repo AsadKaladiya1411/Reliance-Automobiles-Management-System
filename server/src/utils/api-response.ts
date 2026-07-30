@@ -9,6 +9,7 @@ export function sendSuccess<T>(
   return res.status(statusCode).json({
     success: true,
     message,
+    requestId: res.req.requestId,
     data,
   });
 }
@@ -22,6 +23,7 @@ export function sendError(
 ) {
   return res.status(statusCode).json({
     success: false,
+    requestId: res.req.requestId,
     error: {
       code,
       message,
