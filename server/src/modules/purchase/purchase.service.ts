@@ -2,6 +2,7 @@ import { Prisma } from "../../generated/prisma/client";
 import prisma from "../../lib/prisma";
 import type { RequestContext } from "../../types/request-context";
 import { ApiError } from "../../utils/api-error";
+import { approvalStatusForDocument, createApprovalRequestForDocument } from "../approvals/approvals.service";
 import { formatDocumentNumber } from "../number-series/number-series.service";
 
 type PurchaseContext = RequestContext & {
@@ -435,6 +436,12 @@ export async function createPurchaseOrder(context: PurchaseContext, body: unknow
     const taxableAmount = preparedLines.reduce((total, line) => total.plus(line.taxableAmount), new Prisma.Decimal(0));
     const totalTaxAmount = preparedLines.reduce((total, line) => total.plus(line.taxAmount), new Prisma.Decimal(0));
     const grandTotal = taxableAmount.plus(totalTaxAmount).toDecimalPlaces(2);
+    const status = await approvalStatusForDocument(tx, {
+      companyId: context.companyId,
+      module: "purchase",
+      documentType: "PURCHASE_ORDER",
+      amount: grandTotal,
+    });
     const order = await tx.purchaseOrder.create({
       data: {
         companyId: context.companyId,
@@ -445,13 +452,24 @@ export async function createPurchaseOrder(context: PurchaseContext, body: unknow
         taxableAmount,
         totalTaxAmount,
         grandTotal,
-        status: "APPROVED",
+        status,
         narration: optionalString(data.narration),
         createdByUserId: context.userId,
         lines: { create: preparedLines },
       },
       include: { supplier: true, lines: { include: { productVariant: true } } },
     });
+
+    if (status === "PENDING_APPROVAL") {
+      await createApprovalRequestForDocument(tx, context, {
+        module: "purchase",
+        documentType: "PURCHASE_ORDER",
+        documentId: order.id,
+        documentNumber: order.orderNumber,
+        amount: grandTotal,
+        reason: "Purchase order requires approval before downstream processing.",
+      });
+    }
 
     await tx.auditLog.create({
       data: {
@@ -461,7 +479,7 @@ export async function createPurchaseOrder(context: PurchaseContext, body: unknow
         action: "CREATE",
         entityType: "PurchaseOrder",
         entityId: order.id,
-        description: "Purchase order created.",
+        description: status === "PENDING_APPROVAL" ? "Purchase order created pending approval." : "Purchase order created.",
         afterData: json(order),
         ipAddress: context.ipAddress,
         userAgent: context.userAgent,
@@ -510,6 +528,11 @@ export async function createGoodsReceiptNote(context: PurchaseContext, body: unk
       "GOODS_RECEIPT_NOTE",
       "Create a GOODS_RECEIPT_NOTE number series before creating GRNs.",
     );
+    const status = await approvalStatusForDocument(tx, {
+      companyId: context.companyId,
+      module: "purchase",
+      documentType: "GOODS_RECEIPT_NOTE",
+    });
     const preparedLines = [];
 
     for (const [index, line] of rawLines.entries()) {
@@ -543,13 +566,23 @@ export async function createGoodsReceiptNote(context: PurchaseContext, body: unk
         purchaseOrderId,
         grnNumber,
         grnDate,
-        status: "APPROVED",
+        status,
         narration: optionalString(data.narration),
         createdByUserId: context.userId,
         lines: { create: preparedLines },
       },
       include: { supplier: true, warehouse: true, purchaseOrder: true, lines: { include: { productVariant: true } } },
     });
+
+    if (status === "PENDING_APPROVAL") {
+      await createApprovalRequestForDocument(tx, context, {
+        module: "purchase",
+        documentType: "GOODS_RECEIPT_NOTE",
+        documentId: grn.id,
+        documentNumber: grn.grnNumber,
+        reason: "GRN requires approval before invoice conversion.",
+      });
+    }
 
     await tx.auditLog.create({
       data: {
@@ -559,7 +592,7 @@ export async function createGoodsReceiptNote(context: PurchaseContext, body: unk
         action: "CREATE",
         entityType: "GoodsReceiptNote",
         entityId: grn.id,
-        description: "GRN created without stock impact.",
+        description: status === "PENDING_APPROVAL" ? "GRN created pending approval without stock impact." : "GRN created without stock impact.",
         afterData: json(grn),
         ipAddress: context.ipAddress,
         userAgent: context.userAgent,

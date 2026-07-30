@@ -2005,6 +2005,13 @@ function ApprovalWorkflowPanel({ requests, rules }: { requests: ApprovalRequest[
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["approval-requests"] }),
+        queryClient.invalidateQueries({ queryKey: ["purchase-orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["goods-receipt-notes"] }),
+        queryClient.invalidateQueries({ queryKey: ["sales-quotations"] }),
+        queryClient.invalidateQueries({ queryKey: ["sales-orders"] }),
+        queryClient.invalidateQueries({ queryKey: ["delivery-challans"] }),
+        queryClient.invalidateQueries({ queryKey: ["purchase-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["sales-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
       ]);
       setDecisionNotes("");

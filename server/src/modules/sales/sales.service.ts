@@ -2,6 +2,7 @@ import { Prisma } from "../../generated/prisma/client";
 import prisma from "../../lib/prisma";
 import type { RequestContext } from "../../types/request-context";
 import { ApiError } from "../../utils/api-error";
+import { approvalStatusForDocument, createApprovalRequestForDocument } from "../approvals/approvals.service";
 import { formatDocumentNumber } from "../number-series/number-series.service";
 
 type SalesContext = RequestContext & {
@@ -460,6 +461,12 @@ export async function createSalesQuotation(context: SalesContext, body: unknown)
     const taxableAmount = preparedLines.reduce((total, line) => total.plus(line.taxableAmount), new Prisma.Decimal(0));
     const totalTaxAmount = preparedLines.reduce((total, line) => total.plus(line.taxAmount), new Prisma.Decimal(0));
     const grandTotal = taxableAmount.plus(totalTaxAmount).toDecimalPlaces(2);
+    const status = await approvalStatusForDocument(tx, {
+      companyId: context.companyId,
+      module: "sales",
+      documentType: "SALES_QUOTATION",
+      amount: grandTotal,
+    });
     const quotation = await tx.salesQuotation.create({
       data: {
         companyId: context.companyId,
@@ -470,13 +477,24 @@ export async function createSalesQuotation(context: SalesContext, body: unknown)
         taxableAmount,
         totalTaxAmount,
         grandTotal,
-        status: "APPROVED",
+        status,
         narration: optionalString(data.narration),
         createdByUserId: context.userId,
         lines: { create: preparedLines },
       },
       include: { customer: true, lines: { include: { productVariant: true } } },
     });
+
+    if (status === "PENDING_APPROVAL") {
+      await createApprovalRequestForDocument(tx, context, {
+        module: "sales",
+        documentType: "SALES_QUOTATION",
+        documentId: quotation.id,
+        documentNumber: quotation.quotationNumber,
+        amount: grandTotal,
+        reason: "Sales quotation requires approval before order conversion.",
+      });
+    }
 
     await tx.auditLog.create({
       data: {
@@ -486,7 +504,7 @@ export async function createSalesQuotation(context: SalesContext, body: unknown)
         action: "CREATE",
         entityType: "SalesQuotation",
         entityId: quotation.id,
-        description: "Sales quotation created.",
+        description: status === "PENDING_APPROVAL" ? "Sales quotation created pending approval." : "Sales quotation created.",
         afterData: json(quotation),
         ipAddress: context.ipAddress,
         userAgent: context.userAgent,
@@ -532,6 +550,12 @@ export async function createSalesOrder(context: SalesContext, body: unknown) {
     const taxableAmount = preparedLines.reduce((total, line) => total.plus(line.taxableAmount), new Prisma.Decimal(0));
     const totalTaxAmount = preparedLines.reduce((total, line) => total.plus(line.taxAmount), new Prisma.Decimal(0));
     const grandTotal = taxableAmount.plus(totalTaxAmount).toDecimalPlaces(2);
+    const status = await approvalStatusForDocument(tx, {
+      companyId: context.companyId,
+      module: "sales",
+      documentType: "SALES_ORDER",
+      amount: grandTotal,
+    });
     const order = await tx.salesOrder.create({
       data: {
         companyId: context.companyId,
@@ -543,13 +567,24 @@ export async function createSalesOrder(context: SalesContext, body: unknown) {
         taxableAmount,
         totalTaxAmount,
         grandTotal,
-        status: "APPROVED",
+        status,
         narration: optionalString(data.narration),
         createdByUserId: context.userId,
         lines: { create: preparedLines },
       },
       include: { customer: true, quotation: true, lines: { include: { productVariant: true } } },
     });
+
+    if (status === "PENDING_APPROVAL") {
+      await createApprovalRequestForDocument(tx, context, {
+        module: "sales",
+        documentType: "SALES_ORDER",
+        documentId: order.id,
+        documentNumber: order.orderNumber,
+        amount: grandTotal,
+        reason: "Sales order requires approval before delivery or invoice conversion.",
+      });
+    }
 
     await tx.auditLog.create({
       data: {
@@ -559,7 +594,7 @@ export async function createSalesOrder(context: SalesContext, body: unknown) {
         action: "CREATE",
         entityType: "SalesOrder",
         entityId: order.id,
-        description: "Sales order created.",
+        description: status === "PENDING_APPROVAL" ? "Sales order created pending approval." : "Sales order created.",
         afterData: json(order),
         ipAddress: context.ipAddress,
         userAgent: context.userAgent,
@@ -607,6 +642,11 @@ export async function createDeliveryChallan(context: SalesContext, body: unknown
     }
 
     const challanNumber = await nextDocumentNumber(tx, context.companyId, "DELIVERY_CHALLAN");
+    const status = await approvalStatusForDocument(tx, {
+      companyId: context.companyId,
+      module: "sales",
+      documentType: "DELIVERY_CHALLAN",
+    });
     const preparedLines = [];
 
     for (const [index, line] of rawLines.entries()) {
@@ -635,13 +675,23 @@ export async function createDeliveryChallan(context: SalesContext, body: unknown
         salesOrderId,
         challanNumber,
         challanDate,
-        status: "APPROVED",
+        status,
         narration: optionalString(data.narration),
         createdByUserId: context.userId,
         lines: { create: preparedLines },
       },
       include: { customer: true, warehouse: true, salesOrder: true, lines: { include: { productVariant: true } } },
     });
+
+    if (status === "PENDING_APPROVAL") {
+      await createApprovalRequestForDocument(tx, context, {
+        module: "sales",
+        documentType: "DELIVERY_CHALLAN",
+        documentId: challan.id,
+        documentNumber: challan.challanNumber,
+        reason: "Delivery challan requires approval before invoice conversion.",
+      });
+    }
 
     await tx.auditLog.create({
       data: {
@@ -651,7 +701,7 @@ export async function createDeliveryChallan(context: SalesContext, body: unknown
         action: "CREATE",
         entityType: "DeliveryChallan",
         entityId: challan.id,
-        description: "Delivery challan created without stock impact.",
+        description: status === "PENDING_APPROVAL" ? "Delivery challan created pending approval without stock impact." : "Delivery challan created without stock impact.",
         afterData: json(challan),
         ipAddress: context.ipAddress,
         userAgent: context.userAgent,

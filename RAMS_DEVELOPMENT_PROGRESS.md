@@ -4,7 +4,7 @@ Last updated: 2026-07-30
 
 ## Overall Completion
 
-Estimated completion: 81%
+Estimated completion: 82%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -18,8 +18,8 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Masters | 82% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, Product Variants, Tax Rates, and warehouse hierarchy records. Needs import/export and server-side pagination for large datasets. |
 | Commercial Masters | 70% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls, customer credit limit/day settings, and dependency safeguards. Needs richer profiles, contact/address handling, search, pagination, and import/export. |
 | Inventory | 68% | Opening stock, stock balances, movements, adjustments, transfers, negative stock protection, reorder alerts. Needs valuation reports, batch/serial handling, stronger location selection, stock aging. |
-| Purchase | 68% | Purchase orders, PO-to-GRN line conversion, GRN workflow, GRN-to-purchase-invoice traceability, source quantity controls, partial receipt/invoice indicators, default purchase cost application, purchase invoice posting/cancel, purchase return, GST/input tax and supplier ledger integration. Needs approval depth, landed cost. |
-| Sales | 72% | Quotations, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, source quantity controls, partial delivery/invoice indicators, sales line discounts, default sale price application, customer credit-limit/overdue checks, sales invoice posting/cancel, sales return, GST/output tax and customer ledger integration. Needs richer pricing rules. |
+| Purchase | 70% | Purchase orders, approval-rule-aware PO/GRN creation, PO-to-GRN line conversion, GRN workflow, GRN-to-purchase-invoice traceability, source quantity controls, partial receipt/invoice indicators, default purchase cost application, purchase invoice posting/cancel, purchase return, GST/input tax and supplier ledger integration. Needs landed cost. |
+| Sales | 74% | Quotations, orders, delivery challans, approval-rule-aware planning creation, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, source quantity controls, partial delivery/invoice indicators, sales line discounts, default sale price application, customer credit-limit/overdue checks, sales invoice posting/cancel, sales return, GST/output tax and customer ledger integration. Needs richer pricing rules. |
 | Accounting | 65% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding, settlement-open-document queries, and date-aware GST reporting endpoints. Needs fiscal period controls, voucher types, reconciliation, account mappings. |
 | GST/Tax | 60% | CGST/SGST/IGST calculations, summary reports, input/output GST registers, workshop GST inclusion, date filters, and CSV exports. Needs GSTR formats and tax reconciliation. |
 | Payments/Notes | 63% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact, payment allocations against open customer/supplier documents, and settlement visibility. Needs multi-document allocation UI polish and settlement aging. |
@@ -66,6 +66,8 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added CSV exports for GST input and output registers in the Reports workspace.
 - Added payment allocation model, migration, open settlement document endpoint, allocation validation, and payment form settlement controls.
 - Added approval workflow foundation with configurable approval rules, auditable approval requests, approval/rejection decisions, and Settings UI.
+- Integrated approval rules with purchase orders, GRNs, sales quotations, sales orders, and delivery challans so matching rules create pending documents and approval requests atomically.
+- Approval decisions now promote supported pending planning documents to approved status and refresh purchase/sales planning caches.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -90,7 +92,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Add detail views, import/export, and server-side pagination for master records.
 - Add richer customer/supplier ledger drilldowns, multi-document allocation UI polish, and settlement aging.
 - Add richer technician task allocation, labor execution tracking, and customer-facing service summaries for workshop jobs.
-- Integrate approval rules into purchase, sales, workshop, and accounting document workflows where approval should block posting.
+- Extend approval-rule integration to workshop/accounting posting workflows where approval should block posting.
 - Add GSTR-ready export formats, GST reconciliation checks, and tax drilldowns.
 - Add date range filters, exports, and drilldowns for non-GST reports.
 - Add production-grade test harness and transaction integrity tests.
@@ -100,11 +102,11 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Configurable approval workflow foundation for business documents.
+Approval-rule integration with purchase and sales planning documents.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 5 to 9 focused development sessions.
+Estimated remaining iterations: 5 to 8 focused development sessions.
 
 The largest remaining chunks are configurable approvals, reporting/export depth, automated testing, richer settlement workflows, and production deployment hardening.
 
@@ -112,12 +114,10 @@ The largest remaining chunks are configurable approvals, reporting/export depth,
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `client/src/App.tsx`
-- `server/prisma/schema.prisma`
-- `server/prisma/migrations/20260730120000_approval_foundation/migration.sql`
-- `server/src/app.ts`
-- `server/src/modules/approvals/approvals.routes.ts`
 - `server/src/modules/approvals/approvals.service.ts`
+- `server/src/modules/purchase/purchase.service.ts`
+- `server/src/modules/sales/sales.service.ts`
 
 ## Next Implementation Target
 
-Approval-rule integration with purchase and sales planning documents.
+Production-grade automated tests for posting, approvals, settlement, and tax workflows.
