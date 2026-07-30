@@ -4,7 +4,7 @@ Last updated: 2026-07-30
 
 ## Overall Completion
 
-Estimated completion: 79%
+Estimated completion: 80%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -20,9 +20,9 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Inventory | 68% | Opening stock, stock balances, movements, adjustments, transfers, negative stock protection, reorder alerts. Needs valuation reports, batch/serial handling, stronger location selection, stock aging. |
 | Purchase | 68% | Purchase orders, PO-to-GRN line conversion, GRN workflow, GRN-to-purchase-invoice traceability, source quantity controls, partial receipt/invoice indicators, default purchase cost application, purchase invoice posting/cancel, purchase return, GST/input tax and supplier ledger integration. Needs approval depth, landed cost. |
 | Sales | 72% | Quotations, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, source quantity controls, partial delivery/invoice indicators, sales line discounts, default sale price application, customer credit-limit/overdue checks, sales invoice posting/cancel, sales return, GST/output tax and customer ledger integration. Needs richer pricing rules. |
-| Accounting | 64% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding, and date-aware GST reporting endpoints. Needs fiscal period controls, voucher types, reconciliation, account mappings. |
+| Accounting | 65% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding, settlement-open-document queries, and date-aware GST reporting endpoints. Needs fiscal period controls, voucher types, reconciliation, account mappings. |
 | GST/Tax | 60% | CGST/SGST/IGST calculations, summary reports, input/output GST registers, workshop GST inclusion, date filters, and CSV exports. Needs GSTR formats and tax reconciliation. |
-| Payments/Notes | 58% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact. Needs allocation against invoices and settlement tracking. |
+| Payments/Notes | 63% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact, payment allocations against open customer/supplier documents, and settlement visibility. Needs multi-document allocation UI polish and settlement aging. |
 | Workshop/Service | 65% | Job cards, vehicle complaints, parts/labor estimates, technician assignment, technician progress statuses/notes, service history, inspection/QC notes and checklist, status transitions, parts issue posting, GST-aware workshop billing, and delivery closeout timestamps/notes. Needs richer task allocation and customer-facing service summaries. |
 | Reports/Analytics | 49% | Reports workspace, business snapshot, financial statements, GST summary/registers, CSV exports, outstanding, reorder, audit. Needs broader date filters, drilldowns, dashboards, operational analytics. |
 | UI/UX | 50% | Responsive desktop-focused shell, working forms/lists, list search, global API errors, reports workspace, GST report filters/exports, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
@@ -64,6 +64,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added date-filtered GST summary and detailed input/output GST registers across purchases, purchase returns, sales, sales returns, and workshop invoices.
 - Fixed GST summary net payable calculation to include workshop billing tax in total output tax.
 - Added CSV exports for GST input and output registers in the Reports workspace.
+- Added payment allocation model, migration, open settlement document endpoint, allocation validation, and payment form settlement controls.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -86,7 +87,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 ## Remaining Tasks
 
 - Add detail views, import/export, and server-side pagination for master records.
-- Add richer customer/supplier ledgers with invoice allocation and settlement.
+- Add richer customer/supplier ledger drilldowns, multi-document allocation UI polish, and settlement aging.
 - Add richer technician task allocation, labor execution tracking, and customer-facing service summaries for workshop jobs.
 - Add configurable approval workflow foundation beyond simple statuses.
 - Add GSTR-ready export formats, GST reconciliation checks, and tax drilldowns.
@@ -98,11 +99,11 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Detailed GST registers, report filters, and CSV exports.
+Invoice allocation and settlement tracking for customer/supplier ledgers.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 6 to 11 focused development sessions.
+Estimated remaining iterations: 5 to 10 focused development sessions.
 
 The largest remaining chunks are configurable approvals, reporting/export depth, automated testing, richer settlement workflows, and production deployment hardening.
 
@@ -110,9 +111,11 @@ The largest remaining chunks are configurable approvals, reporting/export depth,
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `client/src/App.tsx`
-- `server/src/modules/accounting/accounting.routes.ts`
-- `server/src/modules/accounting/accounting.service.ts`
+- `server/prisma/schema.prisma`
+- `server/prisma/migrations/20260730113000_payment_allocations/migration.sql`
+- `server/src/modules/payments/payments.routes.ts`
+- `server/src/modules/payments/payments.service.ts`
 
 ## Next Implementation Target
 
-Invoice allocation and settlement tracking for customer/supplier ledgers.
+Configurable approval workflow foundation for posted business documents.

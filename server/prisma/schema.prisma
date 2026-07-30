@@ -161,6 +161,7 @@ model Company {
   journalEntries JournalEntry[]
   partyLedgerEntries PartyLedgerEntry[]
   payments       Payment[]
+  paymentAllocations PaymentAllocation[]
   financialNotes FinancialNote[]
   purchaseOrders PurchaseOrder[]
   goodsReceiptNotes GoodsReceiptNote[]
@@ -673,6 +674,7 @@ model Customer {
   salesInvoices SalesInvoice[]
   salesReturns SalesReturn[]
   payments Payment[]
+  paymentAllocations PaymentAllocation[]
   financialNotes FinancialNote[]
   jobCards JobCard[]
 
@@ -703,6 +705,7 @@ model Supplier {
   purchaseInvoices PurchaseInvoice[]
   purchaseReturns PurchaseReturn[]
   payments Payment[]
+  paymentAllocations PaymentAllocation[]
   financialNotes FinancialNote[]
 
   @@unique([companyId, code])
@@ -1418,9 +1421,34 @@ model Payment {
   supplier     Supplier?     @relation(fields: [supplierId], references: [id])
   paymentMode  PaymentMode   @relation(fields: [paymentModeId], references: [id])
   journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  allocations  PaymentAllocation[]
 
   @@unique([companyId, paymentNumber])
   @@index([companyId, partyType, paymentDate])
+}
+
+model PaymentAllocation {
+  id             String    @id @default(uuid()) @db.Uuid
+  companyId      String    @db.Uuid
+  paymentId      String    @db.Uuid
+  partyType      PartyType
+  customerId     String?   @db.Uuid
+  supplierId     String?   @db.Uuid
+  documentType   String    @db.VarChar(80)
+  documentId     String?   @db.VarChar(80)
+  documentNumber String    @db.VarChar(80)
+  allocatedAmount Decimal  @db.Decimal(14, 2)
+  allocatedAt     DateTime @default(now())
+
+  company  Company  @relation(fields: [companyId], references: [id])
+  payment  Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+
+  @@index([companyId, partyType, documentType, documentNumber])
+  @@index([companyId, customerId])
+  @@index([companyId, supplierId])
+  @@index([paymentId])
 }
 
 model JobCard {

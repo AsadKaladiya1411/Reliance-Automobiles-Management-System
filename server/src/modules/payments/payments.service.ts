@@ -9,6 +9,13 @@ type PaymentContext = RequestContext & {
   userId: string;
 };
 
+type AllocationInput = {
+  documentType?: unknown;
+  documentId?: unknown;
+  documentNumber?: unknown;
+  amount?: unknown;
+};
+
 function requiredString(value: unknown, field: string) {
   if (typeof value !== "string" || value.trim() === "") {
     throw new ApiError(400, "INVALID_PAYMENT_INPUT", `${field} is required.`);
@@ -91,10 +98,70 @@ export async function getPaymentSummary(companyId: string) {
 export async function listPayments(companyId: string) {
   return prisma.payment.findMany({
     where: { companyId },
-    include: { customer: true, supplier: true, paymentMode: true },
+    include: { customer: true, supplier: true, paymentMode: true, allocations: true },
     orderBy: [{ paymentDate: "desc" }, { createdAt: "desc" }],
     take: 100,
   });
+}
+
+async function openSettlementDocuments(
+  tx: Prisma.TransactionClient,
+  companyId: string,
+  partyType: "CUSTOMER" | "SUPPLIER",
+  partyId: string,
+) {
+  const where = {
+    companyId,
+    partyType,
+    ...(partyType === "CUSTOMER" ? { customerId: partyId } : { supplierId: partyId }),
+  };
+  const [ledgerEntries, allocations] = await Promise.all([
+    tx.partyLedgerEntry.findMany({
+      where,
+      orderBy: [{ entryDate: "asc" }, { createdAt: "asc" }],
+    }),
+    tx.paymentAllocation.groupBy({
+      by: ["documentType", "documentNumber"],
+      where,
+      _sum: { allocatedAmount: true },
+    }),
+  ]);
+  const allocatedByDocument = new Map(
+    allocations.map((allocation) => [
+      `${allocation.documentType}:${allocation.documentNumber}`,
+      new Prisma.Decimal(allocation._sum.allocatedAmount ?? 0),
+    ]),
+  );
+
+  return ledgerEntries
+    .filter((entry) => (partyType === "CUSTOMER" ? new Prisma.Decimal(entry.debitAmount).gt(0) : new Prisma.Decimal(entry.creditAmount).gt(0)))
+    .map((entry) => {
+      const documentAmount = partyType === "CUSTOMER" ? new Prisma.Decimal(entry.debitAmount) : new Prisma.Decimal(entry.creditAmount);
+      const allocatedAmount = allocatedByDocument.get(`${entry.documentType}:${entry.documentNumber}`) ?? new Prisma.Decimal(0);
+      return {
+        id: entry.id,
+        documentType: entry.documentType,
+        documentId: entry.documentId,
+        documentNumber: entry.documentNumber,
+        entryDate: entry.entryDate,
+        documentAmount,
+        allocatedAmount,
+        openAmount: documentAmount.minus(allocatedAmount).toDecimalPlaces(2),
+        narration: entry.narration,
+      };
+    })
+    .filter((entry) => entry.openAmount.gt(0));
+}
+
+export async function listOpenSettlementDocuments(companyId: string, partyTypeInput: unknown, partyIdInput: unknown) {
+  const partyType = requiredString(partyTypeInput, "Party type").toUpperCase();
+  const partyId = requiredString(partyIdInput, "Party");
+
+  if (!["CUSTOMER", "SUPPLIER"].includes(partyType)) {
+    throw new ApiError(400, "INVALID_PARTY_TYPE", "Party type must be CUSTOMER or SUPPLIER.");
+  }
+
+  return prisma.$transaction((tx) => openSettlementDocuments(tx, companyId, partyType as "CUSTOMER" | "SUPPLIER", partyId));
 }
 
 export async function postPayment(context: PaymentContext, body: unknown) {
@@ -103,6 +170,7 @@ export async function postPayment(context: PaymentContext, body: unknown) {
   const paymentModeId = requiredString(data.paymentModeId, "Payment mode");
   const paymentDate = parseDate(data.paymentDate);
   const amount = positiveAmount(data.amount);
+  const rawAllocations = Array.isArray(data.allocations) ? (data.allocations as AllocationInput[]) : [];
 
   if (!["CUSTOMER", "SUPPLIER"].includes(partyType)) {
     throw new ApiError(400, "INVALID_PARTY_TYPE", "Party type must be CUSTOMER or SUPPLIER.");
@@ -152,6 +220,51 @@ export async function postPayment(context: PaymentContext, body: unknown) {
       }
     }
 
+    const openDocuments = await openSettlementDocuments(tx, context.companyId, partyType as "CUSTOMER" | "SUPPLIER", customerId ?? supplierId ?? "");
+    const openByDocument = new Map(openDocuments.map((document) => [`${document.documentType}:${document.documentNumber}`, document]));
+    const rawPreparedAllocations = rawAllocations
+      .map((allocation) => ({
+        documentType: requiredString(allocation.documentType, "Allocation document type"),
+        documentNumber: requiredString(allocation.documentNumber, "Allocation document number"),
+        documentId: optionalString(allocation.documentId),
+        allocatedAmount: positiveAmount(allocation.amount),
+      }))
+      .filter((allocation) => allocation.allocatedAmount.gt(0));
+    const allocationMap = new Map<string, {
+      documentType: string;
+      documentNumber: string;
+      documentId?: string;
+      allocatedAmount: Prisma.Decimal;
+    }>();
+
+    for (const allocation of rawPreparedAllocations) {
+      const key = `${allocation.documentType}:${allocation.documentNumber}`;
+      const existing = allocationMap.get(key);
+      allocationMap.set(key, {
+        ...allocation,
+        allocatedAmount: existing ? existing.allocatedAmount.plus(allocation.allocatedAmount) : allocation.allocatedAmount,
+      });
+    }
+
+    const allocations = [...allocationMap.values()];
+    const allocatedTotal = allocations.reduce((total, allocation) => total.plus(allocation.allocatedAmount), new Prisma.Decimal(0));
+
+    if (allocatedTotal.gt(amount)) {
+      throw new ApiError(400, "PAYMENT_ALLOCATION_EXCEEDS_PAYMENT", "Allocated amount cannot exceed payment amount.");
+    }
+
+    for (const allocation of allocations) {
+      const openDocument = openByDocument.get(`${allocation.documentType}:${allocation.documentNumber}`);
+
+      if (!openDocument) {
+        throw new ApiError(400, "PAYMENT_ALLOCATION_DOCUMENT_NOT_OPEN", `${allocation.documentNumber} is not open for settlement.`);
+      }
+
+      if (allocation.allocatedAmount.gt(openDocument.openAmount)) {
+        throw new ApiError(400, "PAYMENT_ALLOCATION_EXCEEDS_OPEN_AMOUNT", `${allocation.documentNumber} allocation exceeds open amount.`);
+      }
+    }
+
     const journalEntry = await tx.journalEntry.create({
       data: {
         companyId: context.companyId,
@@ -197,6 +310,22 @@ export async function postPayment(context: PaymentContext, body: unknown) {
       include: { customer: true, supplier: true, paymentMode: true },
     });
 
+    if (allocations.length > 0) {
+      await tx.paymentAllocation.createMany({
+        data: allocations.map((allocation) => ({
+          companyId: context.companyId,
+          paymentId: payment.id,
+          partyType: partyType as "CUSTOMER" | "SUPPLIER",
+          customerId,
+          supplierId,
+          documentType: allocation.documentType,
+          documentId: allocation.documentId,
+          documentNumber: allocation.documentNumber,
+          allocatedAmount: allocation.allocatedAmount,
+        })),
+      });
+    }
+
     await tx.partyLedgerEntry.create({
       data: {
         companyId: context.companyId,
@@ -225,7 +354,7 @@ export async function postPayment(context: PaymentContext, body: unknown) {
         entityType: "Payment",
         entityId: payment.id,
         description: `${documentType} posted.`,
-        afterData: json(payment),
+        afterData: json({ payment, allocations }),
         ipAddress: context.ipAddress,
         userAgent: context.userAgent,
       },

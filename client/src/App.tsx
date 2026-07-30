@@ -473,6 +473,19 @@ type Payment = {
   customer?: Customer | null;
   supplier?: Supplier | null;
   paymentMode: PaymentMode;
+  allocations?: Array<{ id: string; documentNumber: string; allocatedAmount: string | number }>;
+};
+
+type OpenSettlementDocument = {
+  id: string;
+  documentType: string;
+  documentId?: string | null;
+  documentNumber: string;
+  entryDate: string;
+  documentAmount: string | number;
+  allocatedAmount: string | number;
+  openAmount: string | number;
+  narration?: string | null;
 };
 
 type FinancialNote = {
@@ -4127,22 +4140,46 @@ function PaymentPanel({
     amount: "0",
     referenceNo: "",
     narration: "Payment",
+    allocationDocumentNumber: "",
+    allocationAmount: "",
   });
   const parties = form.partyType === "CUSTOMER" ? customers : suppliers;
+  const openDocuments = useQuery({
+    queryKey: ["open-settlement-documents", form.partyType, form.partyId],
+    enabled: Boolean(form.partyId),
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<OpenSettlementDocument[]>>(
+        `/payments/open-documents?partyType=${form.partyType}&partyId=${form.partyId}`,
+      );
+      return response.data.data;
+    },
+  });
+  const selectedOpenDocument = (openDocuments.data ?? []).find((document) => document.documentNumber === form.allocationDocumentNumber);
   const mutation = useMutation({
     mutationFn: async () => {
-      await api.post("/payments", form);
+      await api.post("/payments", {
+        ...form,
+        allocations: selectedOpenDocument && Number(form.allocationAmount || 0) > 0
+          ? [{
+              documentType: selectedOpenDocument.documentType,
+              documentId: selectedOpenDocument.documentId,
+              documentNumber: selectedOpenDocument.documentNumber,
+              amount: form.allocationAmount,
+            }]
+          : [],
+      });
     },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["payments"] }),
+        queryClient.invalidateQueries({ queryKey: ["open-settlement-documents"] }),
         queryClient.invalidateQueries({ queryKey: ["payment-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["party-ledger"] }),
         queryClient.invalidateQueries({ queryKey: ["party-ledger-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
       ]);
-      setForm({ ...form, partyId: "", amount: "0", referenceNo: "" });
+      setForm({ ...form, partyId: "", amount: "0", referenceNo: "", allocationDocumentNumber: "", allocationAmount: "" });
     },
   });
 
@@ -4153,11 +4190,11 @@ function PaymentPanel({
         event.preventDefault();
         mutation.mutate();
       }}>
-        <select value={form.partyType} onChange={(event) => setForm({ ...form, partyType: event.target.value, partyId: "" })}>
+        <select value={form.partyType} onChange={(event) => setForm({ ...form, partyType: event.target.value, partyId: "", allocationDocumentNumber: "", allocationAmount: "" })}>
           <option value="CUSTOMER">Customer receipt</option>
           <option value="SUPPLIER">Supplier payment</option>
         </select>
-        <select value={form.partyId} onChange={(event) => setForm({ ...form, partyId: event.target.value })}>
+        <select value={form.partyId} onChange={(event) => setForm({ ...form, partyId: event.target.value, allocationDocumentNumber: "", allocationAmount: "" })}>
           <option value="">{form.partyType === "CUSTOMER" ? "Customer" : "Supplier"}</option>
           {parties.map((party) => <option key={party.id} value={party.id}>{party.name}</option>)}
         </select>
@@ -4169,13 +4206,39 @@ function PaymentPanel({
         <input placeholder="Amount" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} />
         <input placeholder="Reference no." value={form.referenceNo} onChange={(event) => setForm({ ...form, referenceNo: event.target.value })} />
         <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
+        <select
+          value={form.allocationDocumentNumber}
+          onChange={(event) => {
+            const document = (openDocuments.data ?? []).find((item) => item.documentNumber === event.target.value);
+            setForm({
+              ...form,
+              allocationDocumentNumber: event.target.value,
+              allocationAmount: document ? String(document.openAmount) : "",
+            });
+          }}
+        >
+          <option value="">Allocate to document</option>
+          {(openDocuments.data ?? []).map((document) => (
+            <option key={document.id} value={document.documentNumber}>
+              {`${document.documentNumber} / Open ${document.openAmount}`}
+            </option>
+          ))}
+        </select>
+        <input placeholder="Allocation amount" value={form.allocationAmount} onChange={(event) => setForm({ ...form, allocationAmount: event.target.value })} />
         <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
       </form>
+      <MasterList
+        items={(openDocuments.data ?? []).map((document) => ({
+          id: document.id,
+          label: `${document.documentNumber} / ${document.documentType}`,
+          meta: `${document.entryDate.slice(0, 10)} / Amount ${document.documentAmount} / Allocated ${document.allocatedAmount} / Open ${document.openAmount}`,
+        }))}
+      />
       <MasterList
         items={items.map((payment) => ({
           id: payment.id,
           label: payment.paymentNumber,
-          meta: `${payment.customer?.name ?? payment.supplier?.name ?? payment.partyType} / ${payment.amount}`,
+          meta: `${payment.customer?.name ?? payment.supplier?.name ?? payment.partyType} / ${payment.amount} / Settled ${payment.allocations?.reduce((total, allocation) => total + Number(allocation.allocatedAmount), 0) ?? 0}`,
         }))}
       />
     </article>

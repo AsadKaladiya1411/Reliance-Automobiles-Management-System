@@ -3,7 +3,7 @@ import type { Request } from "express";
 import { requireAuth, requireModuleAccess, requirePermission } from "../auth/auth.middleware";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
-import { getPaymentSummary, listPayments, postPayment } from "./payments.service";
+import { getPaymentSummary, listOpenSettlementDocuments, listPayments, postPayment } from "./payments.service";
 
 const router = Router();
 
@@ -24,6 +24,10 @@ router.get("/payments/summary", asyncHandler(async (req, res) => {
 
 router.get("/payments", asyncHandler(async (req, res) => {
   sendSuccess(res, await listPayments(req.user!.companyId));
+}));
+
+router.get("/payments/open-documents", asyncHandler(async (req, res) => {
+  sendSuccess(res, await listOpenSettlementDocuments(req.user!.companyId, req.query.partyType, req.query.partyId));
 }));
 
 router.post("/payments", requirePermission("accounting", "post"), asyncHandler(async (req, res) => {
