@@ -592,6 +592,13 @@ type JobCard = {
   jobDate: string;
   status: string;
   complaint: string;
+  diagnosis?: string | null;
+  workNotes?: string | null;
+  inspectionNotes?: string | null;
+  qualityCheckedAt?: string | null;
+  readyAt?: string | null;
+  deliveryNotes?: string | null;
+  deliveredAt?: string | null;
   estimatedTotal: string | number;
   partsIssuedAt?: string | null;
   billingNumber?: string | null;
@@ -4099,6 +4106,10 @@ function JobCardPanel({
     odometerReading: "0",
     fuelLevel: "",
     complaint: "",
+    diagnosis: "",
+    workNotes: "",
+    inspectionNotes: "",
+    deliveryNotes: "",
     partVariantId: "",
     partQuantity: "1",
     partRate: "0",
@@ -4120,6 +4131,8 @@ function JobCardPanel({
         odometerReading: form.odometerReading,
         fuelLevel: form.fuelLevel,
         complaint: form.complaint,
+        diagnosis: form.diagnosis,
+        workNotes: form.workNotes,
         parts: form.partVariantId
           ? [{ productVariantId: form.partVariantId, quantity: form.partQuantity, estimatedRate: form.partRate }]
           : [],
@@ -4136,6 +4149,10 @@ function JobCardPanel({
       setForm({
         ...form,
         complaint: "",
+        diagnosis: "",
+        workNotes: "",
+        inspectionNotes: "",
+        deliveryNotes: "",
         partVariantId: "",
         partQuantity: "1",
         partRate: "0",
@@ -4146,12 +4163,32 @@ function JobCardPanel({
   });
   const statusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      await api.patch(`/workshop/job-cards/${id}/status`, { status });
+      await api.patch(`/workshop/job-cards/${id}/status`, { status, deliveryNotes: form.deliveryNotes });
     },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["job-cards"] }),
         queryClient.invalidateQueries({ queryKey: ["workshop-summary"] }),
+      ]);
+    },
+  });
+  const inspectionMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.patch(`/workshop/job-cards/${id}/inspection`, {
+        diagnosis: form.diagnosis,
+        workNotes: form.workNotes,
+        inspectionNotes: form.inspectionNotes,
+        inspectionChecklist: [
+          { label: "Complaint verified", checked: true },
+          { label: "Road test completed", checked: true },
+          { label: "Final quality check completed", checked: true },
+        ],
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["job-cards"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
       ]);
     },
   });
@@ -4229,6 +4266,10 @@ function JobCardPanel({
         <input placeholder="Odometer" value={form.odometerReading} onChange={(event) => setForm({ ...form, odometerReading: event.target.value })} />
         <input placeholder="Fuel level" value={form.fuelLevel} onChange={(event) => setForm({ ...form, fuelLevel: event.target.value })} />
         <input placeholder="Complaint" value={form.complaint} onChange={(event) => setForm({ ...form, complaint: event.target.value })} />
+        <input placeholder="Diagnosis" value={form.diagnosis} onChange={(event) => setForm({ ...form, diagnosis: event.target.value })} />
+        <input placeholder="Work notes" value={form.workNotes} onChange={(event) => setForm({ ...form, workNotes: event.target.value })} />
+        <input placeholder="Inspection notes" value={form.inspectionNotes} onChange={(event) => setForm({ ...form, inspectionNotes: event.target.value })} />
+        <input placeholder="Delivery notes" value={form.deliveryNotes} onChange={(event) => setForm({ ...form, deliveryNotes: event.target.value })} />
         <select value={form.partVariantId} onChange={(event) => setForm({ ...form, partVariantId: event.target.value })}>
           <option value="">Estimated part</option>
           {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
@@ -4254,6 +4295,7 @@ function JobCardPanel({
       <JobCardList
         canIssueParts={Boolean(form.issueWarehouseId)}
         items={items}
+        onInspect={(id) => inspectionMutation.mutate(id)}
         onBill={(id) => billingMutation.mutate(id)}
         onIssueParts={(id) => issueMutation.mutate(id)}
         onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
@@ -4265,12 +4307,14 @@ function JobCardPanel({
 function JobCardList({
   canIssueParts,
   items,
+  onInspect,
   onIssueParts,
   onBill,
   onStatusChange,
 }: {
   canIssueParts: boolean;
   items: JobCard[];
+  onInspect: (id: string) => void;
   onBill: (id: string) => void;
   onIssueParts: (id: string) => void;
   onStatusChange: (id: string, status: string) => void;
@@ -4284,7 +4328,7 @@ function JobCardList({
       {items.slice(0, 8).map((item) => (
         <li key={item.id}>
           <span>{`${item.jobCardNumber} / ${item.vehicle.registrationNumber}`}</span>
-          <strong>{`${item.customer.name} / ${item.status} / ${item.billingNumber ?? "Unbilled"} / Taxable ${item.billingTaxableAmount ?? item.estimatedTotal} / Tax ${item.billingTotalTaxAmount ?? 0} / Total ${item.billingAmount ?? item.estimatedTotal}`}</strong>
+          <strong>{`${item.customer.name} / ${item.status} / ${item.qualityCheckedAt ? "QC done" : "QC pending"} / ${item.billingNumber ?? "Unbilled"} / Total ${item.billingAmount ?? item.estimatedTotal}`}</strong>
           <select value={item.status} onChange={(event) => onStatusChange(item.id, event.target.value)}>
             <option value="OPEN">OPEN</option>
             <option value="IN_PROGRESS">IN_PROGRESS</option>
@@ -4295,6 +4339,11 @@ function JobCardList({
           {!item.partsIssuedAt && !["CANCELLED", "DELIVERED"].includes(item.status) ? (
             <Button type="button" variant="outline" disabled={!canIssueParts} onClick={() => onIssueParts(item.id)}>
               Issue Parts
+            </Button>
+          ) : null}
+          {!item.qualityCheckedAt && !["CANCELLED", "DELIVERED"].includes(item.status) ? (
+            <Button type="button" variant="outline" onClick={() => onInspect(item.id)}>
+              Inspect
             </Button>
           ) : null}
           {!item.billedAt && !["CANCELLED"].includes(item.status) ? (

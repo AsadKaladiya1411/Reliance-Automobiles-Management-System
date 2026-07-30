@@ -1438,6 +1438,13 @@ model JobCard {
   complaint         String        @db.VarChar(800)
   diagnosis         String?       @db.VarChar(800)
   workNotes         String?       @db.VarChar(800)
+  inspectionChecklist Json?
+  inspectionNotes  String?        @db.VarChar(800)
+  qualityCheckedByUserId String?  @db.Uuid
+  qualityCheckedAt DateTime?
+  readyAt          DateTime?
+  deliveryNotes    String?        @db.VarChar(800)
+  deliveredAt      DateTime?
   status            JobCardStatus @default(OPEN)
   estimatedPartsTotal Decimal     @default(0) @db.Decimal(14, 2)
   estimatedLaborTotal Decimal     @default(0) @db.Decimal(14, 2)
@@ -1475,6 +1482,8 @@ model JobCard {
   @@unique([companyId, billingNumber])
   @@index([companyId, status, jobDate])
   @@index([companyId, billedAt])
+  @@index([companyId, qualityCheckedAt])
+  @@index([companyId, deliveredAt])
   @@index([companyId, serviceTaxRateId])
   @@index([companyId, customerId, jobDate])
   @@index([companyId, vehicleId, jobDate])

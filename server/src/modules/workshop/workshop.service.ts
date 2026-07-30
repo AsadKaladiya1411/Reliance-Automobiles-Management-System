@@ -76,6 +76,19 @@ function json(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
+function inspectionChecklist(value: unknown): Prisma.InputJsonValue | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value
+    .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    .map((item) => ({
+      label: optionalString(item.label) ?? "Inspection item",
+      checked: Boolean(item.checked),
+    })) as Prisma.InputJsonValue;
+}
+
 function locationKey(input: { warehouseId: string }) {
   return [input.warehouseId, "-", "-", "-"].join(":");
 }
@@ -299,11 +312,22 @@ export async function updateJobCardStatus(context: WorkshopContext, jobCardId: s
     throw new ApiError(404, "JOB_CARD_NOT_FOUND", "Job card not found.");
   }
 
+  if (status === "READY" && !existing.qualityCheckedAt) {
+    throw new ApiError(400, "JOB_CARD_QC_REQUIRED", "Complete inspection before marking the job card ready.");
+  }
+
+  if (status === "DELIVERED" && !existing.billedAt) {
+    throw new ApiError(400, "JOB_CARD_BILLING_REQUIRED", "Bill the job card before delivery closeout.");
+  }
+
   const updated = await prisma.jobCard.update({
     where: { id: existing.id },
     data: {
       status: status as "OPEN" | "IN_PROGRESS" | "READY" | "DELIVERED" | "CANCELLED",
       workNotes: optionalString(data.workNotes) ?? existing.workNotes,
+      deliveryNotes: status === "DELIVERED" ? optionalString(data.deliveryNotes) ?? existing.deliveryNotes : existing.deliveryNotes,
+      readyAt: status === "READY" && !existing.readyAt ? new Date() : existing.readyAt,
+      deliveredAt: status === "DELIVERED" && !existing.deliveredAt ? new Date() : existing.deliveredAt,
     },
   });
 
@@ -316,6 +340,50 @@ export async function updateJobCardStatus(context: WorkshopContext, jobCardId: s
       entityType: "JobCard",
       entityId: existing.id,
       description: "Job card status updated.",
+      beforeData: json(existing),
+      afterData: json(updated),
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+    },
+  });
+
+  return updated;
+}
+
+export async function updateJobCardInspection(context: WorkshopContext, jobCardId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const existing = await prisma.jobCard.findFirst({ where: { id: jobCardId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "JOB_CARD_NOT_FOUND", "Job card not found.");
+  }
+
+  if (existing.status === "CANCELLED" || existing.status === "DELIVERED") {
+    throw new ApiError(400, "JOB_CARD_CLOSED", "Inspection cannot be changed after cancellation or delivery.");
+  }
+
+  const checklist = inspectionChecklist(data.inspectionChecklist);
+  const updated = await prisma.jobCard.update({
+    where: { id: existing.id },
+    data: {
+      diagnosis: optionalString(data.diagnosis) ?? existing.diagnosis,
+      workNotes: optionalString(data.workNotes) ?? existing.workNotes,
+      ...(checklist ? { inspectionChecklist: checklist } : {}),
+      inspectionNotes: optionalString(data.inspectionNotes) ?? existing.inspectionNotes,
+      qualityCheckedByUserId: context.userId,
+      qualityCheckedAt: new Date(),
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      companyId: context.companyId,
+      actorUserId: context.userId,
+      module: "workshop",
+      action: "UPDATE",
+      entityType: "JobCardInspection",
+      entityId: existing.id,
+      description: "Job card inspection updated.",
       beforeData: json(existing),
       afterData: json(updated),
       ipAddress: context.ipAddress,
