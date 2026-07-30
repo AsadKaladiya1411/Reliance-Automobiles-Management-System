@@ -595,6 +595,9 @@ type JobCard = {
   estimatedTotal: string | number;
   partsIssuedAt?: string | null;
   billingNumber?: string | null;
+  billingTaxMode?: string;
+  billingTaxableAmount?: string | number;
+  billingTotalTaxAmount?: string | number;
   billingAmount?: string | number;
   billedAt?: string | null;
   customer: Customer;
@@ -1295,6 +1298,7 @@ function WorkshopView({ workshopSummary }: { workshopSummary?: WorkshopSummary }
   const vehicles = useMasterList<Vehicle>("vehicles", "/commercial-masters/vehicles");
   const employees = useMasterList<Employee>("employees", "/commercial-masters/employees");
   const variants = useMasterList<ProductVariant>("product-variants", "/masters/product-variants");
+  const taxRates = useMasterList<TaxRate>("tax-rates", "/masters/tax-rates");
   const warehouses = useMasterList<Warehouse>("warehouses", "/masters/warehouses");
   const jobCards = useMasterList<JobCard>("job-cards", "/workshop/job-cards");
 
@@ -1313,6 +1317,7 @@ function WorkshopView({ workshopSummary }: { workshopSummary?: WorkshopSummary }
           customers={customers.data ?? []}
           employees={employees.data ?? []}
           items={jobCards.data ?? []}
+          taxRates={taxRates.data ?? []}
           variants={variants.data ?? []}
           vehicles={vehicles.data ?? []}
           warehouses={warehouses.data ?? []}
@@ -4072,6 +4077,7 @@ function JobCardPanel({
   customers,
   employees,
   items,
+  taxRates,
   variants,
   vehicles,
   warehouses,
@@ -4079,6 +4085,7 @@ function JobCardPanel({
   customers: Customer[];
   employees: Employee[];
   items: JobCard[];
+  taxRates: TaxRate[];
   variants: ProductVariant[];
   vehicles: Vehicle[];
   warehouses: Warehouse[];
@@ -4098,6 +4105,8 @@ function JobCardPanel({
     laborDescription: "",
     laborAmount: "0",
     issueWarehouseId: "",
+    billingTaxMode: "CGST_SGST",
+    serviceTaxRateId: "",
   });
   const customerVehicles = vehicles.filter((vehicle) => !form.customerId || vehicle.customer?.id === form.customerId);
   const createMutation = useMutation({
@@ -4169,7 +4178,11 @@ function JobCardPanel({
   });
   const billingMutation = useMutation({
     mutationFn: async (id: string) => {
-      await api.post(`/workshop/job-cards/${id}/bill`, { billingDate: new Date().toISOString().slice(0, 10) });
+      await api.post(`/workshop/job-cards/${id}/bill`, {
+        billingDate: new Date().toISOString().slice(0, 10),
+        taxMode: form.billingTaxMode,
+        serviceTaxRateId: form.serviceTaxRateId,
+      });
     },
     onSuccess: async () => {
       await Promise.all([
@@ -4228,6 +4241,14 @@ function JobCardPanel({
           <option value="">Issue warehouse</option>
           {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
         </select>
+        <select value={form.billingTaxMode} onChange={(event) => setForm({ ...form, billingTaxMode: event.target.value })}>
+          <option value="CGST_SGST">CGST + SGST</option>
+          <option value="IGST">IGST</option>
+        </select>
+        <select value={form.serviceTaxRateId} onChange={(event) => setForm({ ...form, serviceTaxRateId: event.target.value })}>
+          <option value="">Service tax rate</option>
+          {taxRates.map((taxRate) => <option key={taxRate.id} value={taxRate.id}>{taxRate.name}</option>)}
+        </select>
         <Button type="submit" variant="outline" disabled={createMutation.isPending}>Create</Button>
       </form>
       <JobCardList
@@ -4263,7 +4284,7 @@ function JobCardList({
       {items.slice(0, 8).map((item) => (
         <li key={item.id}>
           <span>{`${item.jobCardNumber} / ${item.vehicle.registrationNumber}`}</span>
-          <strong>{`${item.customer.name} / ${item.status} / ${item.billingNumber ?? "Unbilled"} / ${item.billingAmount ?? item.estimatedTotal}`}</strong>
+          <strong>{`${item.customer.name} / ${item.status} / ${item.billingNumber ?? "Unbilled"} / Taxable ${item.billingTaxableAmount ?? item.estimatedTotal} / Tax ${item.billingTotalTaxAmount ?? 0} / Total ${item.billingAmount ?? item.estimatedTotal}`}</strong>
           <select value={item.status} onChange={(event) => onStatusChange(item.id, event.target.value)}>
             <option value="OPEN">OPEN</option>
             <option value="IN_PROGRESS">IN_PROGRESS</option>

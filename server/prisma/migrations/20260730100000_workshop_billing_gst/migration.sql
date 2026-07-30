@@ -1,0 +1,12 @@
+ALTER TABLE "JobCard" ADD COLUMN "serviceTaxRateId" UUID;
+ALTER TABLE "JobCard" ADD COLUMN "billingTaxMode" VARCHAR(16) NOT NULL DEFAULT 'CGST_SGST';
+ALTER TABLE "JobCard" ADD COLUMN "billingHsnCode" VARCHAR(8);
+ALTER TABLE "JobCard" ADD COLUMN "billingTaxableAmount" DECIMAL(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE "JobCard" ADD COLUMN "billingCgstAmount" DECIMAL(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE "JobCard" ADD COLUMN "billingSgstAmount" DECIMAL(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE "JobCard" ADD COLUMN "billingIgstAmount" DECIMAL(14,2) NOT NULL DEFAULT 0;
+ALTER TABLE "JobCard" ADD COLUMN "billingTotalTaxAmount" DECIMAL(14,2) NOT NULL DEFAULT 0;
+
+CREATE INDEX "JobCard_companyId_serviceTaxRateId_idx" ON "JobCard"("companyId", "serviceTaxRateId");
+
+ALTER TABLE "JobCard" ADD CONSTRAINT "JobCard_serviceTaxRateId_fkey" FOREIGN KEY ("serviceTaxRateId") REFERENCES "TaxRate"("id") ON DELETE SET NULL ON UPDATE CASCADE;

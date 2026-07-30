@@ -132,6 +132,16 @@ async function requireAccount(tx: Prisma.TransactionClient, companyId: string, c
   return account;
 }
 
+function optionalTaxMode(value: unknown) {
+  const taxMode = (optionalString(value) ?? "CGST_SGST").toUpperCase();
+
+  if (!["CGST_SGST", "IGST"].includes(taxMode)) {
+    throw new ApiError(400, "INVALID_TAX_MODE", "Tax mode must be CGST_SGST or IGST.");
+  }
+
+  return taxMode;
+}
+
 export async function getWorkshopSummary(companyId: string) {
   const [open, inProgress, ready, delivered] = await Promise.all([
     prisma.jobCard.count({ where: { companyId, status: "OPEN" } }),
@@ -248,6 +258,7 @@ export async function createJobCard(context: WorkshopContext, body: unknown) {
       include: {
         customer: true,
         vehicle: true,
+        serviceTaxRate: { include: { hsnCode: true } },
         advisor: true,
         technician: true,
         parts: { include: { productVariant: true } },
@@ -475,6 +486,8 @@ export async function issueJobCardParts(context: WorkshopContext, jobCardId: str
 export async function postJobCardBilling(context: WorkshopContext, jobCardId: string, body: unknown) {
   const data = body as Record<string, unknown>;
   const billingDate = parseDate(data.billingDate);
+  const serviceTaxRateId = optionalString(data.serviceTaxRateId);
+  const taxMode = optionalTaxMode(data.taxMode);
 
   return prisma.$transaction(async (tx) => {
     const jobCard = await tx.jobCard.findFirst({
@@ -505,17 +518,38 @@ export async function postJobCardBilling(context: WorkshopContext, jobCardId: st
 
     const partsTotal = jobCard.parts.reduce((total, part) => total.plus(part.estimatedAmount), new Prisma.Decimal(0));
     const laborTotal = jobCard.laborLines.reduce((total, labor) => total.plus(labor.estimatedAmount), new Prisma.Decimal(0));
-    const billingAmount = nonNegativeDecimal(data.billingAmount, "Billing amount").gt(0)
+    const billingTaxableAmount = nonNegativeDecimal(data.billingAmount, "Billing amount").gt(0)
       ? nonNegativeDecimal(data.billingAmount, "Billing amount")
       : partsTotal.plus(laborTotal).toDecimalPlaces(2);
 
-    if (billingAmount.lte(0)) {
+    if (billingTaxableAmount.lte(0)) {
       throw new ApiError(400, "JOB_CARD_BILLING_AMOUNT_REQUIRED", "Billing amount must be greater than zero.");
     }
 
-    const [receivableAccount, revenueAccount] = await Promise.all([
+    const serviceTaxRate = serviceTaxRateId
+      ? await tx.taxRate.findFirst({
+          where: { id: serviceTaxRateId, companyId: context.companyId, status: "ACTIVE" },
+          include: { hsnCode: true },
+        })
+      : null;
+
+    if (serviceTaxRateId && !serviceTaxRate) {
+      throw new ApiError(404, "TAX_RATE_NOT_FOUND", "Service tax rate not found or inactive.");
+    }
+
+    const cgstRate = taxMode === "CGST_SGST" ? serviceTaxRate?.cgstRate ?? new Prisma.Decimal(0) : new Prisma.Decimal(0);
+    const sgstRate = taxMode === "CGST_SGST" ? serviceTaxRate?.sgstRate ?? new Prisma.Decimal(0) : new Prisma.Decimal(0);
+    const igstRate = taxMode === "IGST" ? serviceTaxRate?.igstRate ?? new Prisma.Decimal(0) : new Prisma.Decimal(0);
+    const billingCgstAmount = billingTaxableAmount.mul(cgstRate).div(100).toDecimalPlaces(2);
+    const billingSgstAmount = billingTaxableAmount.mul(sgstRate).div(100).toDecimalPlaces(2);
+    const billingIgstAmount = billingTaxableAmount.mul(igstRate).div(100).toDecimalPlaces(2);
+    const billingTotalTaxAmount = billingCgstAmount.plus(billingSgstAmount).plus(billingIgstAmount).toDecimalPlaces(2);
+    const billingAmount = billingTaxableAmount.plus(billingTotalTaxAmount).toDecimalPlaces(2);
+
+    const [receivableAccount, revenueAccount, gstPayableAccount] = await Promise.all([
       requireAccount(tx, context.companyId, "1100"),
       requireAccount(tx, context.companyId, "4000"),
+      requireAccount(tx, context.companyId, "2100"),
     ]);
     const [billingNumber, journalNumber] = await Promise.all([
       nextWorkshopInvoiceNumber(tx, context.companyId),
@@ -537,7 +571,10 @@ export async function postJobCardBilling(context: WorkshopContext, jobCardId: st
         lines: {
           create: [
             { accountId: receivableAccount.id, debitAmount: billingAmount, narration: billingNumber, lineOrder: 1 },
-            { accountId: revenueAccount.id, creditAmount: billingAmount, narration: billingNumber, lineOrder: 2 },
+            { accountId: revenueAccount.id, creditAmount: billingTaxableAmount, narration: billingNumber, lineOrder: 2 },
+            ...(billingTotalTaxAmount.gt(0)
+              ? [{ accountId: gstPayableAccount.id, creditAmount: billingTotalTaxAmount, narration: billingNumber, lineOrder: 3 }]
+              : []),
           ],
         },
       },
@@ -548,6 +585,14 @@ export async function postJobCardBilling(context: WorkshopContext, jobCardId: st
       data: {
         status: "DELIVERED",
         billingNumber,
+        serviceTaxRateId: serviceTaxRate?.id,
+        billingTaxMode: taxMode,
+        billingHsnCode: serviceTaxRate?.hsnCode?.code,
+        billingTaxableAmount,
+        billingCgstAmount,
+        billingSgstAmount,
+        billingIgstAmount,
+        billingTotalTaxAmount,
         billingAmount,
         billingJournalEntryId: journalEntry.id,
         billedByUserId: context.userId,
@@ -556,6 +601,7 @@ export async function postJobCardBilling(context: WorkshopContext, jobCardId: st
       include: {
         customer: true,
         vehicle: true,
+        serviceTaxRate: { include: { hsnCode: true } },
         advisor: true,
         technician: true,
         parts: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } },

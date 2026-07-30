@@ -4,7 +4,7 @@ Last updated: 2026-07-25
 
 ## Overall Completion
 
-Estimated completion: 75%
+Estimated completion: 76%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -21,9 +21,9 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Purchase | 68% | Purchase orders, PO-to-GRN line conversion, GRN workflow, GRN-to-purchase-invoice traceability, source quantity controls, partial receipt/invoice indicators, default purchase cost application, purchase invoice posting/cancel, purchase return, GST/input tax and supplier ledger integration. Needs approval depth, landed cost. |
 | Sales | 72% | Quotations, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, source quantity controls, partial delivery/invoice indicators, sales line discounts, default sale price application, customer credit-limit/overdue checks, sales invoice posting/cancel, sales return, GST/output tax and customer ledger integration. Needs richer pricing rules. |
 | Accounting | 63% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding. Needs fiscal period controls, voucher types, reconciliation, account mappings. |
-| GST/Tax | 50% | CGST/SGST/IGST calculations and summary reports. Needs detailed GST registers, GSTR exports, tax reconciliation. |
+| GST/Tax | 53% | CGST/SGST/IGST calculations and summary reports across purchase, sales, returns, and workshop billing. Needs detailed GST registers, GSTR exports, tax reconciliation. |
 | Payments/Notes | 58% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact. Needs allocation against invoices and settlement tracking. |
-| Workshop/Service | 52% | Job cards, vehicle complaints, parts/labor estimates, status changes, parts issue posting, and workshop billing to customer ledger/accounting without double-consuming issued parts. Needs GST/service HSN handling, technician workflow, inspections, and richer delivery closeout. |
+| Workshop/Service | 56% | Job cards, vehicle complaints, parts/labor estimates, status changes, parts issue posting, and GST-aware workshop billing to customer ledger/accounting without double-consuming issued parts. Needs technician workflow, inspections, and richer delivery closeout. |
 | Reports/Analytics | 45% | Reports workspace, business snapshot, financial statements, GST summary, outstanding, reorder, audit. Needs date filters, exports, drilldowns, dashboards, operational analytics. |
 | UI/UX | 49% | Responsive desktop-focused shell, working forms/lists, list search, global API errors, reports workspace, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
 | Testing/Quality | 18% | Typecheck, lint, and build pass. Needs automated unit/integration tests, transaction tests, API tests, frontend workflow tests. |
@@ -58,6 +58,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added default product variant purchase-cost application in purchase orders and purchase invoices with server-side fallback.
 - Added explicit RBAC permission guards for sensitive posting, cancellation, stock movement, accounting, payments, notes, and workshop issue/status routes.
 - Added workshop invoice posting from job cards with receivable/revenue accounting and customer ledger impact without additional inventory consumption.
+- Added GST-aware workshop billing with service tax-rate selection, CGST/SGST/IGST posting, HSN capture, and GST summary inclusion.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -81,8 +82,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 - Add detail views, import/export, and server-side pagination for master records.
 - Add richer customer/supplier ledgers with invoice allocation and settlement.
-- Add labor billing/accounting for workshop jobs.
-- Add GST/service HSN handling for workshop billing.
+- Add technician workflow, inspection checklist, and richer delivery closeout for workshop jobs.
 - Add configurable approval workflow foundation beyond simple statuses.
 - Add detailed GST registers and export-ready reports.
 - Add date range filters, exports, and drilldowns for reports.
@@ -93,11 +93,11 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Workshop job card billing.
+GST-aware workshop billing.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 7 to 14 focused development sessions.
+Estimated remaining iterations: 7 to 13 focused development sessions.
 
 The largest remaining chunks are workshop billing, approval/permission enforcement, reporting/export depth, automated testing, and production deployment hardening.
 
@@ -114,6 +114,7 @@ The largest remaining chunks are workshop billing, approval/permission enforceme
 - `server/src/modules/payments/payments.routes.ts`
 - `server/prisma/schema.prisma`
 - `server/prisma/migrations/20260727123000_workshop_billing/migration.sql`
+- `server/prisma/migrations/20260730100000_workshop_billing_gst/migration.sql`
 - `server/prisma/migrations/20260725192000_invoice_source_traceability/migration.sql`
 - `server/prisma/migrations/20260727113000_sales_line_discounts/migration.sql`
 - `server/src/modules/purchase/purchase.service.ts`
@@ -125,4 +126,4 @@ The largest remaining chunks are workshop billing, approval/permission enforceme
 
 ## Next Implementation Target
 
-GST/service HSN handling for workshop billing.
+Technician workflow, inspection checklist, and richer delivery closeout for workshop jobs.

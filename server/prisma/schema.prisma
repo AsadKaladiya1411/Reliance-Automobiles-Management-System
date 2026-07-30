@@ -365,6 +365,7 @@ model TaxRate {
   company Company @relation(fields: [companyId], references: [id])
   hsnCode HsnCode? @relation(fields: [hsnCodeId], references: [id])
   products Product[]
+  jobCards JobCard[]
 
   @@unique([companyId, name, effectiveFrom])
   @@index([companyId, status])
@@ -1446,6 +1447,14 @@ model JobCard {
   partsIssuedByUserId String?     @db.Uuid
   partsIssuedAt     DateTime?
   billingNumber     String?       @db.VarChar(80)
+  serviceTaxRateId  String?       @db.Uuid
+  billingTaxMode    String        @default("CGST_SGST") @db.VarChar(16)
+  billingHsnCode    String?       @db.VarChar(8)
+  billingTaxableAmount Decimal    @default(0) @db.Decimal(14, 2)
+  billingCgstAmount Decimal       @default(0) @db.Decimal(14, 2)
+  billingSgstAmount Decimal       @default(0) @db.Decimal(14, 2)
+  billingIgstAmount Decimal       @default(0) @db.Decimal(14, 2)
+  billingTotalTaxAmount Decimal   @default(0) @db.Decimal(14, 2)
   billingAmount     Decimal       @default(0) @db.Decimal(14, 2)
   billingJournalEntryId String?   @db.Uuid
   billedByUserId    String?       @db.Uuid
@@ -1458,6 +1467,7 @@ model JobCard {
   vehicle    Vehicle   @relation(fields: [vehicleId], references: [id])
   advisor    Employee? @relation("JobCardAdvisor", fields: [advisorEmployeeId], references: [id])
   technician Employee? @relation("JobCardTechnician", fields: [technicianEmployeeId], references: [id])
+  serviceTaxRate TaxRate? @relation(fields: [serviceTaxRateId], references: [id])
   parts      JobCardPart[]
   laborLines JobCardLabor[]
 
@@ -1465,6 +1475,7 @@ model JobCard {
   @@unique([companyId, billingNumber])
   @@index([companyId, status, jobDate])
   @@index([companyId, billedAt])
+  @@index([companyId, serviceTaxRateId])
   @@index([companyId, customerId, jobDate])
   @@index([companyId, vehicleId, jobDate])
 }
