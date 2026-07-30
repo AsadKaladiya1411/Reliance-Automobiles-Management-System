@@ -594,6 +594,10 @@ type JobCard = {
   complaint: string;
   diagnosis?: string | null;
   workNotes?: string | null;
+  technicianStatus?: string;
+  technicianNotes?: string | null;
+  technicianStartedAt?: string | null;
+  technicianCompletedAt?: string | null;
   inspectionNotes?: string | null;
   qualityCheckedAt?: string | null;
   readyAt?: string | null;
@@ -609,6 +613,7 @@ type JobCard = {
   billedAt?: string | null;
   customer: Customer;
   vehicle: Vehicle;
+  technician?: Employee | null;
 };
 
 type AppView = "dashboard" | "masters" | "inventory" | "workshop" | "transactions" | "reports" | "settings";
@@ -1308,6 +1313,7 @@ function WorkshopView({ workshopSummary }: { workshopSummary?: WorkshopSummary }
   const taxRates = useMasterList<TaxRate>("tax-rates", "/masters/tax-rates");
   const warehouses = useMasterList<Warehouse>("warehouses", "/masters/warehouses");
   const jobCards = useMasterList<JobCard>("job-cards", "/workshop/job-cards");
+  const serviceHistory = useMasterList<JobCard>("service-history", "/workshop/service-history");
 
   return (
     <>
@@ -1329,6 +1335,7 @@ function WorkshopView({ workshopSummary }: { workshopSummary?: WorkshopSummary }
           vehicles={vehicles.data ?? []}
           warehouses={warehouses.data ?? []}
         />
+        <ServiceHistoryPanel items={serviceHistory.data ?? []} />
       </section>
       <ModuleGrid filter={["Workshop"]} />
     </>
@@ -4110,6 +4117,8 @@ function JobCardPanel({
     workNotes: "",
     inspectionNotes: "",
     deliveryNotes: "",
+    technicianStatus: "ASSIGNED",
+    technicianNotes: "",
     partVariantId: "",
     partQuantity: "1",
     partRate: "0",
@@ -4192,6 +4201,22 @@ function JobCardPanel({
       ]);
     },
   });
+  const technicianMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.patch(`/workshop/job-cards/${id}/technician`, {
+        technicianStatus: form.technicianStatus,
+        technicianNotes: form.technicianNotes,
+      });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["job-cards"] }),
+        queryClient.invalidateQueries({ queryKey: ["service-history"] }),
+        queryClient.invalidateQueries({ queryKey: ["workshop-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
+      ]);
+    },
+  });
   const issueMutation = useMutation({
     mutationFn: async (id: string) => {
       await api.post(`/workshop/job-cards/${id}/issue-parts`, { warehouseId: form.issueWarehouseId });
@@ -4199,6 +4224,7 @@ function JobCardPanel({
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["job-cards"] }),
+        queryClient.invalidateQueries({ queryKey: ["service-history"] }),
         queryClient.invalidateQueries({ queryKey: ["workshop-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["inventory-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["stock-balances"] }),
@@ -4224,6 +4250,7 @@ function JobCardPanel({
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["job-cards"] }),
+        queryClient.invalidateQueries({ queryKey: ["service-history"] }),
         queryClient.invalidateQueries({ queryKey: ["workshop-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["accounting-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["journal-entries"] }),
@@ -4270,6 +4297,14 @@ function JobCardPanel({
         <input placeholder="Work notes" value={form.workNotes} onChange={(event) => setForm({ ...form, workNotes: event.target.value })} />
         <input placeholder="Inspection notes" value={form.inspectionNotes} onChange={(event) => setForm({ ...form, inspectionNotes: event.target.value })} />
         <input placeholder="Delivery notes" value={form.deliveryNotes} onChange={(event) => setForm({ ...form, deliveryNotes: event.target.value })} />
+        <select value={form.technicianStatus} onChange={(event) => setForm({ ...form, technicianStatus: event.target.value })}>
+          <option value="ASSIGNED">Assigned</option>
+          <option value="IN_PROGRESS">In progress</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="ON_HOLD">On hold</option>
+          <option value="PENDING">Pending</option>
+        </select>
+        <input placeholder="Technician notes" value={form.technicianNotes} onChange={(event) => setForm({ ...form, technicianNotes: event.target.value })} />
         <select value={form.partVariantId} onChange={(event) => setForm({ ...form, partVariantId: event.target.value })}>
           <option value="">Estimated part</option>
           {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
@@ -4298,6 +4333,7 @@ function JobCardPanel({
         onInspect={(id) => inspectionMutation.mutate(id)}
         onBill={(id) => billingMutation.mutate(id)}
         onIssueParts={(id) => issueMutation.mutate(id)}
+        onTechnicianUpdate={(id) => technicianMutation.mutate(id)}
         onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
       />
     </article>
@@ -4310,6 +4346,7 @@ function JobCardList({
   onInspect,
   onIssueParts,
   onBill,
+  onTechnicianUpdate,
   onStatusChange,
 }: {
   canIssueParts: boolean;
@@ -4317,6 +4354,7 @@ function JobCardList({
   onInspect: (id: string) => void;
   onBill: (id: string) => void;
   onIssueParts: (id: string) => void;
+  onTechnicianUpdate: (id: string) => void;
   onStatusChange: (id: string, status: string) => void;
 }) {
   if (items.length === 0) {
@@ -4328,7 +4366,7 @@ function JobCardList({
       {items.slice(0, 8).map((item) => (
         <li key={item.id}>
           <span>{`${item.jobCardNumber} / ${item.vehicle.registrationNumber}`}</span>
-          <strong>{`${item.customer.name} / ${item.status} / ${item.qualityCheckedAt ? "QC done" : "QC pending"} / ${item.billingNumber ?? "Unbilled"} / Total ${item.billingAmount ?? item.estimatedTotal}`}</strong>
+          <strong>{`${item.customer.name} / ${item.status} / Tech ${item.technicianStatus ?? "PENDING"} / ${item.qualityCheckedAt ? "QC done" : "QC pending"} / ${item.billingNumber ?? "Unbilled"} / Total ${item.billingAmount ?? item.estimatedTotal}`}</strong>
           <select value={item.status} onChange={(event) => onStatusChange(item.id, event.target.value)}>
             <option value="OPEN">OPEN</option>
             <option value="IN_PROGRESS">IN_PROGRESS</option>
@@ -4346,6 +4384,11 @@ function JobCardList({
               Inspect
             </Button>
           ) : null}
+          {!["CANCELLED", "DELIVERED"].includes(item.status) ? (
+            <Button type="button" variant="outline" onClick={() => onTechnicianUpdate(item.id)}>
+              Tech Update
+            </Button>
+          ) : null}
           {!item.billedAt && !["CANCELLED"].includes(item.status) ? (
             <Button type="button" variant="outline" onClick={() => onBill(item.id)}>
               Bill
@@ -4354,6 +4397,21 @@ function JobCardList({
         </li>
       ))}
     </ul>
+  );
+}
+
+function ServiceHistoryPanel({ items }: { items: JobCard[] }) {
+  return (
+    <article className="setup-panel master-panel">
+      <h2>Service History</h2>
+      <MasterList
+        items={items.map((jobCard) => ({
+          id: jobCard.id,
+          label: `${jobCard.vehicle.registrationNumber} / ${jobCard.jobCardNumber}`,
+          meta: `${jobCard.customer.name} / ${jobCard.billingNumber ?? "Unbilled"} / ${jobCard.deliveredAt?.slice(0, 10) ?? jobCard.billedAt?.slice(0, 10) ?? jobCard.jobDate.slice(0, 10)} / Tech ${jobCard.technician?.name ?? jobCard.technicianStatus ?? "Pending"} / Total ${jobCard.billingAmount ?? jobCard.estimatedTotal}`,
+        }))}
+      />
+    </article>
   );
 }
 

@@ -1438,6 +1438,10 @@ model JobCard {
   complaint         String        @db.VarChar(800)
   diagnosis         String?       @db.VarChar(800)
   workNotes         String?       @db.VarChar(800)
+  technicianStatus  String        @default("PENDING") @db.VarChar(40)
+  technicianNotes   String?       @db.VarChar(800)
+  technicianStartedAt DateTime?
+  technicianCompletedAt DateTime?
   inspectionChecklist Json?
   inspectionNotes  String?        @db.VarChar(800)
   qualityCheckedByUserId String?  @db.Uuid
@@ -1481,6 +1485,7 @@ model JobCard {
   @@unique([companyId, jobCardNumber])
   @@unique([companyId, billingNumber])
   @@index([companyId, status, jobDate])
+  @@index([companyId, technicianEmployeeId, technicianStatus])
   @@index([companyId, billedAt])
   @@index([companyId, qualityCheckedAt])
   @@index([companyId, deliveredAt])

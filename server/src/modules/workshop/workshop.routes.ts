@@ -7,9 +7,11 @@ import {
   createJobCard,
   getWorkshopSummary,
   issueJobCardParts,
+  listServiceHistory,
   listJobCards,
   postJobCardBilling,
   updateJobCardInspection,
+  updateJobCardTechnician,
   updateJobCardStatus,
 } from "./workshop.service";
 
@@ -34,6 +36,17 @@ router.get("/workshop/job-cards", asyncHandler(async (req, res) => {
   sendSuccess(res, await listJobCards(req.user!.companyId));
 }));
 
+router.get("/workshop/service-history", asyncHandler(async (req, res) => {
+  sendSuccess(
+    res,
+    await listServiceHistory(
+      req.user!.companyId,
+      typeof req.query.vehicleId === "string" ? req.query.vehicleId : undefined,
+      typeof req.query.customerId === "string" ? req.query.customerId : undefined,
+    ),
+  );
+}));
+
 router.post("/workshop/job-cards", asyncHandler(async (req, res) => {
   sendSuccess(res, await createJobCard(context(req), req.body), "Job card created.", 201);
 }));
@@ -44,6 +57,10 @@ router.patch("/workshop/job-cards/:id/status", requirePermission("workshop", "up
 
 router.patch("/workshop/job-cards/:id/inspection", requirePermission("workshop", "update"), asyncHandler(async (req, res) => {
   sendSuccess(res, await updateJobCardInspection(context(req), String(req.params.id), req.body), "Job card inspection updated.");
+}));
+
+router.patch("/workshop/job-cards/:id/technician", requirePermission("workshop", "update"), asyncHandler(async (req, res) => {
+  sendSuccess(res, await updateJobCardTechnician(context(req), String(req.params.id), req.body), "Job card technician progress updated.");
 }));
 
 router.post("/workshop/job-cards/:id/issue-parts", requirePermission("workshop", "post"), asyncHandler(async (req, res) => {

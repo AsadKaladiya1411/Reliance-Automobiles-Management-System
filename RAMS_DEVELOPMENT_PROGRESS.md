@@ -1,10 +1,10 @@
 # RAMS Development Progress Report
 
-Last updated: 2026-07-25
+Last updated: 2026-07-30
 
 ## Overall Completion
 
-Estimated completion: 77%
+Estimated completion: 78%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -23,7 +23,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Accounting | 63% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding. Needs fiscal period controls, voucher types, reconciliation, account mappings. |
 | GST/Tax | 53% | CGST/SGST/IGST calculations and summary reports across purchase, sales, returns, and workshop billing. Needs detailed GST registers, GSTR exports, tax reconciliation. |
 | Payments/Notes | 58% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact. Needs allocation against invoices and settlement tracking. |
-| Workshop/Service | 61% | Job cards, vehicle complaints, parts/labor estimates, technician assignment, inspection/QC notes and checklist, status transitions, parts issue posting, GST-aware workshop billing, and delivery closeout timestamps/notes. Needs richer technician task workflow and service history views. |
+| Workshop/Service | 65% | Job cards, vehicle complaints, parts/labor estimates, technician assignment, technician progress statuses/notes, service history, inspection/QC notes and checklist, status transitions, parts issue posting, GST-aware workshop billing, and delivery closeout timestamps/notes. Needs richer task allocation and customer-facing service summaries. |
 | Reports/Analytics | 45% | Reports workspace, business snapshot, financial statements, GST summary, outstanding, reorder, audit. Needs date filters, exports, drilldowns, dashboards, operational analytics. |
 | UI/UX | 49% | Responsive desktop-focused shell, working forms/lists, list search, global API errors, reports workspace, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
 | Testing/Quality | 18% | Typecheck, lint, and build pass. Needs automated unit/integration tests, transaction tests, API tests, frontend workflow tests. |
@@ -60,6 +60,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added workshop invoice posting from job cards with receivable/revenue accounting and customer ledger impact without additional inventory consumption.
 - Added GST-aware workshop billing with service tax-rate selection, CGST/SGST/IGST posting, HSN capture, and GST summary inclusion.
 - Added workshop inspection/QC capture, READY/DELIVERED transition safeguards, and delivery closeout timestamps/notes.
+- Added workshop service history view and technician progress tracking with notes, started timestamps, completed timestamps, and audit logging.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -83,7 +84,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 - Add detail views, import/export, and server-side pagination for master records.
 - Add richer customer/supplier ledgers with invoice allocation and settlement.
-- Add service history views and richer technician task workflow for workshop jobs.
+- Add richer technician task allocation, labor execution tracking, and customer-facing service summaries for workshop jobs.
 - Add configurable approval workflow foundation beyond simple statuses.
 - Add detailed GST registers and export-ready reports.
 - Add date range filters, exports, and drilldowns for reports.
@@ -94,38 +95,23 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Workshop inspection and delivery closeout workflow.
+Workshop service history and technician progress workflow.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 6 to 13 focused development sessions.
+Estimated remaining iterations: 6 to 12 focused development sessions.
 
-The largest remaining chunks are workshop billing, approval/permission enforcement, reporting/export depth, automated testing, and production deployment hardening.
+The largest remaining chunks are configurable approvals, reporting/export depth, automated testing, richer settlement workflows, and production deployment hardening.
 
 ## Files/Modules Modified In This Session
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `client/src/App.tsx`
-- `server/src/modules/accounting/accounting.service.ts`
-- `server/src/modules/accounting/accounting.routes.ts`
-- `server/src/modules/auth/auth.middleware.ts`
-- `server/src/modules/inventory/inventory.routes.ts`
-- `server/src/modules/notes/notes.routes.ts`
-- `server/src/modules/number-series/number-series.service.ts`
-- `server/src/modules/payments/payments.routes.ts`
 - `server/prisma/schema.prisma`
-- `server/prisma/migrations/20260727123000_workshop_billing/migration.sql`
-- `server/prisma/migrations/20260730100000_workshop_billing_gst/migration.sql`
-- `server/prisma/migrations/20260730103000_workshop_inspection_delivery/migration.sql`
-- `server/prisma/migrations/20260725192000_invoice_source_traceability/migration.sql`
-- `server/prisma/migrations/20260727113000_sales_line_discounts/migration.sql`
-- `server/src/modules/purchase/purchase.service.ts`
-- `server/src/modules/purchase/purchase.routes.ts`
-- `server/src/modules/sales/sales.service.ts`
-- `server/src/modules/sales/sales.routes.ts`
+- `server/prisma/migrations/20260730110000_workshop_technician_history/migration.sql`
 - `server/src/modules/workshop/workshop.routes.ts`
 - `server/src/modules/workshop/workshop.service.ts`
 
 ## Next Implementation Target
 
-Service history views and richer technician task workflow for workshop jobs.
+Detailed GST registers, report filters, exports, and drilldowns.

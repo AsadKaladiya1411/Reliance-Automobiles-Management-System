@@ -182,6 +182,27 @@ export async function listJobCards(companyId: string) {
   });
 }
 
+export async function listServiceHistory(companyId: string, vehicleId?: string, customerId?: string) {
+  return prisma.jobCard.findMany({
+    where: {
+      companyId,
+      ...(vehicleId ? { vehicleId } : {}),
+      ...(customerId ? { customerId } : {}),
+      OR: [{ status: "DELIVERED" }, { billedAt: { not: null } }],
+    },
+    include: {
+      customer: true,
+      vehicle: true,
+      advisor: true,
+      technician: true,
+      parts: { include: { productVariant: true }, orderBy: { lineOrder: "asc" } },
+      laborLines: { orderBy: { lineOrder: "asc" } },
+    },
+    orderBy: [{ deliveredAt: "desc" }, { billedAt: "desc" }, { jobDate: "desc" }],
+    take: 100,
+  });
+}
+
 export async function createJobCard(context: WorkshopContext, body: unknown) {
   const data = body as Record<string, unknown>;
   const customerId = requiredString(data.customerId, "Customer");
@@ -384,6 +405,56 @@ export async function updateJobCardInspection(context: WorkshopContext, jobCardI
       entityType: "JobCardInspection",
       entityId: existing.id,
       description: "Job card inspection updated.",
+      beforeData: json(existing),
+      afterData: json(updated),
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+    },
+  });
+
+  return updated;
+}
+
+export async function updateJobCardTechnician(context: WorkshopContext, jobCardId: string, body: unknown) {
+  const data = body as Record<string, unknown>;
+  const technicianStatus = requiredString(data.technicianStatus, "Technician status").toUpperCase();
+
+  if (!["PENDING", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "ON_HOLD"].includes(technicianStatus)) {
+    throw new ApiError(400, "INVALID_TECHNICIAN_STATUS", "Technician status is invalid.");
+  }
+
+  const existing = await prisma.jobCard.findFirst({ where: { id: jobCardId, companyId: context.companyId } });
+
+  if (!existing) {
+    throw new ApiError(404, "JOB_CARD_NOT_FOUND", "Job card not found.");
+  }
+
+  if (existing.status === "CANCELLED" || existing.status === "DELIVERED") {
+    throw new ApiError(400, "JOB_CARD_CLOSED", "Technician progress cannot be changed after cancellation or delivery.");
+  }
+
+  const updated = await prisma.jobCard.update({
+    where: { id: existing.id },
+    data: {
+      technicianStatus,
+      technicianNotes: optionalString(data.technicianNotes) ?? existing.technicianNotes,
+      technicianStartedAt:
+        technicianStatus === "IN_PROGRESS" && !existing.technicianStartedAt ? new Date() : existing.technicianStartedAt,
+      technicianCompletedAt:
+        technicianStatus === "COMPLETED" && !existing.technicianCompletedAt ? new Date() : existing.technicianCompletedAt,
+      status: technicianStatus === "IN_PROGRESS" && existing.status === "OPEN" ? "IN_PROGRESS" : existing.status,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      companyId: context.companyId,
+      actorUserId: context.userId,
+      module: "workshop",
+      action: "UPDATE",
+      entityType: "JobCardTechnicianProgress",
+      entityId: existing.id,
+      description: "Job card technician progress updated.",
       beforeData: json(existing),
       afterData: json(updated),
       ipAddress: context.ipAddress,
