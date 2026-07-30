@@ -624,6 +624,28 @@ type AuditLog = {
   actor?: { fullName: string; username: string } | null;
 };
 
+type ApprovalRule = {
+  id: string;
+  module: string;
+  documentType: string;
+  triggerAction: string;
+  requireApproval: boolean;
+  minimumAmount?: string | number | null;
+  status: string;
+};
+
+type ApprovalRequest = {
+  id: string;
+  module: string;
+  documentType: string;
+  documentNumber: string;
+  requestedAction: string;
+  amount?: string | number | null;
+  status: string;
+  reason?: string | null;
+  decisionNotes?: string | null;
+};
+
 type JobCard = {
   id: string;
   jobCardNumber: string;
@@ -1918,6 +1940,8 @@ function SettingsView({
 }) {
   const roles = useMasterList<AdminRole>("auth-roles", "/auth/roles");
   const users = useMasterList<AdminUser>("auth-users", "/auth/users");
+  const approvalRules = useMasterList<ApprovalRule>("approval-rules", "/approvals/rules");
+  const approvalRequests = useMasterList<ApprovalRequest>("approval-requests", "/approvals/requests");
 
   return (
     <>
@@ -1947,9 +1971,109 @@ function SettingsView({
         <FinancialYearPanel financialYears={financialYears} />
         <NumberSeriesPanel numberSeries={numberSeries} />
         <UserRolePanel roles={roles.data ?? []} users={users.data ?? []} />
+        <ApprovalWorkflowPanel requests={approvalRequests.data ?? []} rules={approvalRules.data ?? []} />
         <AuditLogPanel items={auditLogs} />
       </section>
     </>
+  );
+}
+
+function ApprovalWorkflowPanel({ requests, rules }: { requests: ApprovalRequest[]; rules: ApprovalRule[] }) {
+  const [form, setForm] = useState({
+    module: "purchase",
+    documentType: "PURCHASE_INVOICE",
+    triggerAction: "POST",
+    requireApproval: false,
+    minimumAmount: "",
+  });
+  const [decisionNotes, setDecisionNotes] = useState("");
+  const saveRuleMutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/approvals/rules", form);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["approval-rules"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
+      ]);
+    },
+  });
+  const decisionMutation = useMutation({
+    mutationFn: async ({ id, decision }: { id: string; decision: string }) => {
+      await api.post(`/approvals/requests/${id}/decision`, { decision, decisionNotes });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["approval-requests"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
+      ]);
+      setDecisionNotes("");
+    },
+  });
+
+  return (
+    <article className="setup-panel wide-panel">
+      <h2>Approval Workflow</h2>
+      <form className="compact-form product-form" onSubmit={(event) => {
+        event.preventDefault();
+        saveRuleMutation.mutate();
+      }}>
+        <select value={form.module} onChange={(event) => setForm({ ...form, module: event.target.value })}>
+          <option value="purchase">Purchase</option>
+          <option value="sales">Sales</option>
+          <option value="workshop">Workshop</option>
+          <option value="accounting">Accounting</option>
+        </select>
+        <input placeholder="Document type" value={form.documentType} onChange={(event) => setForm({ ...form, documentType: event.target.value })} />
+        <select value={form.triggerAction} onChange={(event) => setForm({ ...form, triggerAction: event.target.value })}>
+          <option value="CREATE">Create</option>
+          <option value="APPROVE">Approve</option>
+          <option value="POST">Post</option>
+          <option value="CANCEL">Cancel</option>
+        </select>
+        <label className="checkbox-field">
+          <input type="checkbox" checked={form.requireApproval} onChange={(event) => setForm({ ...form, requireApproval: event.target.checked })} />
+          Required
+        </label>
+        <input placeholder="Minimum amount" value={form.minimumAmount} onChange={(event) => setForm({ ...form, minimumAmount: event.target.value })} />
+        <Button type="submit" variant="outline" disabled={saveRuleMutation.isPending}>Save Rule</Button>
+      </form>
+      <div className="split-list-grid">
+        <article className="inline-panel">
+          <h3>Rules</h3>
+          <MasterList
+            items={rules.map((rule) => ({
+              id: rule.id,
+              label: `${rule.module} / ${rule.documentType}`,
+              meta: `${rule.triggerAction} / ${rule.requireApproval ? "Approval required" : "No approval"} / Min ${rule.minimumAmount ?? 0} / ${rule.status}`,
+            }))}
+          />
+        </article>
+        <article className="inline-panel">
+          <h3>Requests</h3>
+          <input className="list-search" placeholder="Decision notes" value={decisionNotes} onChange={(event) => setDecisionNotes(event.target.value)} />
+          <ul className="compact-list action-list">
+            {requests.length === 0 ? <li><span>No records yet.</span></li> : null}
+            {requests.slice(0, 8).map((request) => (
+              <li key={request.id}>
+                <span>{`${request.documentNumber} / ${request.documentType}`}</span>
+                <strong>{`${request.module} / ${request.requestedAction} / ${request.status} / ${request.amount ?? 0}`}</strong>
+                {request.status === "PENDING" ? (
+                  <>
+                    <Button type="button" variant="outline" onClick={() => decisionMutation.mutate({ id: request.id, decision: "APPROVED" })}>
+                      Approve
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => decisionMutation.mutate({ id: request.id, decision: "REJECTED" })}>
+                      Reject
+                    </Button>
+                  </>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </article>
+      </div>
+    </article>
   );
 }
 

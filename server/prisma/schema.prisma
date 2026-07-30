@@ -105,6 +105,13 @@ enum DocumentStatus {
   CANCELLED
 }
 
+enum ApprovalRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
 enum JobCardStatus {
   OPEN
   IN_PROGRESS
@@ -173,6 +180,8 @@ model Company {
   salesInvoices SalesInvoice[]
   salesReturns SalesReturn[]
   jobCards      JobCard[]
+  approvalRules ApprovalRule[]
+  approvalRequests ApprovalRequest[]
 }
 
 model FinancialYear {
@@ -875,6 +884,51 @@ model PartyLedgerEntry {
   @@index([customerId, entryDate])
   @@index([supplierId, entryDate])
   @@index([companyId, documentType, documentNumber])
+}
+
+model ApprovalRule {
+  id             String       @id @default(uuid()) @db.Uuid
+  companyId      String       @db.Uuid
+  module         String       @db.VarChar(80)
+  documentType   String       @db.VarChar(80)
+  triggerAction  String       @default("POST") @db.VarChar(40)
+  requireApproval Boolean     @default(false)
+  minimumAmount  Decimal?     @db.Decimal(14, 2)
+  status         RecordStatus @default(ACTIVE)
+  createdByUserId String?     @db.Uuid
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, module, documentType, triggerAction])
+  @@index([companyId, module, status])
+}
+
+model ApprovalRequest {
+  id              String                @id @default(uuid()) @db.Uuid
+  companyId       String                @db.Uuid
+  module          String                @db.VarChar(80)
+  documentType    String                @db.VarChar(80)
+  documentId      String?               @db.VarChar(80)
+  documentNumber  String                @db.VarChar(80)
+  requestedAction String                @default("POST") @db.VarChar(40)
+  amount          Decimal?              @db.Decimal(14, 2)
+  status          ApprovalRequestStatus @default(PENDING)
+  reason          String?               @db.VarChar(500)
+  decisionNotes   String?               @db.VarChar(500)
+  requestedByUserId String?             @db.Uuid
+  decidedByUserId String?               @db.Uuid
+  requestedAt     DateTime              @default(now())
+  decidedAt       DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, module, status])
+  @@index([companyId, documentType, documentNumber])
+  @@index([companyId, requestedAt])
 }
 
 model FinancialNote {

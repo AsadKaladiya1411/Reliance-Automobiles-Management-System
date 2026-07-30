@@ -4,7 +4,7 @@ Last updated: 2026-07-30
 
 ## Overall Completion
 
-Estimated completion: 80%
+Estimated completion: 81%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -12,9 +12,9 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 | Module | Completion | Notes |
 | --- | ---: | --- |
-| Platform/Foundation | 74% | Web app, API, environment config, Prisma, setup flow, number series, audit logs, global API errors, same-origin mutation guard, and audit reporting are in place. Needs stronger tests, deployment hardening, logging, and operational docs. |
+| Platform/Foundation | 76% | Web app, API, environment config, Prisma, setup flow, number series, audit logs, approval foundation, global API errors, same-origin mutation guard, and audit reporting are in place. Needs stronger tests, deployment hardening, logging, and operational docs. |
 | Authentication/RBAC | 74% | Login, registration, current-user session, Super Admin, Staff role, user-role administration, backend module permission middleware, explicit sensitive-route permission guards, role-aware navigation, and permission-aware Settings queries. Needs permission management UI and richer user lifecycle controls. |
-| Company/Financial Year/Settings | 65% | Company profile, financial years, number series, default seeding, audit view. Needs closing/opening year workflows and more settings. |
+| Company/Financial Year/Settings | 68% | Company profile, financial years, number series, approval rules/requests, default seeding, audit view. Needs closing/opening year workflows and more settings. |
 | Masters | 82% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, Product Variants, Tax Rates, and warehouse hierarchy records. Needs import/export and server-side pagination for large datasets. |
 | Commercial Masters | 70% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls, customer credit limit/day settings, and dependency safeguards. Needs richer profiles, contact/address handling, search, pagination, and import/export. |
 | Inventory | 68% | Opening stock, stock balances, movements, adjustments, transfers, negative stock protection, reorder alerts. Needs valuation reports, batch/serial handling, stronger location selection, stock aging. |
@@ -24,7 +24,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | GST/Tax | 60% | CGST/SGST/IGST calculations, summary reports, input/output GST registers, workshop GST inclusion, date filters, and CSV exports. Needs GSTR formats and tax reconciliation. |
 | Payments/Notes | 63% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact, payment allocations against open customer/supplier documents, and settlement visibility. Needs multi-document allocation UI polish and settlement aging. |
 | Workshop/Service | 65% | Job cards, vehicle complaints, parts/labor estimates, technician assignment, technician progress statuses/notes, service history, inspection/QC notes and checklist, status transitions, parts issue posting, GST-aware workshop billing, and delivery closeout timestamps/notes. Needs richer task allocation and customer-facing service summaries. |
-| Reports/Analytics | 49% | Reports workspace, business snapshot, financial statements, GST summary/registers, CSV exports, outstanding, reorder, audit. Needs broader date filters, drilldowns, dashboards, operational analytics. |
+| Reports/Analytics | 50% | Reports workspace, business snapshot, financial statements, GST summary/registers, CSV exports, outstanding, reorder, audit, and approval visibility in Settings. Needs broader date filters, drilldowns, dashboards, operational analytics. |
 | UI/UX | 50% | Responsive desktop-focused shell, working forms/lists, list search, global API errors, reports workspace, GST report filters/exports, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
 | Testing/Quality | 18% | Typecheck, lint, and build pass. Needs automated unit/integration tests, transaction tests, API tests, frontend workflow tests. |
 | Deployment/Operations | 22% | Build scripts and environment config exist. Needs production deployment packaging, migrations process, logging, backup/restore, monitoring, release docs. |
@@ -65,6 +65,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Fixed GST summary net payable calculation to include workshop billing tax in total output tax.
 - Added CSV exports for GST input and output registers in the Reports workspace.
 - Added payment allocation model, migration, open settlement document endpoint, allocation validation, and payment form settlement controls.
+- Added approval workflow foundation with configurable approval rules, auditable approval requests, approval/rejection decisions, and Settings UI.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -89,7 +90,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Add detail views, import/export, and server-side pagination for master records.
 - Add richer customer/supplier ledger drilldowns, multi-document allocation UI polish, and settlement aging.
 - Add richer technician task allocation, labor execution tracking, and customer-facing service summaries for workshop jobs.
-- Add configurable approval workflow foundation beyond simple statuses.
+- Integrate approval rules into purchase, sales, workshop, and accounting document workflows where approval should block posting.
 - Add GSTR-ready export formats, GST reconciliation checks, and tax drilldowns.
 - Add date range filters, exports, and drilldowns for non-GST reports.
 - Add production-grade test harness and transaction integrity tests.
@@ -99,11 +100,11 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Invoice allocation and settlement tracking for customer/supplier ledgers.
+Configurable approval workflow foundation for business documents.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 5 to 10 focused development sessions.
+Estimated remaining iterations: 5 to 9 focused development sessions.
 
 The largest remaining chunks are configurable approvals, reporting/export depth, automated testing, richer settlement workflows, and production deployment hardening.
 
@@ -112,10 +113,11 @@ The largest remaining chunks are configurable approvals, reporting/export depth,
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `client/src/App.tsx`
 - `server/prisma/schema.prisma`
-- `server/prisma/migrations/20260730113000_payment_allocations/migration.sql`
-- `server/src/modules/payments/payments.routes.ts`
-- `server/src/modules/payments/payments.service.ts`
+- `server/prisma/migrations/20260730120000_approval_foundation/migration.sql`
+- `server/src/app.ts`
+- `server/src/modules/approvals/approvals.routes.ts`
+- `server/src/modules/approvals/approvals.service.ts`
 
 ## Next Implementation Target
 
-Configurable approval workflow foundation for posted business documents.
+Approval-rule integration with purchase and sales planning documents.
