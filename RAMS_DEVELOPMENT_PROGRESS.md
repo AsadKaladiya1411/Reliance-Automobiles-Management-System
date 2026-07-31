@@ -4,9 +4,9 @@ Last updated: 2026-07-31
 
 ## Overall Completion
 
-Estimated completion: 97%
+Estimated completion: 98%
 
-This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
+This estimate reflects a production-candidate ERP MVP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries/GSTR-style exports, payments, notes, workshop job cards, reports, audit logging, RBAC administration, deployment packaging, and automated test coverage. Remaining effort is mostly broader UAT, browser-level workflow testing, deeper statutory reconciliation, richer drilldowns, and external monitoring.
 
 ## Module-Wise Completion
 
@@ -124,11 +124,11 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Frontend navigation-policy tests and final production-candidate audit pass.
+Final production-candidate audit pass.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 1 focused hardening session.
+Estimated remaining iterations: 1 final UAT/production-hardening session.
 
 The largest remaining chunks are sales/purchase posting workflow tests, browser-level workflow tests, richer settlement workflows, external monitoring, and final UAT hardening.
 
@@ -136,12 +136,7 @@ The largest remaining chunks are sales/purchase posting workflow tests, browser-
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `RAMS_AUDIT_REPORT.md`
-- `client/package.json`
-- `client/src/App.tsx`
-- `client/src/lib/navigation.test.ts`
-- `client/src/lib/navigation.ts`
-- `client/tsconfig.app.json`
 
 ## Next Implementation Target
 
-Final production-candidate audit pass, sales/purchase posting test expansion, and browser-level workflow testing.
+Browser-level workflow testing, hosting-specific deployment manifests, external monitoring, and user acceptance testing.
