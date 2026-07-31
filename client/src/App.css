@@ -300,6 +300,17 @@ h1 {
   font-size: 13px;
 }
 
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-height: 34px;
+  margin-top: 10px;
+  color: #475467;
+  font-size: 13px;
+}
+
 .empty-text {
   margin: 0;
   color: #667085;

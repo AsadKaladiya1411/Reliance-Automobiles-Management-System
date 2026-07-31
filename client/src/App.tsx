@@ -488,6 +488,14 @@ type OpenSettlementDocument = {
   narration?: string | null;
 };
 
+type PagedResult<T> = {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  pageCount: number;
+};
+
 type FinancialNote = {
   id: string;
   partyType: string;
@@ -941,6 +949,20 @@ function useMasterList<T>(key: string, path: string) {
     queryKey: [key],
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<T[]>>(path);
+      return response.data.data;
+    },
+  });
+}
+
+function usePagedMasterList<T>(key: string, path: string, page: number, search: string) {
+  return useQuery({
+    queryKey: [key, page, search],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(page), pageSize: "12" });
+      if (search.trim()) {
+        params.set("search", search.trim());
+      }
+      const response = await api.get<ApiEnvelope<PagedResult<T>>>(`${path}?${params.toString()}`);
       return response.data.data;
     },
   });
@@ -2744,6 +2766,10 @@ function SimpleCodeNamePanel({
 function CustomerPanel({ items }: { items: Customer[] }) {
   const [form, setForm] = useState({ code: "", name: "", customerType: "Retail", phone: "", gstin: "", creditLimit: "0", creditDays: "0" });
   const [editingId, setEditingId] = useState("");
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const pagedCustomers = usePagedMasterList<Customer>("customers-page", "/commercial-masters/customers/page", page, search);
+  const displayCustomers = pagedCustomers.data?.items ?? items;
   const mutation = useCreateMaster("/commercial-masters/customers", ["customers", "commercial-master-summary", "party-outstanding"], () =>
     setForm({ code: "", name: "", customerType: "Retail", phone: "", gstin: "", creditLimit: "0", creditDays: "0" }),
   );
@@ -2752,7 +2778,7 @@ function CustomerPanel({ items }: { items: Customer[] }) {
       await api.patch(`/commercial-masters/customers/${editingId}`, form);
     },
     onSuccess: async () => {
-      await invalidateKeys(["customers", "commercial-master-summary", "party-outstanding"]);
+      await invalidateKeys(["customers", "customers-page", "commercial-master-summary", "party-outstanding"]);
       setEditingId("");
       setForm({ code: "", name: "", customerType: "Retail", phone: "", gstin: "", creditLimit: "0", creditDays: "0" });
     },
@@ -2762,7 +2788,7 @@ function CustomerPanel({ items }: { items: Customer[] }) {
       await api.delete(`/commercial-masters/customers/${id}`);
     },
     onSuccess: async () => {
-      await invalidateKeys(["customers", "commercial-master-summary", "party-outstanding"]);
+      await invalidateKeys(["customers", "customers-page", "commercial-master-summary", "party-outstanding"]);
     },
   });
 
@@ -2799,8 +2825,15 @@ function CustomerPanel({ items }: { items: Customer[] }) {
           </Button>
         ) : null}
       </form>
-      <EditableMasterList
-        items={items.map((item) => ({
+      <PagedEditableMasterList
+        isLoading={pagedCustomers.isLoading}
+        page={pagedCustomers.data?.page ?? page}
+        pageCount={pagedCustomers.data?.pageCount ?? 1}
+        total={pagedCustomers.data?.total ?? displayCustomers.length}
+        search={search}
+        onSearchChange={setSearch}
+        onPageChange={setPage}
+        items={displayCustomers.map((item) => ({
           id: item.id,
           label: item.name,
           meta: `${item.code} / ${item.customerType} / Limit ${item.creditLimit ?? 0} / ${item.creditDays ?? 0} days / ${item.status ?? "ACTIVE"}`,
@@ -2827,6 +2860,10 @@ function CustomerPanel({ items }: { items: Customer[] }) {
 function SupplierPanel({ items }: { items: Supplier[] }) {
   const [form, setForm] = useState({ code: "", name: "", supplierType: "Distributor", phone: "", gstin: "" });
   const [editingId, setEditingId] = useState("");
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const pagedSuppliers = usePagedMasterList<Supplier>("suppliers-page", "/commercial-masters/suppliers/page", page, search);
+  const displaySuppliers = pagedSuppliers.data?.items ?? items;
   const mutation = useCreateMaster("/commercial-masters/suppliers", ["suppliers", "commercial-master-summary"], () =>
     setForm({ code: "", name: "", supplierType: "Distributor", phone: "", gstin: "" }),
   );
@@ -2835,7 +2872,7 @@ function SupplierPanel({ items }: { items: Supplier[] }) {
       await api.patch(`/commercial-masters/suppliers/${editingId}`, form);
     },
     onSuccess: async () => {
-      await invalidateKeys(["suppliers", "commercial-master-summary"]);
+      await invalidateKeys(["suppliers", "suppliers-page", "commercial-master-summary"]);
       setEditingId("");
       setForm({ code: "", name: "", supplierType: "Distributor", phone: "", gstin: "" });
     },
@@ -2845,7 +2882,7 @@ function SupplierPanel({ items }: { items: Supplier[] }) {
       await api.delete(`/commercial-masters/suppliers/${id}`);
     },
     onSuccess: async () => {
-      await invalidateKeys(["suppliers", "commercial-master-summary"]);
+      await invalidateKeys(["suppliers", "suppliers-page", "commercial-master-summary"]);
     },
   });
 
@@ -2880,8 +2917,15 @@ function SupplierPanel({ items }: { items: Supplier[] }) {
           </Button>
         ) : null}
       </form>
-      <EditableMasterList
-        items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.supplierType} / ${item.status ?? "ACTIVE"}`, raw: item }))}
+      <PagedEditableMasterList
+        isLoading={pagedSuppliers.isLoading}
+        page={pagedSuppliers.data?.page ?? page}
+        pageCount={pagedSuppliers.data?.pageCount ?? 1}
+        total={pagedSuppliers.data?.total ?? displaySuppliers.length}
+        search={search}
+        onSearchChange={setSearch}
+        onPageChange={setPage}
+        items={displaySuppliers.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.supplierType} / ${item.status ?? "ACTIVE"}`, raw: item }))}
         onDeactivate={(id) => deactivateMutation.mutate(id)}
         onEdit={(item) => {
           setEditingId(item.id);
@@ -5035,10 +5079,14 @@ function ProductPanel({
     reorderLevel: "0",
   });
   const [editingId, setEditingId] = useState("");
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const pagedProducts = usePagedMasterList<Product>("products-page", "/masters/products/page", page, search);
+  const displayProducts = pagedProducts.data?.items ?? items;
   const mutation = useCreateMaster("/masters/products", ["products", "master-summary"], () =>
     setForm({ ...form, code: "", name: "", reorderLevel: "0" }),
   );
-  const productKeys = ["products", "master-summary", "reorder-items"];
+  const productKeys = ["products", "products-page", "master-summary", "reorder-items"];
   const updateMutation = useMutation({
     mutationFn: async () => {
       await api.patch(`/masters/products/${editingId}`, form);
@@ -5128,8 +5176,15 @@ function ProductPanel({
           </Button>
         ) : null}
       </form>
-      <EditableMasterList
-        items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.status ?? "ACTIVE"}`, raw: item }))}
+      <PagedEditableMasterList
+        isLoading={pagedProducts.isLoading}
+        page={pagedProducts.data?.page ?? page}
+        pageCount={pagedProducts.data?.pageCount ?? 1}
+        total={pagedProducts.data?.total ?? displayProducts.length}
+        search={search}
+        onSearchChange={setSearch}
+        onPageChange={setPage}
+        items={displayProducts.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.status ?? "ACTIVE"}`, raw: item }))}
         onDeactivate={(id) => deactivateMutation.mutate(id)}
         onEdit={(item) => {
           setEditingId(item.id);
@@ -5158,10 +5213,14 @@ function VariantPanel({ items, products }: { items: ProductVariant[]; products: 
     purchasePrice: "0",
   });
   const [editingId, setEditingId] = useState("");
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const pagedVariants = usePagedMasterList<ProductVariant>("product-variants-page", "/masters/product-variants/page", page, search);
+  const displayVariants = pagedVariants.data?.items ?? items;
   const mutation = useCreateMaster("/masters/product-variants", ["product-variants", "master-summary"], () =>
     setForm({ ...form, code: "", name: "", salePrice: "0", purchasePrice: "0" }),
   );
-  const variantKeys = ["product-variants", "master-summary", "reorder-items"];
+  const variantKeys = ["product-variants", "product-variants-page", "master-summary", "reorder-items"];
   const updateMutation = useMutation({
     mutationFn: async () => {
       await api.patch(`/masters/product-variants/${editingId}`, form);
@@ -5218,8 +5277,15 @@ function VariantPanel({ items, products }: { items: ProductVariant[]; products: 
           </Button>
         ) : null}
       </form>
-      <EditableMasterList
-        items={items.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.salePrice} / ${item.status ?? "ACTIVE"}`, raw: item }))}
+      <PagedEditableMasterList
+        isLoading={pagedVariants.isLoading}
+        page={pagedVariants.data?.page ?? page}
+        pageCount={pagedVariants.data?.pageCount ?? 1}
+        total={pagedVariants.data?.total ?? displayVariants.length}
+        search={search}
+        onSearchChange={setSearch}
+        onPageChange={setPage}
+        items={displayVariants.map((item) => ({ id: item.id, label: item.name, meta: `${item.code} / ${item.salePrice} / ${item.status ?? "ACTIVE"}`, raw: item }))}
         onDeactivate={(id) => deactivateMutation.mutate(id)}
         onEdit={(item) => {
           setEditingId(item.id);
@@ -5308,6 +5374,69 @@ function EditableMasterList<T extends { id: string }>({
           </li>
         ))}
       </ul>
+    </>
+  );
+}
+
+function PagedEditableMasterList<T extends { id: string }>({
+  isLoading,
+  items,
+  onDeactivate,
+  onEdit,
+  onPageChange,
+  onSearchChange,
+  page,
+  pageCount,
+  search,
+  total,
+}: {
+  isLoading: boolean;
+  items: Array<{ id: string; label: string; meta: string; raw: T }>;
+  onDeactivate: (id: string) => void;
+  onEdit: (item: { id: string; label: string; meta: string; raw: T }) => void;
+  onPageChange: (page: number) => void;
+  onSearchChange: (search: string) => void;
+  page: number;
+  pageCount: number;
+  search: string;
+  total: number;
+}) {
+  return (
+    <>
+      <input
+        className="list-search"
+        placeholder="Search records"
+        value={search}
+        onChange={(event) => {
+          onSearchChange(event.target.value);
+          onPageChange(1);
+        }}
+      />
+      {isLoading ? <p className="empty-text">Loading records...</p> : null}
+      {!isLoading && total === 0 ? <p className="empty-text">No records yet.</p> : null}
+      <ul className="compact-list action-list">
+        {items.map((item) => (
+          <li key={item.id}>
+            <span>{item.label}</span>
+            <strong>{item.meta}</strong>
+            <Button type="button" variant="outline" onClick={() => onEdit(item)}>
+              Edit
+            </Button>
+            <Button type="button" variant="outline" onClick={() => onDeactivate(item.id)}>
+              Deactivate
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <div className="pagination-row">
+        <Button type="button" variant="outline" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
+          Prev
+        </Button>
+        <span>{`Page ${page} of ${Math.max(pageCount, 1)} / ${total} records`}</span>
+        <Button type="button" variant="outline" disabled={page >= pageCount} onClick={() => onPageChange(page + 1)}>
+          Next
+        </Button>
+      </div>
     </>
   );
 }
