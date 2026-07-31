@@ -1,10 +1,10 @@
 # RAMS Development Progress Report
 
-Last updated: 2026-07-30
+Last updated: 2026-07-31
 
 ## Overall Completion
 
-Estimated completion: 88%
+Estimated completion: 89%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -13,7 +13,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Module | Completion | Notes |
 | --- | ---: | --- |
 | Platform/Foundation | 80% | Web app, API, environment config, Prisma, setup flow, number series, audit logs, approval foundation, request correlation IDs, structured server logging, runtime metrics, global API errors, same-origin mutation guard, audit reporting, and test script foundation are in place. Needs broader tests, deployment hardening, and operational docs. |
-| Authentication/RBAC | 74% | Login, registration, current-user session, Super Admin, Staff role, user-role administration, backend module permission middleware, explicit sensitive-route permission guards, role-aware navigation, and permission-aware Settings queries. Needs permission management UI and richer user lifecycle controls. |
+| Authentication/RBAC | 78% | Login, registration, current-user session, auth/setup rate limiting, Super Admin, Staff role, user-role administration, backend module permission middleware, explicit sensitive-route permission guards, role-aware navigation, and permission-aware Settings queries. Needs account lockout enforcement, permission management UI, and richer user lifecycle controls. |
 | Company/Financial Year/Settings | 68% | Company profile, financial years, number series, approval rules/requests, default seeding, audit view. Needs closing/opening year workflows and more settings. |
 | Masters | 86% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, Product Variants, Tax Rates, and warehouse hierarchy records. Product/variant server-side pagination UI and CSV exports exist. Needs import. |
 | Commercial Masters | 79% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls, customer credit limit/day settings, dependency safeguards, customer/supplier server-side pagination UI, CSV exports, import templates, and validated JSON batch import endpoints. Needs richer profiles and contact/address handling. |
@@ -26,7 +26,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Workshop/Service | 65% | Job cards, vehicle complaints, parts/labor estimates, technician assignment, technician progress statuses/notes, service history, inspection/QC notes and checklist, status transitions, parts issue posting, GST-aware workshop billing, and delivery closeout timestamps/notes. Needs richer task allocation and customer-facing service summaries. |
 | Reports/Analytics | 50% | Reports workspace, business snapshot, financial statements, GST summary/registers, CSV exports, outstanding, reorder, audit, and approval visibility in Settings. Needs broader date filters, drilldowns, dashboards, operational analytics. |
 | UI/UX | 53% | Responsive desktop-focused shell, working forms/lists, server-side paged master lists for high-volume data, list search, global API errors, reports workspace, GST report filters/exports, master CSV export buttons, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
-| Testing/Quality | 26% | Typecheck, lint, build, and Node test runner are configured with focused unit coverage for GST totals, payment allocation validation, and document numbering. Needs transaction tests, API tests, frontend workflow tests. |
+| Testing/Quality | 28% | Typecheck, lint, build, verify script, and Node test runner are configured with focused unit coverage for GST totals, payment allocation validation, CSV/pagination utilities, runtime metrics, and document numbering. Needs transaction tests, API tests, frontend workflow tests. |
 | Deployment/Operations | 42% | Build scripts, verify script, environment config, request correlation, structured API error logs, health/status runtime metadata, metrics endpoint, production runbook, migration deploy command, backup/restore guidance, rollback checklist, and release notes template exist. Needs deployment packaging automation and monitoring integrations. |
 
 ## Completed Tasks
@@ -78,6 +78,8 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added frontend CSV export actions for high-volume master panels.
 - Added reusable paged editable master list UI with loading states and page controls for products, product variants, customers, and suppliers.
 - Added customer/supplier import templates and validated batch import endpoints with duplicate-code checks and audit logging.
+- Added auth/setup rate limiting for bootstrap, login, and registration endpoints.
+- Refreshed project-wide audit report to reflect current implementation, verification, and remaining production gaps.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -99,7 +101,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Remaining Tasks
 
-- Add product/variant import validation, richer contact/address profiles, and remaining workflow polish.
+- Add product/variant import validation, account lockout enforcement, richer contact/address profiles, and remaining workflow polish.
 - Add richer customer/supplier ledger drilldowns, multi-document allocation UI polish, and settlement aging.
 - Add richer technician task allocation, labor execution tracking, and customer-facing service summaries for workshop jobs.
 - Extend approval-rule integration to workshop/accounting posting workflows where approval should block posting.
@@ -112,22 +114,25 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Import templates/import validation for high-volume master records.
+Final audit hardening: workflow smoke tests, residual bug fixes, and production readiness review.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 3 to 4 focused development sessions.
+Estimated remaining iterations: 2 to 4 focused development sessions.
 
 The largest remaining chunks are configurable approvals, reporting/export depth, automated testing, richer settlement workflows, and production deployment hardening.
 
 ## Files/Modules Modified In This Session
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
+- `RAMS_AUDIT_REPORT.md`
 - `client/src/App.css`
 - `client/src/App.tsx`
+- `server/src/middleware/rate-limit.ts`
+- `server/src/modules/auth/auth.routes.ts`
 - `server/src/modules/commercial-masters/commercial-masters.routes.ts`
 - `server/src/modules/commercial-masters/commercial-masters.service.ts`
 
 ## Next Implementation Target
 
-Final audit hardening: workflow smoke tests, residual bug fixes, and production readiness review.
+Account lockout, fiscal year posting controls, and final production-candidate audit.

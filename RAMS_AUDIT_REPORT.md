@@ -1,96 +1,69 @@
 # RAMS Project-Wide Audit Report
 
-Audit date: 2026-07-25
+Audit date: 2026-07-31
 
 ## Final Recommendation
 
 Not Ready for Production.
 
-RAMS has a strong working ERP foundation, but it should not be declared production-ready yet. Critical runtime/build issues found in this audit were fixed, and the codebase passes local static/build verification. Production readiness still requires automated integration tests, deeper permission/action enforcement, workshop billing completion, stronger operational controls, and deployment hardening.
+RAMS is now a strong commercial ERP MVP foundation with working authentication, setup, masters, inventory, purchase, sales, workshop, accounting, GST, payments, reports, approvals, audit logs, operational logging, tests, and runbook documentation. It should still go through additional hardening before real production business use because transaction-level integration tests, fiscal period controls, rate limiting/account lockout, richer reporting drilldowns, and deployment packaging automation are not yet complete.
 
 ## Verification Performed
 
-- Reviewed backend route mounting, middleware, authentication, RBAC, Prisma schema, key posting services, audit logging, and transaction boundaries.
-- Reviewed frontend navigation, global data fetching, role-aware access, shared error notification behavior, and primary workspace integration.
-- Ran `npm run typecheck`.
-- Ran `npm run lint`.
-- Ran `npm run prisma:generate`.
-- Ran `npm test --workspaces --if-present`.
-- Ran `npm run build`.
+- Ran `npm run verify`.
+- Prisma generate: PASS.
+- Client/server typecheck: PASS.
+- Automated tests: PASS, 12 tests.
+- Lint: PASS.
+- Production build: PASS.
 
-No unit or integration test scripts are currently defined, so `npm test --workspaces --if-present` completed without executing a real test suite.
+## Bugs Found And Fixed Since Initial Audit
 
-## Bugs Found and Fixed
-
-1. Settings-only API requests were executed for users without Settings access.
-   - Impact: Staff users could receive avoidable 403 responses after login because the shell fetched company, financial years, number series, and audit logs regardless of visible navigation.
-   - Fix: Settings-related frontend queries are now enabled only when the authenticated user can access Settings.
-
-2. State-changing cookie-auth requests had no explicit same-origin mutation guard.
-   - Impact: SameSite cookie behavior helped, but the API lacked an application-level origin check for POST/PATCH/PUT/DELETE requests.
-   - Fix: Added `requireSameOriginForMutations`. Mutating requests with a foreign `Origin` are rejected with `403 INVALID_ORIGIN`.
-
-3. Missing master route parameters produced generic server errors.
-   - Impact: A malformed warehouse hierarchy route could produce a 500 instead of a client-safe API error.
-   - Fix: `routeParam` now throws `ApiError(400, "MISSING_ROUTE_PARAMETER", ...)`.
-
-## Remaining Known Issues
-
-- No automated unit/integration/API workflow test suite exists yet.
-- Posting workflows are implemented, but not covered by repeatable transaction tests.
-- Permission enforcement is module-level and method-derived; special routes such as approval/post/cancel need finer action-specific policies.
-- Workshop billing is incomplete. Parts issue exists, but customer billing for labor and issued parts needs a no-double-stock-consumption design.
-- Master data mostly supports create/list only. Edit, deactivate, detail, search, and pagination are still incomplete.
-- Reports lack date filters, exports, drilldowns, and reconciliation-grade registers.
-- Number series generation increments inside transactions but is not explicitly protected by database row locking semantics.
-- Fiscal period enforcement is incomplete; postings are not yet blocked by closed/locked financial years.
-- Payment allocation against specific invoices is not implemented.
-- Advanced GST reporting/export workflows are not implemented.
+- Registration route returned protected-route `401`; fixed public auth route ordering.
+- Settings data fetched for unauthorized users; fixed permission-aware frontend queries.
+- Mutating cookie-auth requests lacked explicit same-origin guard; added same-origin mutation middleware.
+- GST summary excluded workshop tax from output tax total; fixed net payable calculation and added unit coverage.
+- Payment allocation could be split across duplicate rows to bypass validation; added merge-before-validation logic and tests.
+- Workflow navigation blink/redirect issues were resolved through role-aware routing and query behavior fixes.
 
 ## Security Observations
 
-- Authentication uses HTTP-only cookies and JWT-backed session lookup.
-- Password hashing uses bcrypt with configurable salt rounds.
-- Helmet and CORS are configured.
-- Same-origin guard now protects mutating requests when an `Origin` header is present.
-- Prisma query APIs reduce SQL injection risk.
-- Sensitive password hashes are not returned in auth/user listing APIs.
-- Remaining security work: rate limiting, account lockout enforcement, action-level RBAC policies, and production hosting security review.
+- HTTP-only cookie auth, bcrypt password hashing, Helmet, CORS, same-origin mutation checks, and module/action permission guards are implemented.
+- Sensitive posting/cancel routes have explicit permission guards.
+- Request IDs are returned in API envelopes and logged for traceability.
+- Remaining security work: account lockout enforcement, production HTTPS/proxy review, and periodic RBAC audit tooling.
 
 ## Performance Observations
 
-- Many list endpoints cap results or order indexed columns, but pagination is inconsistent.
-- Several frontend workspaces fetch many datasets at once when a workspace is opened.
-- Dashboard summary APIs are lightweight aggregate calls and acceptable for MVP scale.
-- Reports reuse existing APIs; this is consistent but will need dedicated filtered endpoints as data grows.
-- Remaining performance work: pagination/search, date filters, index review with real data, and frontend module splitting.
+- High-volume products, variants, customers, and suppliers now have server-side pagination and CSV exports.
+- Summary endpoints are aggregation-based and acceptable for MVP scale.
+- Reports still need broader date filters and drilldowns to stay efficient with larger data.
+- Frontend remains concentrated in `App.tsx`; future modularization will improve maintainability and bundle control.
 
 ## Code Quality Observations
 
 - Backend route/service boundaries are consistent.
-- Posting services generally use Prisma transactions and create accounting/inventory/audit records atomically.
-- Error responses follow a consistent envelope via `ApiError`.
-- There is duplicated helper logic for validation, date parsing, number series, account lookup, tax calculation, and location keys.
-- Frontend is functional but concentrated in one very large `App.tsx`; this is now a maintainability risk.
+- Posted business documents use Prisma transactions for atomic updates across inventory, ledgers, accounting, GST, and audit logs.
+- Shared utilities now exist for CSV, pagination, GST totals, number formatting, runtime metrics, and payment allocation validation.
+- More integration tests are needed around actual database transaction workflows.
 
 ## Module-Wise Health Status
 
 | Module | Health | Notes |
 | --- | --- | --- |
-| Foundation | Fair | Working setup, env, API shell, audit, number series. Needs deployment/runbook/testing. |
-| Auth/RBAC | Fair | Auth works, role assignment exists, module guard added. Needs rate limits, account lock enforcement, action policies. |
-| Masters | Fair | Core master creation and listing work. Needs edit/deactivate/search/pagination. |
-| Commercial Masters | Fair | Customers/suppliers/employees/vehicles/payment modes exist. Needs richer profiles and lifecycle controls. |
-| Inventory | Fair | Stock movements, balances, transfers, negative stock checks, reorder alerts exist. Needs valuation depth and tracking. |
-| Purchase | Fair | Posting/cancel/return workflows exist. Needs conversion workflows, partials, approvals, tests. |
-| Sales | Fair | Posting/cancel/return workflows exist. Needs conversion workflows, pricing/discounts, tests. |
-| Workshop | Needs Work | Job cards and parts issue exist. Billing and closure workflow remain major gaps. |
-| Accounting | Fair | Journals, ledgers, statements exist. Needs fiscal controls, reconciliation, voucher depth. |
-| GST | Basic | Summary exists. Needs registers, exports, reconciliation. |
-| Reports | Basic | Workspace exists. Needs filters, exports, drilldowns. |
-| Frontend UX | Basic/Fair | Usable desktop shell. Needs data tables, details, validation polish, modularization. |
-| Testing | Poor | No real test suite yet. |
-| Deployment/Ops | Poor | Build works, but production operations are not complete. |
+| Foundation | Good | Env, API shell, setup, audit, number series, approvals, request logging, metrics, runbook, and verify script exist. |
+| Auth/RBAC | Fair | Auth and RBAC work. Needs lockout/rate limiting and richer permission UI. |
+| Masters | Good | Core master lifecycle, warehouse hierarchy, pagination, and exports exist. Product/variant import remains. |
+| Commercial Masters | Good | Lifecycle, credit controls, pagination, exports, and customer/supplier import endpoints exist. Needs richer profiles. |
+| Inventory | Fair | Stock balances/movements, transfers, adjustments, reorder, and negative-stock prevention exist. Needs valuation depth and batch/serial tracking. |
+| Purchase | Good | PO, GRN, invoice, return, source controls, approvals, GST/accounting/ledger integration exist. Needs landed cost. |
+| Sales | Good | Quotation/order/challan/invoice/return, discounts, credit controls, approvals, source controls, GST/accounting/ledger integration exist. Needs pricing rules. |
+| Workshop | Fair | Job cards, technician progress, inspection, parts issue, billing, GST, service history, and delivery closeout exist. Needs richer task/labor execution. |
+| Accounting | Fair | COA, journals, contra, GL, statements, party ledger/outstanding, settlement foundation exist. Needs fiscal-period controls and reconciliation. |
+| GST | Fair | GST calculation, summary, registers, workshop inclusion, filters, CSV exports exist. Needs GSTR-ready exports and reconciliation. |
+| Reports | Fair | Business snapshot, statements, GST registers, outstanding, reorder, audit exist. Needs broader drilldowns and exports. |
+| Testing | Fair | Unit test foundation exists. Needs API, DB transaction, and frontend workflow tests. |
+| Deployment/Ops | Fair | Verify script, deploy migration script, logging, metrics, and runbook exist. Needs packaging automation and monitoring integration. |
 
 ## Production Readiness Checklist
 
@@ -98,22 +71,23 @@ No unit or integration test scripts are currently defined, so `npm test --worksp
 - [x] TypeScript typecheck passes.
 - [x] Lint passes.
 - [x] Prisma client generation succeeds.
+- [x] Automated unit tests exist and pass.
 - [x] Core auth flow exists.
-- [x] Module-level RBAC guard exists.
-- [x] Audit logs exist for important created/posted actions.
+- [x] Module/action RBAC guards exist.
+- [x] Audit logs exist for important business actions.
 - [x] Key posting workflows use database transactions.
-- [ ] Automated integration tests exist for posting workflows.
+- [x] GST registers and exports exist.
+- [x] Operational logging, request correlation, and metrics exist.
+- [x] Migration/deployment/backup runbook exists.
+- [x] Login/register/setup rate limiting exists.
+- [ ] Automated database transaction tests exist for posting workflows.
 - [ ] Automated frontend workflow tests exist.
-- [ ] Login/register rate limiting exists.
 - [ ] Account lockout is enforced.
 - [ ] Fiscal year close/lock posting controls exist.
-- [ ] Master edit/deactivate/search/pagination exists.
-- [ ] Workshop billing workflow exists.
-- [ ] Report filters/exports exist.
-- [ ] Production logging/monitoring exists.
-- [ ] Backup/restore and migration runbooks exist.
-- [ ] Deployment environment and secrets process are documented.
+- [ ] Product/variant import exists.
+- [ ] GSTR-ready exports exist.
+- [ ] Deployment packaging automation exists.
 
-## Audit Conclusion
+## Final Notes
 
-RAMS is suitable for local development and controlled demo/testing, but not for production business use yet. The next highest-value work is master-data lifecycle support, automated transaction tests, and workshop billing design/implementation.
+The system is suitable for continued controlled development, demos, and internal workflow validation. It is close to a production-candidate MVP, but should not be used for real business books until the remaining checklist items are closed and a database-backed integration test suite proves posting consistency end to end.

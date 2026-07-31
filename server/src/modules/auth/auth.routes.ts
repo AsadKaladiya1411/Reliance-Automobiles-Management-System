@@ -4,6 +4,7 @@ import { env } from "../../config/env";
 import { ApiError } from "../../utils/api-error";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
+import { rateLimit } from "../../middleware/rate-limit";
 import {
   bootstrapSystem,
   getSetupStatus,
@@ -17,6 +18,8 @@ import {
 import { requireAuth, requireModuleAccess } from "./auth.middleware";
 
 const router = Router();
+const authAttemptLimit = rateLimit({ keyPrefix: "auth", windowMs: 15 * 60 * 1000, max: 20 });
+const setupAttemptLimit = rateLimit({ keyPrefix: "setup", windowMs: 15 * 60 * 1000, max: 10 });
 
 function requestContext(req: Request) {
   return {
@@ -34,6 +37,7 @@ router.get(
 
 router.post(
   "/setup/bootstrap",
+  setupAttemptLimit,
   asyncHandler(async (req, res) => {
     const { companyName, adminFullName, adminUsername, adminEmail, adminPassword } = req.body;
 
@@ -70,6 +74,7 @@ router.post(
 
 router.post(
   "/auth/login",
+  authAttemptLimit,
   asyncHandler(async (req, res) => {
     const { username, password } = req.body;
 
@@ -93,6 +98,7 @@ router.post(
 
 router.post(
   "/auth/register",
+  authAttemptLimit,
   asyncHandler(async (req, res) => {
     const { username, email, password } = req.body;
 
