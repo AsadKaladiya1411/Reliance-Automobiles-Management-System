@@ -36,6 +36,7 @@ RAMS is now complete for the agreed production-candidate MVP scope, with working
 - Sales invoice posting lacked database-backed transaction coverage; added tests for integrated stock/accounting/GST/customer-ledger/audit updates and insufficient-stock rollback.
 - Local database schema was behind committed migrations; applied pending migrations with `npm run prisma:deploy`.
 - Purchase invoice posting lacked database-backed transaction coverage; added tests for integrated stock/accounting/GST-input/supplier-ledger/audit updates and closed-year rollback.
+- Registered Staff users could see modules but were blocked on Add actions because the default Staff role only had read permissions; default Staff permissions now sync create/update access for normal operational modules during registration and login.
 
 ## Security Observations
 

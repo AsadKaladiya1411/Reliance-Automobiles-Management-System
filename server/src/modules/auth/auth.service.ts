@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
+import type { Prisma } from "../../generated/prisma/client";
 import prisma from "../../lib/prisma";
 import { env } from "../../config/env";
 import { ApiError } from "../../utils/api-error";
@@ -36,8 +37,64 @@ type AuthContext = RequestContext & {
 const maxFailedLoginAttempts = 5;
 const lockoutMinutes = 15;
 
+const defaultStaffPermissionMatrix: Record<string, string[]> = {
+  dashboard: ["read"],
+  masters: ["create", "read", "update"],
+  "commercial-masters": ["create", "read", "update"],
+  inventory: ["create", "read", "update"],
+  purchase: ["create", "read", "update"],
+  sales: ["create", "read", "update"],
+  workshop: ["create", "read", "update"],
+  accounting: ["create", "read", "update"],
+  gst: ["read"],
+  reports: ["read"],
+};
+
 function normalizeUsername(username: string) {
   return username.trim().toLowerCase();
+}
+
+async function syncDefaultStaffPermissions(tx: Prisma.TransactionClient, companyId: string) {
+  const role = await tx.role.upsert({
+    where: { companyId_code: { companyId, code: "STAFF" } },
+    create: {
+      companyId,
+      code: "STAFF",
+      name: "Staff",
+      description: "Default registered user role",
+      isSystem: true,
+    },
+    update: { status: "ACTIVE", isSystem: true },
+  });
+
+  for (const [module, actions] of Object.entries(defaultStaffPermissionMatrix)) {
+    for (const action of actions) {
+      const permission = await tx.permission.upsert({
+        where: {
+          companyId_module_action: {
+            companyId,
+            module,
+            action,
+          },
+        },
+        create: {
+          companyId,
+          module,
+          action,
+          description: `${action} ${module}`,
+        },
+        update: {},
+      });
+
+      await tx.rolePermission.upsert({
+        where: { roleId_permissionId: { roleId: role.id, permissionId: permission.id } },
+        create: { roleId: role.id, permissionId: permission.id },
+        update: {},
+      });
+    }
+  }
+
+  return role;
 }
 
 function assertPassword(password: string) {
@@ -314,7 +371,30 @@ export async function login(input: LoginInput, context: RequestContext) {
     },
   });
 
-  const authUser = toAuthUser(user);
+  await prisma.$transaction(async (tx) => {
+    await syncDefaultStaffPermissions(tx, user.companyId);
+  });
+
+  const refreshedUser = await prisma.user.findUniqueOrThrow({
+    where: { id: user.id },
+    include: {
+      userRoles: {
+        include: {
+          role: {
+            include: {
+              rolePermissions: {
+                include: {
+                  permission: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const authUser = toAuthUser(refreshedUser);
 
   await writeAuditLog({
     companyId: user.companyId,
@@ -366,53 +446,7 @@ export async function registerUser(input: RegisterInput, context: RequestContext
       throw new ApiError(409, "USER_ALREADY_EXISTS", "Username or email is already registered.");
     }
 
-    const role = await tx.role.upsert({
-      where: { companyId_code: { companyId: company.id, code: "STAFF" } },
-      create: {
-        companyId: company.id,
-        code: "STAFF",
-        name: "Staff",
-        description: "Default registered user role",
-        isSystem: true,
-      },
-      update: { status: "ACTIVE", isSystem: true },
-    });
-    const permissionModules = [
-      "dashboard",
-      "masters",
-      "inventory",
-      "purchase",
-      "sales",
-      "workshop",
-      "accounting",
-      "gst",
-      "reports",
-    ];
-
-    for (const module of permissionModules) {
-      const permission = await tx.permission.upsert({
-        where: {
-          companyId_module_action: {
-            companyId: company.id,
-            module,
-            action: "read",
-          },
-        },
-        create: {
-          companyId: company.id,
-          module,
-          action: "read",
-          description: `read ${module}`,
-        },
-        update: {},
-      });
-
-      await tx.rolePermission.upsert({
-        where: { roleId_permissionId: { roleId: role.id, permissionId: permission.id } },
-        create: { roleId: role.id, permissionId: permission.id },
-        update: {},
-      });
-    }
+    const role = await syncDefaultStaffPermissions(tx, company.id);
 
     const user = await tx.user.create({
       data: {

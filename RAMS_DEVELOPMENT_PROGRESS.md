@@ -91,6 +91,7 @@ This estimate reflects completion of the production-candidate MVP scope with aut
 - Added database-backed sales invoice posting tests for integrated inventory, accounting, GST, customer ledger, audit, number-series updates, and insufficient-stock rollback behavior.
 - Applied pending local Prisma migrations with `npm run prisma:deploy`, resolving schema drift caught by the sales posting integration test.
 - Added database-backed purchase invoice posting tests for integrated inventory, accounting, GST input, supplier ledger, audit, number-series updates, and closed-year rollback behavior.
+- Fixed registered Staff users being blocked by `create` permissions on Add actions by syncing default Staff create/update permissions for normal operational modules during registration and login.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -141,6 +142,7 @@ The largest remaining post-MVP chunks are workshop/payment posting workflow test
 - `RAMS_AUDIT_REPORT.md`
 - `server/src/modules/sales/sales.posting.integration.ts`
 - `server/src/modules/purchase/purchase.posting.integration.ts`
+- `server/src/modules/auth/auth.service.ts`
 
 ## Next Implementation Target
 
