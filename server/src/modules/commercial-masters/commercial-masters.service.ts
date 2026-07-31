@@ -10,6 +10,29 @@ type CommercialContext = RequestContext & {
   userId: string;
 };
 
+type CustomerImportInput = {
+  code?: unknown;
+  name?: unknown;
+  customerType?: unknown;
+  phone?: unknown;
+  email?: unknown;
+  gstin?: unknown;
+  pan?: unknown;
+  creditLimit?: unknown;
+  creditDays?: unknown;
+};
+
+type SupplierImportInput = {
+  code?: unknown;
+  name?: unknown;
+  supplierType?: unknown;
+  phone?: unknown;
+  email?: unknown;
+  gstin?: unknown;
+  pan?: unknown;
+  creditDays?: unknown;
+};
+
 function requiredString(value: unknown, field: string) {
   if (typeof value !== "string" || value.trim() === "") {
     throw new ApiError(400, "INVALID_COMMERCIAL_MASTER", `${field} is required.`);
@@ -54,6 +77,31 @@ function optionalDate(value: unknown) {
   }
 
   return date;
+}
+
+function importRows(body: unknown) {
+  const data = body as Record<string, unknown>;
+  const rows = Array.isArray(data.items) ? data.items : [];
+
+  if (rows.length === 0) {
+    throw new ApiError(400, "IMPORT_ROWS_REQUIRED", "Import requires at least one row.");
+  }
+
+  if (rows.length > 200) {
+    throw new ApiError(400, "IMPORT_TOO_LARGE", "Import is limited to 200 rows at a time.");
+  }
+
+  return rows as Record<string, unknown>[];
+}
+
+function ensureUniqueCodes(rows: Array<{ code: string }>) {
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (seen.has(row.code)) {
+      throw new ApiError(400, "IMPORT_DUPLICATE_CODE", `Duplicate code in import file: ${row.code}.`);
+    }
+    seen.add(row.code);
+  }
 }
 
 async function auditCreate(context: CommercialContext, entityType: string, entityId: string, data: unknown) {
@@ -150,6 +198,43 @@ export async function createCustomer(context: CommercialContext, body: unknown) 
   });
   await auditCreate(context, "Customer", customer.id, customer);
   return customer;
+}
+
+export async function importCustomers(context: CommercialContext, body: unknown) {
+  const rows = importRows(body).map((row: CustomerImportInput) => ({
+    companyId: context.companyId,
+    code: requiredString(row.code, "Code").toUpperCase(),
+    name: requiredString(row.name, "Name"),
+    customerType: optionalString(row.customerType) ?? "Retail",
+    phone: optionalString(row.phone),
+    email: optionalString(row.email)?.toLowerCase(),
+    gstin: optionalString(row.gstin)?.toUpperCase(),
+    pan: optionalString(row.pan)?.toUpperCase(),
+    creditLimit: nonNegativeNumber(row.creditLimit),
+    creditDays: nonNegativeInteger(row.creditDays, "Credit days"),
+  }));
+  ensureUniqueCodes(rows);
+
+  const existing = await prisma.customer.findMany({
+    where: { companyId: context.companyId, code: { in: rows.map((row) => row.code) } },
+    select: { code: true },
+  });
+
+  if (existing.length > 0) {
+    throw new ApiError(400, "IMPORT_CODE_EXISTS", `Customer code already exists: ${existing.map((row) => row.code).join(", ")}.`);
+  }
+
+  await prisma.customer.createMany({ data: rows });
+  await writeAuditLog({
+    ...context,
+    module: "commercial-masters",
+    action: "CREATE",
+    entityType: "CustomerImport",
+    description: `${rows.length} customers imported.`,
+    afterData: { count: rows.length, codes: rows.map((row) => row.code) },
+  });
+
+  return { imported: rows.length };
 }
 
 export async function updateCustomer(context: CommercialContext, customerId: string, body: unknown) {
@@ -250,6 +335,42 @@ export async function createSupplier(context: CommercialContext, body: unknown) 
   });
   await auditCreate(context, "Supplier", supplier.id, supplier);
   return supplier;
+}
+
+export async function importSuppliers(context: CommercialContext, body: unknown) {
+  const rows = importRows(body).map((row: SupplierImportInput) => ({
+    companyId: context.companyId,
+    code: requiredString(row.code, "Code").toUpperCase(),
+    name: requiredString(row.name, "Name"),
+    supplierType: optionalString(row.supplierType) ?? "Distributor",
+    phone: optionalString(row.phone),
+    email: optionalString(row.email)?.toLowerCase(),
+    gstin: optionalString(row.gstin)?.toUpperCase(),
+    pan: optionalString(row.pan)?.toUpperCase(),
+    creditDays: nonNegativeInteger(row.creditDays, "Credit days"),
+  }));
+  ensureUniqueCodes(rows);
+
+  const existing = await prisma.supplier.findMany({
+    where: { companyId: context.companyId, code: { in: rows.map((row) => row.code) } },
+    select: { code: true },
+  });
+
+  if (existing.length > 0) {
+    throw new ApiError(400, "IMPORT_CODE_EXISTS", `Supplier code already exists: ${existing.map((row) => row.code).join(", ")}.`);
+  }
+
+  await prisma.supplier.createMany({ data: rows });
+  await writeAuditLog({
+    ...context,
+    module: "commercial-masters",
+    action: "CREATE",
+    entityType: "SupplierImport",
+    description: `${rows.length} suppliers imported.`,
+    afterData: { count: rows.length, codes: rows.map((row) => row.code) },
+  });
+
+  return { imported: rows.length };
 }
 
 export async function updateSupplier(context: CommercialContext, supplierId: string, body: unknown) {

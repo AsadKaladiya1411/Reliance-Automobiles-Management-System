@@ -2796,7 +2796,10 @@ function CustomerPanel({ items }: { items: Customer[] }) {
     <article className="setup-panel master-panel wide-panel">
       <div className="panel-title-row">
         <h2>Customers</h2>
-        <Button type="button" variant="outline" onClick={() => downloadCsv("/commercial-masters/customers/export.csv")}>Export CSV</Button>
+        <div className="button-row">
+          <Button type="button" variant="outline" onClick={() => downloadCsv("/commercial-masters/customers/import-template.csv")}>Template</Button>
+          <Button type="button" variant="outline" onClick={() => downloadCsv("/commercial-masters/customers/export.csv")}>Export CSV</Button>
+        </div>
       </div>
       <form className="compact-form product-form" onSubmit={(event) => {
         event.preventDefault();
@@ -2890,7 +2893,10 @@ function SupplierPanel({ items }: { items: Supplier[] }) {
     <article className="setup-panel master-panel wide-panel">
       <div className="panel-title-row">
         <h2>Suppliers</h2>
-        <Button type="button" variant="outline" onClick={() => downloadCsv("/commercial-masters/suppliers/export.csv")}>Export CSV</Button>
+        <div className="button-row">
+          <Button type="button" variant="outline" onClick={() => downloadCsv("/commercial-masters/suppliers/import-template.csv")}>Template</Button>
+          <Button type="button" variant="outline" onClick={() => downloadCsv("/commercial-masters/suppliers/export.csv")}>Export CSV</Button>
+        </div>
       </div>
       <form className="compact-form product-form" onSubmit={(event) => {
         event.preventDefault();

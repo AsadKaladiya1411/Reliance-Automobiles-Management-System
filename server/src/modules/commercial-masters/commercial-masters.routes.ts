@@ -17,6 +17,8 @@ import {
   deactivateSupplier,
   deactivateVehicle,
   getCommercialMasterSummary,
+  importCustomers,
+  importSuppliers,
   listCustomers,
   listCustomersPage,
   listEmployees,
@@ -72,8 +74,17 @@ router.get("/commercial-masters/customers/export.csv", asyncHandler(async (req, 
   );
   res.header("content-type", "text/csv; charset=utf-8").attachment("rams-customers.csv").send(csv);
 }));
+router.get("/commercial-masters/customers/import-template.csv", asyncHandler(async (_req, res) => {
+  res
+    .header("content-type", "text/csv; charset=utf-8")
+    .attachment("rams-customers-import-template.csv")
+    .send(toCsv(["code", "name", "customerType", "phone", "email", "gstin", "pan", "creditLimit", "creditDays"], []));
+}));
 router.post("/commercial-masters/customers", asyncHandler(async (req, res) => {
   sendSuccess(res, await createCustomer(context(req), req.body), "Customer created.", 201);
+}));
+router.post("/commercial-masters/customers/import", asyncHandler(async (req, res) => {
+  sendSuccess(res, await importCustomers(context(req), req.body), "Customers imported.", 201);
 }));
 router.patch("/commercial-masters/customers/:id", asyncHandler(async (req, res) => {
   sendSuccess(res, await updateCustomer(context(req), String(req.params.id), req.body), "Customer updated.");
@@ -105,8 +116,17 @@ router.get("/commercial-masters/suppliers/export.csv", asyncHandler(async (req, 
   );
   res.header("content-type", "text/csv; charset=utf-8").attachment("rams-suppliers.csv").send(csv);
 }));
+router.get("/commercial-masters/suppliers/import-template.csv", asyncHandler(async (_req, res) => {
+  res
+    .header("content-type", "text/csv; charset=utf-8")
+    .attachment("rams-suppliers-import-template.csv")
+    .send(toCsv(["code", "name", "supplierType", "phone", "email", "gstin", "pan", "creditDays"], []));
+}));
 router.post("/commercial-masters/suppliers", asyncHandler(async (req, res) => {
   sendSuccess(res, await createSupplier(context(req), req.body), "Supplier created.", 201);
+}));
+router.post("/commercial-masters/suppliers/import", asyncHandler(async (req, res) => {
+  sendSuccess(res, await importSuppliers(context(req), req.body), "Suppliers imported.", 201);
 }));
 router.patch("/commercial-masters/suppliers/:id", asyncHandler(async (req, res) => {
   sendSuccess(res, await updateSupplier(context(req), String(req.params.id), req.body), "Supplier updated.");

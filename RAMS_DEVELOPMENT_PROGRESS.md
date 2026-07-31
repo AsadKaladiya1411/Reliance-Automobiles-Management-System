@@ -4,7 +4,7 @@ Last updated: 2026-07-30
 
 ## Overall Completion
 
-Estimated completion: 87%
+Estimated completion: 88%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -16,7 +16,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Authentication/RBAC | 74% | Login, registration, current-user session, Super Admin, Staff role, user-role administration, backend module permission middleware, explicit sensitive-route permission guards, role-aware navigation, and permission-aware Settings queries. Needs permission management UI and richer user lifecycle controls. |
 | Company/Financial Year/Settings | 68% | Company profile, financial years, number series, approval rules/requests, default seeding, audit view. Needs closing/opening year workflows and more settings. |
 | Masters | 86% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, Product Variants, Tax Rates, and warehouse hierarchy records. Product/variant server-side pagination UI and CSV exports exist. Needs import. |
-| Commercial Masters | 76% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls, customer credit limit/day settings, dependency safeguards, customer/supplier server-side pagination UI, and CSV exports. Needs richer profiles, contact/address handling, and import. |
+| Commercial Masters | 79% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls, customer credit limit/day settings, dependency safeguards, customer/supplier server-side pagination UI, CSV exports, import templates, and validated JSON batch import endpoints. Needs richer profiles and contact/address handling. |
 | Inventory | 68% | Opening stock, stock balances, movements, adjustments, transfers, negative stock protection, reorder alerts. Needs valuation reports, batch/serial handling, stronger location selection, stock aging. |
 | Purchase | 70% | Purchase orders, approval-rule-aware PO/GRN creation, PO-to-GRN line conversion, GRN workflow, GRN-to-purchase-invoice traceability, source quantity controls, partial receipt/invoice indicators, default purchase cost application, purchase invoice posting/cancel, purchase return, GST/input tax and supplier ledger integration. Needs landed cost. |
 | Sales | 74% | Quotations, orders, delivery challans, approval-rule-aware planning creation, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, source quantity controls, partial delivery/invoice indicators, sales line discounts, default sale price application, customer credit-limit/overdue checks, sales invoice posting/cancel, sales return, GST/output tax and customer ledger integration. Needs richer pricing rules. |
@@ -77,6 +77,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added paginated backend endpoints and CSV exports for products, product variants, customers, and suppliers.
 - Added frontend CSV export actions for high-volume master panels.
 - Added reusable paged editable master list UI with loading states and page controls for products, product variants, customers, and suppliers.
+- Added customer/supplier import templates and validated batch import endpoints with duplicate-code checks and audit logging.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -98,7 +99,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Remaining Tasks
 
-- Add import templates/import validation for high-volume master records.
+- Add product/variant import validation, richer contact/address profiles, and remaining workflow polish.
 - Add richer customer/supplier ledger drilldowns, multi-document allocation UI polish, and settlement aging.
 - Add richer technician task allocation, labor execution tracking, and customer-facing service summaries for workshop jobs.
 - Extend approval-rule integration to workshop/accounting posting workflows where approval should block posting.
@@ -111,11 +112,11 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Richer frontend data tables, loading states, and high-volume master pagination UI.
+Import templates/import validation for high-volume master records.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 3 to 5 focused development sessions.
+Estimated remaining iterations: 3 to 4 focused development sessions.
 
 The largest remaining chunks are configurable approvals, reporting/export depth, automated testing, richer settlement workflows, and production deployment hardening.
 
@@ -124,7 +125,9 @@ The largest remaining chunks are configurable approvals, reporting/export depth,
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `client/src/App.css`
 - `client/src/App.tsx`
+- `server/src/modules/commercial-masters/commercial-masters.routes.ts`
+- `server/src/modules/commercial-masters/commercial-masters.service.ts`
 
 ## Next Implementation Target
 
-Import templates/import validation for high-volume master records.
+Final audit hardening: workflow smoke tests, residual bug fixes, and production readiness review.
