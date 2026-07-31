@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from "react";
 import { AxiosError } from "axios";
 import { QueryClientProvider, useMutation, useQuery } from "@tanstack/react-query";
 import { api, type ApiEnvelope } from "@/lib/api";
+import { canAccessView, navItems, type AppView } from "@/lib/navigation";
 import type { AppNotification } from "@/lib/notifications";
 import { subscribeNotifications } from "@/lib/notifications";
 import { queryClient } from "@/lib/query-client";
@@ -683,36 +684,6 @@ type JobCard = {
   vehicle: Vehicle;
   technician?: Employee | null;
 };
-
-type AppView = "dashboard" | "masters" | "inventory" | "workshop" | "transactions" | "reports" | "settings";
-
-const navItems: Array<{ id: AppView; label: string; icon: string }> = [
-  { id: "dashboard", label: "Dashboard", icon: "DB" },
-  { id: "masters", label: "Masters", icon: "MS" },
-  { id: "inventory", label: "Inventory", icon: "IN" },
-  { id: "workshop", label: "Workshop", icon: "WS" },
-  { id: "transactions", label: "Transactions", icon: "TR" },
-  { id: "reports", label: "Reports", icon: "RP" },
-  { id: "settings", label: "Settings", icon: "ST" },
-];
-
-const viewPermissions: Record<AppView, string[]> = {
-  dashboard: ["dashboard:read"],
-  masters: ["masters:read"],
-  inventory: ["inventory:read"],
-  workshop: ["workshop:read"],
-  transactions: ["purchase:read", "sales:read", "accounting:read"],
-  reports: ["reports:read", "accounting:read", "gst:read"],
-  settings: ["settings:read", "company:read"],
-};
-
-function canAccessView(user: AuthUser, view: AppView) {
-  if (user.roles.includes("SUPER_ADMIN")) {
-    return true;
-  }
-
-  return viewPermissions[view].some((permission) => user.permissions.includes(permission));
-}
 
 const modules = [
   { name: "Foundation", icon: "FD", status: "In progress", text: "Company, RBAC, audit, number series" },

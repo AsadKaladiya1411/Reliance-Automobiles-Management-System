@@ -4,7 +4,7 @@ Last updated: 2026-07-31
 
 ## Overall Completion
 
-Estimated completion: 96%
+Estimated completion: 97%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -25,8 +25,8 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Payments/Notes | 65% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact, payment allocations against open customer/supplier documents, settlement visibility, and open-period posting controls. Needs multi-document allocation UI polish and settlement aging. |
 | Workshop/Service | 67% | Job cards, vehicle complaints, parts/labor estimates, technician assignment, technician progress statuses/notes, service history, inspection/QC notes and checklist, status transitions, parts issue posting, GST-aware workshop billing, open-period posting controls, and delivery closeout timestamps/notes. Needs richer task allocation and customer-facing service summaries. |
 | Reports/Analytics | 53% | Reports workspace, business snapshot, financial statements, GST summary/registers, GSTR-style CSV exports, outstanding, reorder, audit, and approval visibility in Settings. Needs broader date filters, drilldowns, dashboards, operational analytics. |
-| UI/UX | 53% | Responsive desktop-focused shell, working forms/lists, server-side paged master lists for high-volume data, list search, global API errors, reports workspace, GST report filters/exports, master CSV export buttons, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
-| Testing/Quality | 43% | Typecheck, lint, build, verify script, Node test runner, explicit integration test script, focused unit coverage for GST totals, payment allocation validation, CSV/pagination utilities, runtime metrics, document numbering, and database-backed accounting/inventory posting smoke tests. Needs broader transaction tests, API tests, frontend workflow tests. |
+| UI/UX | 55% | Responsive desktop-focused shell, working forms/lists, server-side paged master lists for high-volume data, list search, global API errors, reports workspace, GST report filters/exports, master CSV export buttons, role-aware navigation, and frontend navigation-policy tests. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
+| Testing/Quality | 48% | Typecheck, lint, build, verify script, Node test runner, client navigation-policy tests, explicit integration test script, focused unit coverage for GST totals, payment allocation validation, CSV/pagination utilities, runtime metrics, document numbering, and database-backed accounting/inventory posting smoke tests. Needs broader transaction tests, API tests, and browser-level workflow tests. |
 | Deployment/Operations | 62% | Build scripts, verify script, Dockerfile, Docker Compose stack, production static asset serving, environment config, request correlation, structured API error logs, health/status runtime metadata, metrics endpoint, production runbook, migration deploy command, backup/restore guidance, rollback checklist, and release notes template exist. Needs external monitoring integrations and environment-specific deployment manifests. |
 
 ## Completed Tasks
@@ -87,6 +87,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added explicit `test:integration` scripts and database-backed accounting posting tests for open-year journal posting and closed-year rollback behavior.
 - Added Docker/Compose packaging, production static frontend serving from the API container, container migration startup, and root Docker helper scripts.
 - Added database-backed inventory opening stock posting tests for stock balance/movement/audit/number-series creation and closed-year rollback behavior.
+- Extracted frontend navigation access policy into a reusable utility and added automated client tests for role/permission-driven navigation visibility.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -116,27 +117,31 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Add GST reconciliation checks and tax drilldowns.
 - Add date range filters, exports, and drilldowns for non-GST reports.
 - Broaden transaction integrity tests across purchase, sales, payments, and workshop posting workflows.
-- Add API tests and frontend workflow tests.
+- Add API tests and browser-level frontend workflow tests.
 - Add external monitoring integrations and richer operational smoke tests.
 - Add environment-specific deployment manifests for the chosen hosting platform.
 - Improve frontend tables, filters, loading states, and form validation ergonomics.
 
 ## Current Feature Being Implemented
 
-Broader database-backed posting workflow tests and final production-candidate audit pass.
+Frontend navigation-policy tests and final production-candidate audit pass.
 
 ## Estimated Iterations Remaining
 
 Estimated remaining iterations: 1 focused hardening session.
 
-The largest remaining chunks are sales/purchase posting workflow tests, richer settlement workflows, external monitoring, and final UAT hardening.
+The largest remaining chunks are sales/purchase posting workflow tests, browser-level workflow tests, richer settlement workflows, external monitoring, and final UAT hardening.
 
 ## Files/Modules Modified In This Session
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `RAMS_AUDIT_REPORT.md`
-- `server/src/modules/inventory/inventory.posting.integration.ts`
+- `client/package.json`
+- `client/src/App.tsx`
+- `client/src/lib/navigation.test.ts`
+- `client/src/lib/navigation.ts`
+- `client/tsconfig.app.json`
 
 ## Next Implementation Target
 
-Sales/purchase posting workflow test expansion and final production-candidate audit pass.
+Final production-candidate audit pass, sales/purchase posting test expansion, and browser-level workflow testing.

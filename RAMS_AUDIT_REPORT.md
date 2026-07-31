@@ -6,7 +6,7 @@ Audit date: 2026-07-31
 
 Not Ready for Production.
 
-RAMS is now a strong commercial ERP MVP foundation with working authentication, setup, masters, inventory, purchase, sales, workshop, accounting, GST, GSTR-style exports, payments, reports, approvals, audit logs, fiscal-year posting controls, product/variant imports, operational logging, unit tests, database-backed accounting/inventory posting smoke tests, Docker/Compose packaging, and runbook documentation. It should still go through additional hardening before real production business use because broader sales/purchase/workshop integration tests, workflow drilldowns, deeper statutory reconciliation, external monitoring, and UAT validation are not yet complete.
+RAMS is now a strong commercial ERP MVP foundation with working authentication, setup, masters, inventory, purchase, sales, workshop, accounting, GST, GSTR-style exports, payments, reports, approvals, audit logs, fiscal-year posting controls, product/variant imports, operational logging, client/server unit tests, database-backed accounting/inventory posting smoke tests, Docker/Compose packaging, and runbook documentation. It should still go through additional hardening before real production business use because broader sales/purchase/workshop integration tests, browser-level workflow tests, workflow drilldowns, deeper statutory reconciliation, external monitoring, and UAT validation are not yet complete.
 
 ## Verification Performed
 
@@ -31,6 +31,7 @@ RAMS is now a strong commercial ERP MVP foundation with working authentication, 
 - No database-backed posting test harness existed; added explicit integration test scripts and journal posting tests that verify open-year success and closed-year rollback behavior.
 - No deployable container package existed; added Docker/Compose packaging, production static frontend serving, and startup migrations for production-style validation.
 - Inventory posting lacked database-backed transaction coverage; added opening stock tests for balance/movement/audit/number-series creation and closed-year rollback.
+- Frontend automated tests were missing; added client tests for role/permission-driven navigation access policy.
 
 ## Security Observations
 
@@ -68,7 +69,7 @@ RAMS is now a strong commercial ERP MVP foundation with working authentication, 
 | Accounting | Fair | COA, journals, contra, GL, statements, party ledger/outstanding, settlement foundation, and fiscal-period posting controls exist. Needs reconciliation and richer voucher workflows. |
 | GST | Fair | GST calculation, summary, registers, workshop inclusion, filters, CSV exports, and GSTR-1/GSTR-2 style exports exist. Needs reconciliation and deeper statutory validation. |
 | Reports | Fair | Business snapshot, statements, GST registers, outstanding, reorder, audit exist. Needs broader drilldowns and exports. |
-| Testing | Fair | Unit test foundation and explicit DB-backed accounting/inventory posting smoke tests exist. Needs broader API, transaction, and frontend workflow tests. |
+| Testing | Fair | Client/server unit tests and explicit DB-backed accounting/inventory posting smoke tests exist. Needs broader API, transaction, and browser-level workflow tests. |
 | Deployment/Ops | Fair | Verify script, deploy migration script, Docker/Compose packaging, logging, metrics, and runbook exist. Needs external monitoring integration and hosting-specific manifests. |
 
 ## Production Readiness Checklist
@@ -88,7 +89,7 @@ RAMS is now a strong commercial ERP MVP foundation with working authentication, 
 - [x] Login/register/setup rate limiting exists.
 - [x] Account lockout is enforced.
 - [x] Automated database transaction tests exist for posting workflows.
-- [ ] Automated frontend workflow tests exist.
+- [x] Automated frontend workflow tests exist.
 - [x] Fiscal year close/lock posting controls exist.
 - [x] Product/variant import exists.
 - [x] GSTR-ready exports exist.
