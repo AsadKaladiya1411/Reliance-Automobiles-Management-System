@@ -4,7 +4,7 @@ Last updated: 2026-07-31
 
 ## Overall Completion
 
-Estimated completion: 98%
+Estimated completion: 99%
 
 This estimate reflects a production-candidate ERP MVP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries/GSTR-style exports, payments, notes, workshop job cards, reports, audit logging, RBAC administration, deployment packaging, and automated test coverage. Remaining effort is mostly broader UAT, browser-level workflow testing, deeper statutory reconciliation, richer drilldowns, and external monitoring.
 
@@ -19,14 +19,14 @@ This estimate reflects a production-candidate ERP MVP foundation with authentica
 | Commercial Masters | 79% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls, customer credit limit/day settings, dependency safeguards, customer/supplier server-side pagination UI, CSV exports, import templates, and validated JSON batch import endpoints. Needs richer profiles and contact/address handling. |
 | Inventory | 72% | Opening stock, stock balances, movements, adjustments, transfers, negative stock protection, reorder alerts, open-period posting controls, and database-backed opening stock posting tests. Needs valuation reports, batch/serial handling, stronger location selection, stock aging. |
 | Purchase | 72% | Purchase orders, approval-rule-aware PO/GRN creation, PO-to-GRN line conversion, GRN workflow, GRN-to-purchase-invoice traceability, source quantity controls, partial receipt/invoice indicators, default purchase cost application, purchase invoice posting/cancel, purchase return, GST/input tax, supplier ledger integration, and open-period posting controls. Needs landed cost. |
-| Sales | 76% | Quotations, orders, delivery challans, approval-rule-aware planning creation, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, source quantity controls, partial delivery/invoice indicators, sales line discounts, default sale price application, customer credit-limit/overdue checks, sales invoice posting/cancel, sales return, GST/output tax, customer ledger integration, and open-period posting controls. Needs richer pricing rules. |
+| Sales | 80% | Quotations, orders, delivery challans, approval-rule-aware planning creation, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, source quantity controls, partial delivery/invoice indicators, sales line discounts, default sale price application, customer credit-limit/overdue checks, sales invoice posting/cancel, sales return, GST/output tax, customer ledger integration, open-period posting controls, and database-backed sales invoice posting tests. Needs richer pricing rules. |
 | Accounting | 70% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding, settlement-open-document queries, date-aware GST reporting endpoints, open-period posting controls, and database-backed posting smoke tests. Needs voucher types, reconciliation, account mappings. |
 | GST/Tax | 68% | CGST/SGST/IGST calculations, summary reports, input/output GST registers, workshop GST inclusion, date filters, CSV exports, GSTR-1/GSTR-2 style exports, and unit coverage for GST net payable logic. Needs tax reconciliation and deeper statutory validation. |
 | Payments/Notes | 65% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact, payment allocations against open customer/supplier documents, settlement visibility, and open-period posting controls. Needs multi-document allocation UI polish and settlement aging. |
 | Workshop/Service | 67% | Job cards, vehicle complaints, parts/labor estimates, technician assignment, technician progress statuses/notes, service history, inspection/QC notes and checklist, status transitions, parts issue posting, GST-aware workshop billing, open-period posting controls, and delivery closeout timestamps/notes. Needs richer task allocation and customer-facing service summaries. |
 | Reports/Analytics | 53% | Reports workspace, business snapshot, financial statements, GST summary/registers, GSTR-style CSV exports, outstanding, reorder, audit, and approval visibility in Settings. Needs broader date filters, drilldowns, dashboards, operational analytics. |
 | UI/UX | 55% | Responsive desktop-focused shell, working forms/lists, server-side paged master lists for high-volume data, list search, global API errors, reports workspace, GST report filters/exports, master CSV export buttons, role-aware navigation, and frontend navigation-policy tests. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
-| Testing/Quality | 48% | Typecheck, lint, build, verify script, Node test runner, client navigation-policy tests, explicit integration test script, focused unit coverage for GST totals, payment allocation validation, CSV/pagination utilities, runtime metrics, document numbering, and database-backed accounting/inventory posting smoke tests. Needs broader transaction tests, API tests, and browser-level workflow tests. |
+| Testing/Quality | 55% | Typecheck, lint, build, verify script, Node test runner, client navigation-policy tests, explicit integration test script, focused unit coverage for GST totals, payment allocation validation, CSV/pagination utilities, runtime metrics, document numbering, and database-backed accounting/inventory/sales posting smoke tests. Needs purchase/workshop transaction tests, API tests, and browser-level workflow tests. |
 | Deployment/Operations | 62% | Build scripts, verify script, Dockerfile, Docker Compose stack, production static asset serving, environment config, request correlation, structured API error logs, health/status runtime metadata, metrics endpoint, production runbook, migration deploy command, backup/restore guidance, rollback checklist, and release notes template exist. Needs external monitoring integrations and environment-specific deployment manifests. |
 
 ## Completed Tasks
@@ -88,6 +88,8 @@ This estimate reflects a production-candidate ERP MVP foundation with authentica
 - Added Docker/Compose packaging, production static frontend serving from the API container, container migration startup, and root Docker helper scripts.
 - Added database-backed inventory opening stock posting tests for stock balance/movement/audit/number-series creation and closed-year rollback behavior.
 - Extracted frontend navigation access policy into a reusable utility and added automated client tests for role/permission-driven navigation visibility.
+- Added database-backed sales invoice posting tests for integrated inventory, accounting, GST, customer ledger, audit, number-series updates, and insufficient-stock rollback behavior.
+- Applied pending local Prisma migrations with `npm run prisma:deploy`, resolving schema drift caught by the sales posting integration test.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -116,7 +118,7 @@ This estimate reflects a production-candidate ERP MVP foundation with authentica
 - Extend approval-rule integration to workshop/accounting posting workflows where approval should block posting.
 - Add GST reconciliation checks and tax drilldowns.
 - Add date range filters, exports, and drilldowns for non-GST reports.
-- Broaden transaction integrity tests across purchase, sales, payments, and workshop posting workflows.
+- Broaden transaction integrity tests across purchase, payments, and workshop posting workflows.
 - Add API tests and browser-level frontend workflow tests.
 - Add external monitoring integrations and richer operational smoke tests.
 - Add environment-specific deployment manifests for the chosen hosting platform.
@@ -124,19 +126,20 @@ This estimate reflects a production-candidate ERP MVP foundation with authentica
 
 ## Current Feature Being Implemented
 
-Final production-candidate audit pass.
+Sales invoice posting integration coverage and final production-candidate audit pass.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 1 final UAT/production-hardening session.
+Estimated remaining iterations: 1 final validation session.
 
-The largest remaining chunks are sales/purchase posting workflow tests, browser-level workflow tests, richer settlement workflows, external monitoring, and final UAT hardening.
+The largest remaining chunks are purchase/workshop posting workflow tests, browser-level workflow tests, richer settlement workflows, external monitoring, and final UAT hardening.
 
 ## Files/Modules Modified In This Session
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `RAMS_AUDIT_REPORT.md`
+- `server/src/modules/sales/sales.posting.integration.ts`
 
 ## Next Implementation Target
 
-Browser-level workflow testing, hosting-specific deployment manifests, external monitoring, and user acceptance testing.
+Purchase/workshop posting test expansion, browser-level workflow testing, hosting-specific deployment manifests, external monitoring, and user acceptance testing.

@@ -6,14 +6,15 @@ Audit date: 2026-07-31
 
 Production Candidate, Not Yet Ready for Unsupervised Live Production.
 
-RAMS is now a production-candidate ERP MVP foundation with working authentication, setup, masters, inventory, purchase, sales, workshop, accounting, GST, GSTR-style exports, payments, reports, approvals, audit logs, fiscal-year posting controls, product/variant imports, operational logging, client/server unit tests, database-backed accounting/inventory posting smoke tests, Docker/Compose packaging, and runbook documentation. It is ready for controlled pilot/UAT, but not yet for unsupervised live business books because broader sales/purchase/workshop integration tests, browser-level workflow tests, workflow drilldowns, deeper statutory reconciliation, external monitoring, and hosting-specific deployment validation are still recommended.
+RAMS is now a production-candidate ERP MVP foundation with working authentication, setup, masters, inventory, purchase, sales, workshop, accounting, GST, GSTR-style exports, payments, reports, approvals, audit logs, fiscal-year posting controls, product/variant imports, operational logging, client/server unit tests, database-backed accounting/inventory/sales posting smoke tests, Docker/Compose packaging, and runbook documentation. It is ready for controlled pilot/UAT, but not yet for unsupervised live business books because broader purchase/workshop integration tests, browser-level workflow tests, workflow drilldowns, deeper statutory reconciliation, external monitoring, and hosting-specific deployment validation are still recommended.
 
 ## Verification Performed
 
 - Ran `npm run verify`.
 - Prisma generate: PASS.
 - Client/server typecheck: PASS.
-- Automated tests: PASS, 12 tests.
+- Automated tests: PASS, 16 tests.
+- Database-backed integration tests: PASS, 6 tests.
 - Lint: PASS.
 - Production build: PASS.
 
@@ -32,6 +33,8 @@ RAMS is now a production-candidate ERP MVP foundation with working authenticatio
 - No deployable container package existed; added Docker/Compose packaging, production static frontend serving, and startup migrations for production-style validation.
 - Inventory posting lacked database-backed transaction coverage; added opening stock tests for balance/movement/audit/number-series creation and closed-year rollback.
 - Frontend automated tests were missing; added client tests for role/permission-driven navigation access policy.
+- Sales invoice posting lacked database-backed transaction coverage; added tests for integrated stock/accounting/GST/customer-ledger/audit updates and insufficient-stock rollback.
+- Local database schema was behind committed migrations; applied pending migrations with `npm run prisma:deploy`.
 
 ## Security Observations
 
@@ -64,12 +67,12 @@ RAMS is now a production-candidate ERP MVP foundation with working authenticatio
 | Commercial Masters | Good | Lifecycle, credit controls, pagination, exports, and customer/supplier import endpoints exist. Needs richer profiles. |
 | Inventory | Fair | Stock balances/movements, transfers, adjustments, reorder, negative-stock prevention, and opening stock integration tests exist. Needs valuation depth and batch/serial tracking. |
 | Purchase | Good | PO, GRN, invoice, return, source controls, approvals, GST/accounting/ledger integration exist. Needs landed cost. |
-| Sales | Good | Quotation/order/challan/invoice/return, discounts, credit controls, approvals, source controls, GST/accounting/ledger integration exist. Needs pricing rules. |
+| Sales | Good | Quotation/order/challan/invoice/return, discounts, credit controls, approvals, source controls, GST/accounting/ledger integration, and sales invoice integration tests exist. Needs pricing rules. |
 | Workshop | Fair | Job cards, technician progress, inspection, parts issue, billing, GST, service history, and delivery closeout exist. Needs richer task/labor execution. |
 | Accounting | Fair | COA, journals, contra, GL, statements, party ledger/outstanding, settlement foundation, and fiscal-period posting controls exist. Needs reconciliation and richer voucher workflows. |
 | GST | Fair | GST calculation, summary, registers, workshop inclusion, filters, CSV exports, and GSTR-1/GSTR-2 style exports exist. Needs reconciliation and deeper statutory validation. |
 | Reports | Fair | Business snapshot, statements, GST registers, outstanding, reorder, audit exist. Needs broader drilldowns and exports. |
-| Testing | Fair | Client/server unit tests and explicit DB-backed accounting/inventory posting smoke tests exist. Needs broader API, transaction, and browser-level workflow tests. |
+| Testing | Fair | Client/server unit tests and explicit DB-backed accounting/inventory/sales posting smoke tests exist. Needs broader API, transaction, and browser-level workflow tests. |
 | Deployment/Ops | Fair | Verify script, deploy migration script, Docker/Compose packaging, logging, metrics, and runbook exist. Needs external monitoring integration and hosting-specific manifests. |
 
 ## Production Readiness Checklist
