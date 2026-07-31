@@ -1918,6 +1918,12 @@ function GstRegisterPanel({
         <Button type="button" variant="outline" disabled={outputRows.length === 0} onClick={() => exportGstRows("rams-gst-output-register.csv", outputRows)}>
           Export Output
         </Button>
+        <Button type="button" variant="outline" disabled={outputRows.length === 0} onClick={() => downloadCsv(`/accounting/gstr-1.csv${gstDateParams(filters)}`)}>
+          GSTR-1
+        </Button>
+        <Button type="button" variant="outline" disabled={inputRows.length === 0} onClick={() => downloadCsv(`/accounting/gstr-2.csv${gstDateParams(filters)}`)}>
+          GSTR-2
+        </Button>
       </form>
       <div className="readiness-grid">
         <ReadinessMetric label="Input CGST" value={summary?.inputCgst} />
