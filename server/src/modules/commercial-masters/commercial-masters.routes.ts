@@ -3,6 +3,8 @@ import type { Request } from "express";
 import { requireAuth, requireModuleAccess } from "../auth/auth.middleware";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
+import { toCsv } from "../../utils/csv";
+import { parsePageQuery } from "../../utils/pagination";
 import {
   createCustomer,
   createEmployee,
@@ -16,9 +18,11 @@ import {
   deactivateVehicle,
   getCommercialMasterSummary,
   listCustomers,
+  listCustomersPage,
   listEmployees,
   listPaymentModes,
   listSuppliers,
+  listSuppliersPage,
   listVehicles,
   updateCustomer,
   updateEmployee,
@@ -47,6 +51,27 @@ router.get("/commercial-masters/summary", asyncHandler(async (req, res) => {
 router.get("/commercial-masters/customers", asyncHandler(async (req, res) => {
   sendSuccess(res, await listCustomers(req.user!.companyId));
 }));
+router.get("/commercial-masters/customers/page", asyncHandler(async (req, res) => {
+  sendSuccess(res, await listCustomersPage(req.user!.companyId, parsePageQuery(req.query)));
+}));
+router.get("/commercial-masters/customers/export.csv", asyncHandler(async (req, res) => {
+  const page = await listCustomersPage(req.user!.companyId, { ...parsePageQuery(req.query), page: 1, pageSize: 1000, skip: 0, take: 1000 });
+  const csv = toCsv(
+    ["Code", "Name", "Type", "Phone", "Email", "GSTIN", "Credit Limit", "Credit Days", "Status"],
+    page.items.map((customer) => [
+      customer.code,
+      customer.name,
+      customer.customerType,
+      customer.phone ?? "",
+      customer.email ?? "",
+      customer.gstin ?? "",
+      customer.creditLimit,
+      customer.creditDays,
+      customer.status,
+    ]),
+  );
+  res.header("content-type", "text/csv; charset=utf-8").attachment("rams-customers.csv").send(csv);
+}));
 router.post("/commercial-masters/customers", asyncHandler(async (req, res) => {
   sendSuccess(res, await createCustomer(context(req), req.body), "Customer created.", 201);
 }));
@@ -59,6 +84,26 @@ router.delete("/commercial-masters/customers/:id", asyncHandler(async (req, res)
 
 router.get("/commercial-masters/suppliers", asyncHandler(async (req, res) => {
   sendSuccess(res, await listSuppliers(req.user!.companyId));
+}));
+router.get("/commercial-masters/suppliers/page", asyncHandler(async (req, res) => {
+  sendSuccess(res, await listSuppliersPage(req.user!.companyId, parsePageQuery(req.query)));
+}));
+router.get("/commercial-masters/suppliers/export.csv", asyncHandler(async (req, res) => {
+  const page = await listSuppliersPage(req.user!.companyId, { ...parsePageQuery(req.query), page: 1, pageSize: 1000, skip: 0, take: 1000 });
+  const csv = toCsv(
+    ["Code", "Name", "Type", "Phone", "Email", "GSTIN", "Credit Days", "Status"],
+    page.items.map((supplier) => [
+      supplier.code,
+      supplier.name,
+      supplier.supplierType,
+      supplier.phone ?? "",
+      supplier.email ?? "",
+      supplier.gstin ?? "",
+      supplier.creditDays,
+      supplier.status,
+    ]),
+  );
+  res.header("content-type", "text/csv; charset=utf-8").attachment("rams-suppliers.csv").send(csv);
 }));
 router.post("/commercial-masters/suppliers", asyncHandler(async (req, res) => {
   sendSuccess(res, await createSupplier(context(req), req.body), "Supplier created.", 201);

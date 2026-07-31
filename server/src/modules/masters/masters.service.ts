@@ -1,5 +1,7 @@
 import prisma from "../../lib/prisma";
 import { ApiError } from "../../utils/api-error";
+import type { PageQuery } from "../../utils/pagination";
+import { pagedResult } from "../../utils/pagination";
 import type { RequestContext } from "../../types/request-context";
 import { writeAuditLog } from "../audit/audit.service";
 
@@ -464,6 +466,32 @@ export async function listProducts(companyId: string) {
   });
 }
 
+export async function listProductsPage(companyId: string, query: PageQuery) {
+  const where = {
+    companyId,
+    ...(query.search
+      ? {
+          OR: [
+            { code: { contains: query.search, mode: "insensitive" as const } },
+            { name: { contains: query.search, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  };
+  const [items, total] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      include: { brand: true, category: true, subCategory: true, unit: true, hsnCode: true, taxRate: true },
+      orderBy: { name: "asc" },
+      skip: query.skip,
+      take: query.take,
+    }),
+    prisma.product.count({ where }),
+  ]);
+
+  return pagedResult(items, total, query);
+}
+
 export async function createProduct(context: MasterContext, body: unknown) {
   const data = body as Record<string, unknown>;
   const product = await prisma.product.create({
@@ -555,6 +583,34 @@ export async function listProductVariants(companyId: string) {
     include: { product: true },
     orderBy: { name: "asc" },
   });
+}
+
+export async function listProductVariantsPage(companyId: string, query: PageQuery) {
+  const where = {
+    companyId,
+    ...(query.search
+      ? {
+          OR: [
+            { code: { contains: query.search, mode: "insensitive" as const } },
+            { name: { contains: query.search, mode: "insensitive" as const } },
+            { barcode: { contains: query.search, mode: "insensitive" as const } },
+            { product: { name: { contains: query.search, mode: "insensitive" as const } } },
+          ],
+        }
+      : {}),
+  };
+  const [items, total] = await Promise.all([
+    prisma.productVariant.findMany({
+      where,
+      include: { product: true },
+      orderBy: { name: "asc" },
+      skip: query.skip,
+      take: query.take,
+    }),
+    prisma.productVariant.count({ where }),
+  ]);
+
+  return pagedResult(items, total, query);
 }
 
 export async function createProductVariant(context: MasterContext, body: unknown) {

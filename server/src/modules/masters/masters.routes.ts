@@ -3,6 +3,8 @@ import { requireAuth, requireModuleAccess } from "../auth/auth.middleware";
 import { ApiError } from "../../utils/api-error";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
+import { toCsv } from "../../utils/csv";
+import { parsePageQuery } from "../../utils/pagination";
 import {
   createBrand,
   createCategory,
@@ -32,7 +34,9 @@ import {
   listCategories,
   listHsnCodes,
   listProducts,
+  listProductsPage,
   listProductVariants,
+  listProductVariantsPage,
   listSubCategories,
   listTaxRates,
   listUnits,
@@ -150,6 +154,26 @@ router.post("/masters/sub-categories", asyncHandler(async (req, res) => {
 router.get("/masters/products", asyncHandler(async (req, res) => {
   sendSuccess(res, await listProducts(req.user!.companyId));
 }));
+router.get("/masters/products/page", asyncHandler(async (req, res) => {
+  sendSuccess(res, await listProductsPage(req.user!.companyId, parsePageQuery(req.query)));
+}));
+router.get("/masters/products/export.csv", asyncHandler(async (req, res) => {
+  const page = await listProductsPage(req.user!.companyId, { ...parsePageQuery(req.query), page: 1, pageSize: 1000, skip: 0, take: 1000 });
+  const csv = toCsv(
+    ["Code", "Name", "Category", "Unit", "HSN", "Tax Rate", "Reorder Level", "Status"],
+    page.items.map((product) => [
+      product.code,
+      product.name,
+      product.category.name,
+      product.unit.symbol,
+      product.hsnCode?.code ?? "",
+      product.taxRate?.name ?? "",
+      product.reorderLevel,
+      product.status,
+    ]),
+  );
+  res.header("content-type", "text/csv; charset=utf-8").attachment("rams-products.csv").send(csv);
+}));
 router.post("/masters/products", asyncHandler(async (req, res) => {
   sendSuccess(res, await createProduct(context(req), req.body), "Product created.", 201);
 }));
@@ -162,6 +186,25 @@ router.delete("/masters/products/:id", asyncHandler(async (req, res) => {
 
 router.get("/masters/product-variants", asyncHandler(async (req, res) => {
   sendSuccess(res, await listProductVariants(req.user!.companyId));
+}));
+router.get("/masters/product-variants/page", asyncHandler(async (req, res) => {
+  sendSuccess(res, await listProductVariantsPage(req.user!.companyId, parsePageQuery(req.query)));
+}));
+router.get("/masters/product-variants/export.csv", asyncHandler(async (req, res) => {
+  const page = await listProductVariantsPage(req.user!.companyId, { ...parsePageQuery(req.query), page: 1, pageSize: 1000, skip: 0, take: 1000 });
+  const csv = toCsv(
+    ["Code", "Name", "Product", "Barcode", "Sale Price", "Purchase Price", "Status"],
+    page.items.map((variant) => [
+      variant.code,
+      variant.name,
+      variant.product.name,
+      variant.barcode ?? "",
+      variant.salePrice,
+      variant.purchasePrice ?? "",
+      variant.status,
+    ]),
+  );
+  res.header("content-type", "text/csv; charset=utf-8").attachment("rams-product-variants.csv").send(csv);
 }));
 router.post("/masters/product-variants", asyncHandler(async (req, res) => {
   sendSuccess(res, await createProductVariant(context(req), req.body), "Product variant created.", 201);

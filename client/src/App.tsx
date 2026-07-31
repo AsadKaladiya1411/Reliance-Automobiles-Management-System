@@ -946,6 +946,10 @@ function useMasterList<T>(key: string, path: string) {
   });
 }
 
+function downloadCsv(path: string) {
+  window.location.href = `${api.defaults.baseURL}${path}`;
+}
+
 function SetupForm() {
   const [form, setForm] = useState({
     companyName: "Reliance Automobiles",
@@ -2764,7 +2768,10 @@ function CustomerPanel({ items }: { items: Customer[] }) {
 
   return (
     <article className="setup-panel master-panel wide-panel">
-      <h2>Customers</h2>
+      <div className="panel-title-row">
+        <h2>Customers</h2>
+        <Button type="button" variant="outline" onClick={() => downloadCsv("/commercial-masters/customers/export.csv")}>Export CSV</Button>
+      </div>
       <form className="compact-form product-form" onSubmit={(event) => {
         event.preventDefault();
         if (editingId) {
@@ -2844,7 +2851,10 @@ function SupplierPanel({ items }: { items: Supplier[] }) {
 
   return (
     <article className="setup-panel master-panel wide-panel">
-      <h2>Suppliers</h2>
+      <div className="panel-title-row">
+        <h2>Suppliers</h2>
+        <Button type="button" variant="outline" onClick={() => downloadCsv("/commercial-masters/suppliers/export.csv")}>Export CSV</Button>
+      </div>
       <form className="compact-form product-form" onSubmit={(event) => {
         event.preventDefault();
         if (editingId) {
@@ -5059,7 +5069,10 @@ function ProductPanel({
 
   return (
     <article className="setup-panel master-panel wide-panel">
-      <h2>Products</h2>
+      <div className="panel-title-row">
+        <h2>Products</h2>
+        <Button type="button" variant="outline" onClick={() => downloadCsv("/masters/products/export.csv")}>Export CSV</Button>
+      </div>
       <form
         className="compact-form product-form"
         onSubmit={(event) => {
@@ -5170,7 +5183,10 @@ function VariantPanel({ items, products }: { items: ProductVariant[]; products: 
 
   return (
     <article className="setup-panel master-panel wide-panel">
-      <h2>Product Variants</h2>
+      <div className="panel-title-row">
+        <h2>Product Variants</h2>
+        <Button type="button" variant="outline" onClick={() => downloadCsv("/masters/product-variants/export.csv")}>Export CSV</Button>
+      </div>
       <form
         className="compact-form product-form"
         onSubmit={(event) => {

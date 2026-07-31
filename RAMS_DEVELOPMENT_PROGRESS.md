@@ -4,7 +4,7 @@ Last updated: 2026-07-30
 
 ## Overall Completion
 
-Estimated completion: 85%
+Estimated completion: 86%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -15,8 +15,8 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Platform/Foundation | 80% | Web app, API, environment config, Prisma, setup flow, number series, audit logs, approval foundation, request correlation IDs, structured server logging, runtime metrics, global API errors, same-origin mutation guard, audit reporting, and test script foundation are in place. Needs broader tests, deployment hardening, and operational docs. |
 | Authentication/RBAC | 74% | Login, registration, current-user session, Super Admin, Staff role, user-role administration, backend module permission middleware, explicit sensitive-route permission guards, role-aware navigation, and permission-aware Settings queries. Needs permission management UI and richer user lifecycle controls. |
 | Company/Financial Year/Settings | 68% | Company profile, financial years, number series, approval rules/requests, default seeding, audit view. Needs closing/opening year workflows and more settings. |
-| Masters | 82% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, Product Variants, Tax Rates, and warehouse hierarchy records. Needs import/export and server-side pagination for large datasets. |
-| Commercial Masters | 70% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls, customer credit limit/day settings, and dependency safeguards. Needs richer profiles, contact/address handling, search, pagination, and import/export. |
+| Masters | 85% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, Product Variants, Tax Rates, and warehouse hierarchy records. Product/variant pagination and CSV exports exist. Needs import and richer server-side table UI. |
+| Commercial Masters | 74% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls, customer credit limit/day settings, dependency safeguards, customer/supplier pagination, and CSV exports. Needs richer profiles, contact/address handling, import, and richer server-side table UI. |
 | Inventory | 68% | Opening stock, stock balances, movements, adjustments, transfers, negative stock protection, reorder alerts. Needs valuation reports, batch/serial handling, stronger location selection, stock aging. |
 | Purchase | 70% | Purchase orders, approval-rule-aware PO/GRN creation, PO-to-GRN line conversion, GRN workflow, GRN-to-purchase-invoice traceability, source quantity controls, partial receipt/invoice indicators, default purchase cost application, purchase invoice posting/cancel, purchase return, GST/input tax and supplier ledger integration. Needs landed cost. |
 | Sales | 74% | Quotations, orders, delivery challans, approval-rule-aware planning creation, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, source quantity controls, partial delivery/invoice indicators, sales line discounts, default sale price application, customer credit-limit/overdue checks, sales invoice posting/cancel, sales return, GST/output tax and customer ledger integration. Needs richer pricing rules. |
@@ -25,7 +25,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Payments/Notes | 63% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact, payment allocations against open customer/supplier documents, and settlement visibility. Needs multi-document allocation UI polish and settlement aging. |
 | Workshop/Service | 65% | Job cards, vehicle complaints, parts/labor estimates, technician assignment, technician progress statuses/notes, service history, inspection/QC notes and checklist, status transitions, parts issue posting, GST-aware workshop billing, and delivery closeout timestamps/notes. Needs richer task allocation and customer-facing service summaries. |
 | Reports/Analytics | 50% | Reports workspace, business snapshot, financial statements, GST summary/registers, CSV exports, outstanding, reorder, audit, and approval visibility in Settings. Needs broader date filters, drilldowns, dashboards, operational analytics. |
-| UI/UX | 50% | Responsive desktop-focused shell, working forms/lists, list search, global API errors, reports workspace, GST report filters/exports, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
+| UI/UX | 51% | Responsive desktop-focused shell, working forms/lists, list search, global API errors, reports workspace, GST report filters/exports, master CSV export buttons, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
 | Testing/Quality | 26% | Typecheck, lint, build, and Node test runner are configured with focused unit coverage for GST totals, payment allocation validation, and document numbering. Needs transaction tests, API tests, frontend workflow tests. |
 | Deployment/Operations | 42% | Build scripts, verify script, environment config, request correlation, structured API error logs, health/status runtime metadata, metrics endpoint, production runbook, migration deploy command, backup/restore guidance, rollback checklist, and release notes template exist. Needs deployment packaging automation and monitoring integrations. |
 
@@ -73,6 +73,9 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added request correlation IDs, response request IDs, request-aware Morgan logging, structured API/error logs, runtime metrics helper, and health/status/metrics metadata.
 - Added production runbook covering release verification, migrations, backup/restore, rollback, monitoring, security, and release notes.
 - Added root `npm run verify` and production `npm run prisma:deploy` scripts, and refreshed README operational guidance.
+- Added reusable server pagination and CSV utilities with tests.
+- Added paginated backend endpoints and CSV exports for products, product variants, customers, and suppliers.
+- Added frontend CSV export actions for high-volume master panels.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -94,7 +97,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Remaining Tasks
 
-- Add detail views, import/export, and server-side pagination for master records.
+- Add import templates/import validation and richer server-side table UI for high-volume master records.
 - Add richer customer/supplier ledger drilldowns, multi-document allocation UI polish, and settlement aging.
 - Add richer technician task allocation, labor execution tracking, and customer-facing service summaries for workshop jobs.
 - Extend approval-rule integration to workshop/accounting posting workflows where approval should block posting.
@@ -107,22 +110,27 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Deployment runbook, migration process, backup/restore guidance, and production readiness documentation.
+Master data import/export and server-side pagination foundation.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 4 to 6 focused development sessions.
+Estimated remaining iterations: 4 to 5 focused development sessions.
 
 The largest remaining chunks are configurable approvals, reporting/export depth, automated testing, richer settlement workflows, and production deployment hardening.
 
 ## Files/Modules Modified In This Session
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
-- `README.md`
-- `docs/PRODUCTION_RUNBOOK.md`
-- `package.json`
-- `server/package.json`
+- `client/src/App.tsx`
+- `server/src/modules/commercial-masters/commercial-masters.routes.ts`
+- `server/src/modules/commercial-masters/commercial-masters.service.ts`
+- `server/src/modules/masters/masters.routes.ts`
+- `server/src/modules/masters/masters.service.ts`
+- `server/src/utils/csv.ts`
+- `server/src/utils/csv.test.ts`
+- `server/src/utils/pagination.ts`
+- `server/src/utils/pagination.test.ts`
 
 ## Next Implementation Target
 
-Master data import/export and server-side pagination foundation.
+Richer frontend data tables, loading states, and high-volume master pagination UI.

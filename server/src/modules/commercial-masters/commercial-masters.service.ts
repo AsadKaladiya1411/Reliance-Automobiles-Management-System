@@ -1,5 +1,7 @@
 import prisma from "../../lib/prisma";
 import { ApiError } from "../../utils/api-error";
+import type { PageQuery } from "../../utils/pagination";
+import { pagedResult } from "../../utils/pagination";
 import type { RequestContext } from "../../types/request-context";
 import { writeAuditLog } from "../audit/audit.service";
 
@@ -108,6 +110,28 @@ export async function listCustomers(companyId: string) {
   return prisma.customer.findMany({ where: { companyId }, orderBy: { name: "asc" } });
 }
 
+export async function listCustomersPage(companyId: string, query: PageQuery) {
+  const where = {
+    companyId,
+    ...(query.search
+      ? {
+          OR: [
+            { code: { contains: query.search, mode: "insensitive" as const } },
+            { name: { contains: query.search, mode: "insensitive" as const } },
+            { phone: { contains: query.search, mode: "insensitive" as const } },
+            { gstin: { contains: query.search, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  };
+  const [items, total] = await Promise.all([
+    prisma.customer.findMany({ where, orderBy: { name: "asc" }, skip: query.skip, take: query.take }),
+    prisma.customer.count({ where }),
+  ]);
+
+  return pagedResult(items, total, query);
+}
+
 export async function createCustomer(context: CommercialContext, body: unknown) {
   const data = body as Record<string, unknown>;
   const customer = await prisma.customer.create({
@@ -185,6 +209,28 @@ export async function deactivateCustomer(context: CommercialContext, customerId:
 
 export async function listSuppliers(companyId: string) {
   return prisma.supplier.findMany({ where: { companyId }, orderBy: { name: "asc" } });
+}
+
+export async function listSuppliersPage(companyId: string, query: PageQuery) {
+  const where = {
+    companyId,
+    ...(query.search
+      ? {
+          OR: [
+            { code: { contains: query.search, mode: "insensitive" as const } },
+            { name: { contains: query.search, mode: "insensitive" as const } },
+            { phone: { contains: query.search, mode: "insensitive" as const } },
+            { gstin: { contains: query.search, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  };
+  const [items, total] = await Promise.all([
+    prisma.supplier.findMany({ where, orderBy: { name: "asc" }, skip: query.skip, take: query.take }),
+    prisma.supplier.count({ where }),
+  ]);
+
+  return pagedResult(items, total, query);
 }
 
 export async function createSupplier(context: CommercialContext, body: unknown) {
