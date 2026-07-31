@@ -33,6 +33,9 @@ type AuthContext = RequestContext & {
   roles: string[];
 };
 
+const maxFailedLoginAttempts = 5;
+const lockoutMinutes = 15;
+
 function normalizeUsername(username: string) {
   return username.trim().toLowerCase();
 }
@@ -271,12 +274,21 @@ export async function login(input: LoginInput, context: RequestContext) {
     throw new ApiError(401, "INVALID_CREDENTIALS", "Invalid username or password.");
   }
 
+  if (user.lockedUntil && user.lockedUntil > new Date()) {
+    throw new ApiError(423, "ACCOUNT_LOCKED", "Account is temporarily locked. Please try again later.");
+  }
+
   const passwordMatches = await bcrypt.compare(input.password, user.passwordHash);
 
   if (!passwordMatches) {
+    const failedLoginAttempts = user.failedLoginAttempts + 1;
+    const lockedUntil = failedLoginAttempts >= maxFailedLoginAttempts
+      ? new Date(Date.now() + lockoutMinutes * 60 * 1000)
+      : null;
+
     await prisma.user.update({
       where: { id: user.id },
-      data: { failedLoginAttempts: { increment: 1 } },
+      data: { failedLoginAttempts, lockedUntil },
     });
 
     await writeAuditLog({
@@ -285,7 +297,7 @@ export async function login(input: LoginInput, context: RequestContext) {
       action: "LOGIN",
       entityType: "User",
       entityId: user.id,
-      description: "Failed login attempt.",
+      description: lockedUntil ? "Failed login attempt locked the account." : "Failed login attempt.",
       ipAddress: context.ipAddress,
       userAgent: context.userAgent,
     });
@@ -297,6 +309,7 @@ export async function login(input: LoginInput, context: RequestContext) {
     where: { id: user.id },
     data: {
       failedLoginAttempts: 0,
+      lockedUntil: null,
       lastLoginAt: new Date(),
     },
   });

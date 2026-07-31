@@ -31,7 +31,7 @@ RAMS is now a strong commercial ERP MVP foundation with working authentication, 
 - HTTP-only cookie auth, bcrypt password hashing, Helmet, CORS, same-origin mutation checks, and module/action permission guards are implemented.
 - Sensitive posting/cancel routes have explicit permission guards.
 - Request IDs are returned in API envelopes and logged for traceability.
-- Remaining security work: account lockout enforcement, production HTTPS/proxy review, and periodic RBAC audit tooling.
+- Remaining security work: production HTTPS/proxy review and periodic RBAC audit tooling.
 
 ## Performance Observations
 
@@ -80,9 +80,9 @@ RAMS is now a strong commercial ERP MVP foundation with working authentication, 
 - [x] Operational logging, request correlation, and metrics exist.
 - [x] Migration/deployment/backup runbook exists.
 - [x] Login/register/setup rate limiting exists.
+- [x] Account lockout is enforced.
 - [ ] Automated database transaction tests exist for posting workflows.
 - [ ] Automated frontend workflow tests exist.
-- [ ] Account lockout is enforced.
 - [ ] Fiscal year close/lock posting controls exist.
 - [ ] Product/variant import exists.
 - [ ] GSTR-ready exports exist.

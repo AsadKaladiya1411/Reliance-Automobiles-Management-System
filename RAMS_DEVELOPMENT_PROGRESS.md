@@ -4,7 +4,7 @@ Last updated: 2026-07-31
 
 ## Overall Completion
 
-Estimated completion: 89%
+Estimated completion: 90%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -13,7 +13,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Module | Completion | Notes |
 | --- | ---: | --- |
 | Platform/Foundation | 80% | Web app, API, environment config, Prisma, setup flow, number series, audit logs, approval foundation, request correlation IDs, structured server logging, runtime metrics, global API errors, same-origin mutation guard, audit reporting, and test script foundation are in place. Needs broader tests, deployment hardening, and operational docs. |
-| Authentication/RBAC | 78% | Login, registration, current-user session, auth/setup rate limiting, Super Admin, Staff role, user-role administration, backend module permission middleware, explicit sensitive-route permission guards, role-aware navigation, and permission-aware Settings queries. Needs account lockout enforcement, permission management UI, and richer user lifecycle controls. |
+| Authentication/RBAC | 82% | Login, registration, current-user session, auth/setup rate limiting, account lockout enforcement, Super Admin, Staff role, user-role administration, backend module permission middleware, explicit sensitive-route permission guards, role-aware navigation, and permission-aware Settings queries. Needs permission management UI and richer user lifecycle controls. |
 | Company/Financial Year/Settings | 68% | Company profile, financial years, number series, approval rules/requests, default seeding, audit view. Needs closing/opening year workflows and more settings. |
 | Masters | 86% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, Product Variants, Tax Rates, and warehouse hierarchy records. Product/variant server-side pagination UI and CSV exports exist. Needs import. |
 | Commercial Masters | 79% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls, customer credit limit/day settings, dependency safeguards, customer/supplier server-side pagination UI, CSV exports, import templates, and validated JSON batch import endpoints. Needs richer profiles and contact/address handling. |
@@ -80,6 +80,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added customer/supplier import templates and validated batch import endpoints with duplicate-code checks and audit logging.
 - Added auth/setup rate limiting for bootstrap, login, and registration endpoints.
 - Refreshed project-wide audit report to reflect current implementation, verification, and remaining production gaps.
+- Added account lockout enforcement after repeated failed login attempts and automatic lock reset after successful login.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -101,7 +102,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Remaining Tasks
 
-- Add product/variant import validation, account lockout enforcement, richer contact/address profiles, and remaining workflow polish.
+- Add product/variant import validation, richer contact/address profiles, and remaining workflow polish.
 - Add richer customer/supplier ledger drilldowns, multi-document allocation UI polish, and settlement aging.
 - Add richer technician task allocation, labor execution tracking, and customer-facing service summaries for workshop jobs.
 - Extend approval-rule integration to workshop/accounting posting workflows where approval should block posting.
