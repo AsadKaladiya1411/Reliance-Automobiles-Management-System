@@ -30,6 +30,8 @@ import {
   deactivateWarehouseRack,
   deactivateWarehouseShelf,
   getMasterSummary,
+  importProductVariants,
+  importProducts,
   listBrands,
   listCategories,
   listHsnCodes,
@@ -174,8 +176,18 @@ router.get("/masters/products/export.csv", asyncHandler(async (req, res) => {
   );
   res.header("content-type", "text/csv; charset=utf-8").attachment("rams-products.csv").send(csv);
 }));
+router.get("/masters/products/import-template.csv", asyncHandler(async (_req, res) => {
+  const csv = toCsv(
+    ["code", "name", "description", "brandCode", "categoryCode", "unitCode", "hsnCode", "taxRateName", "trackingType", "reorderLevel"],
+    [["OIL-FILTER-001", "Oil Filter", "Engine oil filter", "BOSCH", "FILTERS", "PCS", "8421", "GST 18%", "NONE", "5"]],
+  );
+  res.header("content-type", "text/csv; charset=utf-8").attachment("rams-products-import-template.csv").send(csv);
+}));
 router.post("/masters/products", asyncHandler(async (req, res) => {
   sendSuccess(res, await createProduct(context(req), req.body), "Product created.", 201);
+}));
+router.post("/masters/products/import", asyncHandler(async (req, res) => {
+  sendSuccess(res, await importProducts(context(req), req.body), "Products imported.", 201);
 }));
 router.patch("/masters/products/:id", asyncHandler(async (req, res) => {
   sendSuccess(res, await updateProduct(context(req), routeParam(req.params.id, "id"), req.body), "Product updated.");
@@ -206,8 +218,18 @@ router.get("/masters/product-variants/export.csv", asyncHandler(async (req, res)
   );
   res.header("content-type", "text/csv; charset=utf-8").attachment("rams-product-variants.csv").send(csv);
 }));
+router.get("/masters/product-variants/import-template.csv", asyncHandler(async (_req, res) => {
+  const csv = toCsv(
+    ["productCode", "code", "name", "barcode", "salePrice", "purchasePrice"],
+    [["OIL-FILTER-001", "OIL-FILTER-001-STD", "Oil Filter Standard", "890000000001", "350", "220"]],
+  );
+  res.header("content-type", "text/csv; charset=utf-8").attachment("rams-product-variants-import-template.csv").send(csv);
+}));
 router.post("/masters/product-variants", asyncHandler(async (req, res) => {
   sendSuccess(res, await createProductVariant(context(req), req.body), "Product variant created.", 201);
+}));
+router.post("/masters/product-variants/import", asyncHandler(async (req, res) => {
+  sendSuccess(res, await importProductVariants(context(req), req.body), "Product variants imported.", 201);
 }));
 router.patch("/masters/product-variants/:id", asyncHandler(async (req, res) => {
   sendSuccess(res, await updateProductVariant(context(req), routeParam(req.params.id, "id"), req.body), "Product variant updated.");

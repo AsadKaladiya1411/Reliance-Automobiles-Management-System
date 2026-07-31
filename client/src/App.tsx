@@ -5125,7 +5125,10 @@ function ProductPanel({
     <article className="setup-panel master-panel wide-panel">
       <div className="panel-title-row">
         <h2>Products</h2>
-        <Button type="button" variant="outline" onClick={() => downloadCsv("/masters/products/export.csv")}>Export CSV</Button>
+        <div className="button-row">
+          <Button type="button" variant="outline" onClick={() => downloadCsv("/masters/products/import-template.csv")}>Template</Button>
+          <Button type="button" variant="outline" onClick={() => downloadCsv("/masters/products/export.csv")}>Export CSV</Button>
+        </div>
       </div>
       <form
         className="compact-form product-form"
@@ -5250,7 +5253,10 @@ function VariantPanel({ items, products }: { items: ProductVariant[]; products: 
     <article className="setup-panel master-panel wide-panel">
       <div className="panel-title-row">
         <h2>Product Variants</h2>
-        <Button type="button" variant="outline" onClick={() => downloadCsv("/masters/product-variants/export.csv")}>Export CSV</Button>
+        <div className="button-row">
+          <Button type="button" variant="outline" onClick={() => downloadCsv("/masters/product-variants/import-template.csv")}>Template</Button>
+          <Button type="button" variant="outline" onClick={() => downloadCsv("/masters/product-variants/export.csv")}>Export CSV</Button>
+        </div>
       </div>
       <form
         className="compact-form product-form"

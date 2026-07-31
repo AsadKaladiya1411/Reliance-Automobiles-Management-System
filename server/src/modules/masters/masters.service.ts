@@ -10,6 +10,28 @@ type MasterContext = RequestContext & {
   userId: string;
 };
 
+type ProductImportInput = {
+  code?: unknown;
+  name?: unknown;
+  description?: unknown;
+  brandCode?: unknown;
+  categoryCode?: unknown;
+  unitCode?: unknown;
+  hsnCode?: unknown;
+  taxRateName?: unknown;
+  trackingType?: unknown;
+  reorderLevel?: unknown;
+};
+
+type ProductVariantImportInput = {
+  productCode?: unknown;
+  code?: unknown;
+  name?: unknown;
+  barcode?: unknown;
+  salePrice?: unknown;
+  purchasePrice?: unknown;
+};
+
 function requiredString(value: unknown, field: string) {
   if (typeof value !== "string" || value.trim() === "") {
     throw new ApiError(400, "INVALID_MASTER_DATA", `${field} is required.`);
@@ -30,6 +52,57 @@ function decimalNumber(value: unknown, fallback = 0) {
   }
 
   return number;
+}
+
+function importRows(body: unknown) {
+  const data = body as Record<string, unknown>;
+  const rows = Array.isArray(data.items) ? data.items : [];
+
+  if (rows.length === 0) {
+    throw new ApiError(400, "IMPORT_ROWS_REQUIRED", "Import requires at least one row.");
+  }
+
+  if (rows.length > 200) {
+    throw new ApiError(400, "IMPORT_TOO_LARGE", "Import is limited to 200 rows at a time.");
+  }
+
+  return rows as Record<string, unknown>[];
+}
+
+function ensureUniqueValues(rows: Array<Record<string, unknown>>, field: string, label: string) {
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const value = typeof row[field] === "string" && row[field].trim() !== "" ? row[field].trim() : undefined;
+    if (!value) {
+      continue;
+    }
+    if (seen.has(value)) {
+      throw new ApiError(400, "IMPORT_DUPLICATE_VALUE", `Duplicate ${label} in import file: ${value}.`);
+    }
+    seen.add(value);
+  }
+}
+
+function requireLookup<T>(map: Map<string, T>, code: string | undefined, label: string) {
+  if (!code) {
+    return undefined;
+  }
+
+  const value = map.get(code);
+  if (!value) {
+    throw new ApiError(400, "IMPORT_LOOKUP_NOT_FOUND", `${label} not found or inactive: ${code}.`);
+  }
+
+  return value;
+}
+
+function trackingType(value: unknown) {
+  const type = (optionalString(value) ?? "NONE").toUpperCase();
+  if (!["NONE", "BATCH", "SERIAL"].includes(type)) {
+    throw new ApiError(400, "INVALID_TRACKING_TYPE", "Tracking type must be NONE, BATCH, or SERIAL.");
+  }
+
+  return type as "NONE" | "BATCH" | "SERIAL";
 }
 
 async function auditCreate(context: MasterContext, entityType: string, entityId: string, data: unknown) {
@@ -514,6 +587,71 @@ export async function createProduct(context: MasterContext, body: unknown) {
   return product;
 }
 
+export async function importProducts(context: MasterContext, body: unknown) {
+  const rawRows = importRows(body) as ProductImportInput[];
+  const rows = rawRows.map((row) => ({
+    code: requiredString(row.code, "Code").toUpperCase(),
+    name: requiredString(row.name, "Name"),
+    description: optionalString(row.description),
+    brandCode: optionalString(row.brandCode)?.toUpperCase(),
+    categoryCode: requiredString(row.categoryCode, "Category code").toUpperCase(),
+    unitCode: requiredString(row.unitCode, "Unit code").toUpperCase(),
+    hsnCode: optionalString(row.hsnCode),
+    taxRateName: optionalString(row.taxRateName),
+    trackingType: trackingType(row.trackingType),
+    reorderLevel: decimalNumber(row.reorderLevel),
+  }));
+  ensureUniqueValues(rows, "code", "product code");
+
+  const [existingProducts, brands, categories, units, hsnCodes, taxRates] = await Promise.all([
+    prisma.product.findMany({
+      where: { companyId: context.companyId, code: { in: rows.map((row) => row.code) } },
+      select: { code: true },
+    }),
+    prisma.brand.findMany({ where: { companyId: context.companyId, status: "ACTIVE" } }),
+    prisma.category.findMany({ where: { companyId: context.companyId, status: "ACTIVE" } }),
+    prisma.unit.findMany({ where: { companyId: context.companyId, status: "ACTIVE" } }),
+    prisma.hsnCode.findMany({ where: { companyId: context.companyId, status: "ACTIVE" } }),
+    prisma.taxRate.findMany({ where: { companyId: context.companyId, status: "ACTIVE" } }),
+  ]);
+
+  if (existingProducts.length > 0) {
+    throw new ApiError(400, "IMPORT_CODE_EXISTS", `Product code already exists: ${existingProducts.map((row) => row.code).join(", ")}.`);
+  }
+
+  const brandByCode = new Map(brands.map((item) => [item.code.toUpperCase(), item]));
+  const categoryByCode = new Map(categories.map((item) => [item.code.toUpperCase(), item]));
+  const unitByCode = new Map(units.map((item) => [item.code.toUpperCase(), item]));
+  const hsnByCode = new Map(hsnCodes.map((item) => [item.code, item]));
+  const taxRateByName = new Map(taxRates.map((item) => [item.name.toLowerCase(), item]));
+
+  const data = rows.map((row) => ({
+    companyId: context.companyId,
+    code: row.code,
+    name: row.name,
+    description: row.description,
+    brandId: requireLookup(brandByCode, row.brandCode, "Brand code")?.id,
+    categoryId: requireLookup(categoryByCode, row.categoryCode, "Category code")!.id,
+    unitId: requireLookup(unitByCode, row.unitCode, "Unit code")!.id,
+    hsnCodeId: requireLookup(hsnByCode, row.hsnCode, "HSN code")?.id,
+    taxRateId: requireLookup(taxRateByName, row.taxRateName?.toLowerCase(), "Tax rate")?.id,
+    trackingType: row.trackingType,
+    reorderLevel: row.reorderLevel,
+  }));
+
+  await prisma.product.createMany({ data });
+  await writeAuditLog({
+    ...context,
+    module: "masters",
+    action: "CREATE",
+    entityType: "ProductImport",
+    description: `${rows.length} products imported.`,
+    afterData: { count: rows.length, codes: rows.map((row) => row.code) },
+  });
+
+  return { imported: rows.length };
+}
+
 export async function updateProduct(context: MasterContext, productId: string, body: unknown) {
   const data = body as Record<string, unknown>;
   const existing = await prisma.product.findFirst({ where: { id: productId, companyId: context.companyId } });
@@ -637,6 +775,65 @@ export async function createProductVariant(context: MasterContext, body: unknown
   });
   await auditCreate(context, "ProductVariant", variant.id, variant);
   return variant;
+}
+
+export async function importProductVariants(context: MasterContext, body: unknown) {
+  const rawRows = importRows(body) as ProductVariantImportInput[];
+  const rows = rawRows.map((row) => ({
+    productCode: requiredString(row.productCode, "Product code").toUpperCase(),
+    code: requiredString(row.code, "Code").toUpperCase(),
+    name: requiredString(row.name, "Name"),
+    barcode: optionalString(row.barcode),
+    salePrice: decimalNumber(row.salePrice),
+    purchasePrice: decimalNumber(row.purchasePrice),
+  }));
+  ensureUniqueValues(rows, "code", "variant code");
+  ensureUniqueValues(rows, "barcode", "barcode");
+
+  const [existingVariants, existingBarcodes, products] = await Promise.all([
+    prisma.productVariant.findMany({
+      where: { companyId: context.companyId, code: { in: rows.map((row) => row.code) } },
+      select: { code: true },
+    }),
+    prisma.productVariant.findMany({
+      where: { companyId: context.companyId, barcode: { in: rows.map((row) => row.barcode).filter(Boolean) as string[] } },
+      select: { barcode: true },
+    }),
+    prisma.product.findMany({
+      where: { companyId: context.companyId, status: "ACTIVE", code: { in: rows.map((row) => row.productCode) } },
+      select: { id: true, code: true },
+    }),
+  ]);
+
+  if (existingVariants.length > 0) {
+    throw new ApiError(400, "IMPORT_CODE_EXISTS", `Product variant code already exists: ${existingVariants.map((row) => row.code).join(", ")}.`);
+  }
+  if (existingBarcodes.length > 0) {
+    throw new ApiError(400, "IMPORT_BARCODE_EXISTS", `Barcode already exists: ${existingBarcodes.map((row) => row.barcode).join(", ")}.`);
+  }
+
+  const productByCode = new Map(products.map((item) => [item.code.toUpperCase(), item]));
+  const data = rows.map((row) => ({
+    companyId: context.companyId,
+    productId: requireLookup(productByCode, row.productCode, "Product code")!.id,
+    code: row.code,
+    name: row.name,
+    barcode: row.barcode,
+    salePrice: row.salePrice,
+    purchasePrice: row.purchasePrice,
+  }));
+
+  await prisma.productVariant.createMany({ data });
+  await writeAuditLog({
+    ...context,
+    module: "masters",
+    action: "CREATE",
+    entityType: "ProductVariantImport",
+    description: `${rows.length} product variants imported.`,
+    afterData: { count: rows.length, codes: rows.map((row) => row.code) },
+  });
+
+  return { imported: rows.length };
 }
 
 export async function updateProductVariant(context: MasterContext, variantId: string, body: unknown) {

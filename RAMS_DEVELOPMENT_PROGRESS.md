@@ -4,7 +4,7 @@ Last updated: 2026-07-31
 
 ## Overall Completion
 
-Estimated completion: 91%
+Estimated completion: 92%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -15,7 +15,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Platform/Foundation | 80% | Web app, API, environment config, Prisma, setup flow, number series, audit logs, approval foundation, request correlation IDs, structured server logging, runtime metrics, global API errors, same-origin mutation guard, audit reporting, and test script foundation are in place. Needs broader tests, deployment hardening, and operational docs. |
 | Authentication/RBAC | 82% | Login, registration, current-user session, auth/setup rate limiting, account lockout enforcement, Super Admin, Staff role, user-role administration, backend module permission middleware, explicit sensitive-route permission guards, role-aware navigation, and permission-aware Settings queries. Needs permission management UI and richer user lifecycle controls. |
 | Company/Financial Year/Settings | 74% | Company profile, financial years, number series, approval rules/requests, default seeding, audit view, and open financial-year posting controls. Needs closing/opening year workflows and more settings. |
-| Masters | 86% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, Product Variants, Tax Rates, and warehouse hierarchy records. Product/variant server-side pagination UI and CSV exports exist. Needs import. |
+| Masters | 88% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, Product Variants, Tax Rates, and warehouse hierarchy records. Product/variant server-side pagination UI, CSV exports, import templates, and validated JSON batch import endpoints exist. |
 | Commercial Masters | 79% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls, customer credit limit/day settings, dependency safeguards, customer/supplier server-side pagination UI, CSV exports, import templates, and validated JSON batch import endpoints. Needs richer profiles and contact/address handling. |
 | Inventory | 70% | Opening stock, stock balances, movements, adjustments, transfers, negative stock protection, reorder alerts, and open-period posting controls. Needs valuation reports, batch/serial handling, stronger location selection, stock aging. |
 | Purchase | 72% | Purchase orders, approval-rule-aware PO/GRN creation, PO-to-GRN line conversion, GRN workflow, GRN-to-purchase-invoice traceability, source quantity controls, partial receipt/invoice indicators, default purchase cost application, purchase invoice posting/cancel, purchase return, GST/input tax, supplier ledger integration, and open-period posting controls. Needs landed cost. |
@@ -82,6 +82,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Refreshed project-wide audit report to reflect current implementation, verification, and remaining production gaps.
 - Added account lockout enforcement after repeated failed login attempts and automatic lock reset after successful login.
 - Added reusable open-financial-year posting controls for journal entries, contra vouchers, payments, notes, inventory postings, purchase invoice/return/cancel, sales invoice/return/cancel, workshop parts issue, and workshop billing.
+- Added product and product-variant import templates plus validated JSON batch import endpoints with duplicate code/barcode checks, reference-code validation, and audit logging.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -103,7 +104,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Remaining Tasks
 
-- Add product/variant import validation, richer contact/address profiles, and remaining workflow polish.
+- Add richer contact/address profiles and remaining workflow polish.
 - Add richer customer/supplier ledger drilldowns, multi-document allocation UI polish, and settlement aging.
 - Add richer technician task allocation, labor execution tracking, and customer-facing service summaries for workshop jobs.
 - Add financial-year close/reopen workflows and stronger year-end operating controls.
@@ -117,27 +118,22 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Fiscal year posting controls and final audit hardening.
+Product/variant import validation and final audit hardening.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 2 to 3 focused development sessions.
+Estimated remaining iterations: 2 focused development sessions.
 
-The largest remaining chunks are database-backed workflow tests, GSTR-ready exports, product/variant import validation, richer settlement workflows, and production deployment hardening.
+The largest remaining chunks are database-backed workflow tests, GSTR-ready exports, richer settlement workflows, and production deployment hardening.
 
 ## Files/Modules Modified In This Session
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `RAMS_AUDIT_REPORT.md`
-- `server/src/modules/accounting/accounting.service.ts`
-- `server/src/modules/financial-year/fiscal-period.service.ts`
-- `server/src/modules/inventory/inventory.service.ts`
-- `server/src/modules/notes/notes.service.ts`
-- `server/src/modules/payments/payments.service.ts`
-- `server/src/modules/purchase/purchase.service.ts`
-- `server/src/modules/sales/sales.service.ts`
-- `server/src/modules/workshop/workshop.service.ts`
+- `client/src/App.tsx`
+- `server/src/modules/masters/masters.routes.ts`
+- `server/src/modules/masters/masters.service.ts`
 
 ## Next Implementation Target
 
-Product/variant import validation, GSTR-ready exports, and database-backed posting workflow tests.
+GSTR-ready exports and database-backed posting workflow tests.

@@ -6,7 +6,7 @@ Audit date: 2026-07-31
 
 Not Ready for Production.
 
-RAMS is now a strong commercial ERP MVP foundation with working authentication, setup, masters, inventory, purchase, sales, workshop, accounting, GST, payments, reports, approvals, audit logs, fiscal-year posting controls, operational logging, tests, and runbook documentation. It should still go through additional hardening before real production business use because transaction-level integration tests, richer GSTR-ready reporting, product/variant import, workflow drilldowns, and deployment packaging automation are not yet complete.
+RAMS is now a strong commercial ERP MVP foundation with working authentication, setup, masters, inventory, purchase, sales, workshop, accounting, GST, payments, reports, approvals, audit logs, fiscal-year posting controls, product/variant imports, operational logging, tests, and runbook documentation. It should still go through additional hardening before real production business use because transaction-level integration tests, richer GSTR-ready reporting, workflow drilldowns, and deployment packaging automation are not yet complete.
 
 ## Verification Performed
 
@@ -26,6 +26,7 @@ RAMS is now a strong commercial ERP MVP foundation with working authentication, 
 - Payment allocation could be split across duplicate rows to bypass validation; added merge-before-validation logic and tests.
 - Workflow navigation blink/redirect issues were resolved through role-aware routing and query behavior fixes.
 - Posted financial/stock workflows could post into missing or closed financial periods; added reusable open-financial-year guards across accounting, payments, notes, inventory, purchase, sales, and workshop posting paths.
+- Product and variant imports were missing while high-volume master exports existed; added templates and validated batch endpoints with duplicate/reference preflight checks.
 
 ## Security Observations
 
@@ -54,7 +55,7 @@ RAMS is now a strong commercial ERP MVP foundation with working authentication, 
 | --- | --- | --- |
 | Foundation | Good | Env, API shell, setup, audit, number series, approvals, request logging, metrics, runbook, and verify script exist. |
 | Auth/RBAC | Good | Auth, rate limiting, account lockout, and RBAC work. Needs richer permission UI and lifecycle controls. |
-| Masters | Good | Core master lifecycle, warehouse hierarchy, pagination, and exports exist. Product/variant import remains. |
+| Masters | Good | Core master lifecycle, warehouse hierarchy, pagination, exports, and product/variant import endpoints exist. |
 | Commercial Masters | Good | Lifecycle, credit controls, pagination, exports, and customer/supplier import endpoints exist. Needs richer profiles. |
 | Inventory | Fair | Stock balances/movements, transfers, adjustments, reorder, and negative-stock prevention exist. Needs valuation depth and batch/serial tracking. |
 | Purchase | Good | PO, GRN, invoice, return, source controls, approvals, GST/accounting/ledger integration exist. Needs landed cost. |
@@ -85,7 +86,7 @@ RAMS is now a strong commercial ERP MVP foundation with working authentication, 
 - [ ] Automated database transaction tests exist for posting workflows.
 - [ ] Automated frontend workflow tests exist.
 - [x] Fiscal year close/lock posting controls exist.
-- [ ] Product/variant import exists.
+- [x] Product/variant import exists.
 - [ ] GSTR-ready exports exist.
 - [ ] Deployment packaging automation exists.
 
