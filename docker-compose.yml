@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: rams
+      POSTGRES_USER: rams
+      POSTGRES_PASSWORD: rams_dev_password
+    volumes:
+      - rams-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rams -d rams"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      CLIENT_URL: http://localhost:5000
+      DATABASE_URL: postgresql://rams:rams_dev_password@postgres:5432/rams
+      JWT_SECRET: change-this-before-production
+      JWT_EXPIRES_IN: 8h
+      AUTH_COOKIE_NAME: rams_session
+      PASSWORD_SALT_ROUNDS: 12
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  rams-postgres-data:

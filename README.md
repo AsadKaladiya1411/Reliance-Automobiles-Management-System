@@ -22,6 +22,10 @@ npm run verify
 
 Use [docs/PRODUCTION_RUNBOOK.md](docs/PRODUCTION_RUNBOOK.md) for release verification, migrations, backup/restore, rollback, monitoring, and production readiness checks.
 
+- Build a deployable container with `npm run docker:build`.
+- Run the local production-style stack with `npm run docker:up`.
+- Change every secret in `docker-compose.yml` before using it outside local validation.
+
 ## Development Notes
 
 - `.env.example` documents required local and production variables.

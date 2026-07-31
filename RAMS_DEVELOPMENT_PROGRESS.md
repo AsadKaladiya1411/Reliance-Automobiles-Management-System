@@ -4,7 +4,7 @@ Last updated: 2026-07-31
 
 ## Overall Completion
 
-Estimated completion: 94%
+Estimated completion: 95%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -12,7 +12,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 | Module | Completion | Notes |
 | --- | ---: | --- |
-| Platform/Foundation | 80% | Web app, API, environment config, Prisma, setup flow, number series, audit logs, approval foundation, request correlation IDs, structured server logging, runtime metrics, global API errors, same-origin mutation guard, audit reporting, and test script foundation are in place. Needs broader tests, deployment hardening, and operational docs. |
+| Platform/Foundation | 83% | Web app, API, production static frontend serving, environment config, Prisma, setup flow, number series, audit logs, approval foundation, request correlation IDs, structured server logging, runtime metrics, global API errors, same-origin mutation guard, audit reporting, and test script foundation are in place. Needs broader tests and operational monitoring integrations. |
 | Authentication/RBAC | 82% | Login, registration, current-user session, auth/setup rate limiting, account lockout enforcement, Super Admin, Staff role, user-role administration, backend module permission middleware, explicit sensitive-route permission guards, role-aware navigation, and permission-aware Settings queries. Needs permission management UI and richer user lifecycle controls. |
 | Company/Financial Year/Settings | 74% | Company profile, financial years, number series, approval rules/requests, default seeding, audit view, and open financial-year posting controls. Needs closing/opening year workflows and more settings. |
 | Masters | 88% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, Product Variants, Tax Rates, and warehouse hierarchy records. Product/variant server-side pagination UI, CSV exports, import templates, and validated JSON batch import endpoints exist. |
@@ -27,7 +27,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Reports/Analytics | 53% | Reports workspace, business snapshot, financial statements, GST summary/registers, GSTR-style CSV exports, outstanding, reorder, audit, and approval visibility in Settings. Needs broader date filters, drilldowns, dashboards, operational analytics. |
 | UI/UX | 53% | Responsive desktop-focused shell, working forms/lists, server-side paged master lists for high-volume data, list search, global API errors, reports workspace, GST report filters/exports, master CSV export buttons, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
 | Testing/Quality | 38% | Typecheck, lint, build, verify script, Node test runner, explicit integration test script, focused unit coverage for GST totals, payment allocation validation, CSV/pagination utilities, runtime metrics, document numbering, and database-backed journal posting smoke tests. Needs broader transaction tests, API tests, frontend workflow tests. |
-| Deployment/Operations | 42% | Build scripts, verify script, environment config, request correlation, structured API error logs, health/status runtime metadata, metrics endpoint, production runbook, migration deploy command, backup/restore guidance, rollback checklist, and release notes template exist. Needs deployment packaging automation and monitoring integrations. |
+| Deployment/Operations | 62% | Build scripts, verify script, Dockerfile, Docker Compose stack, production static asset serving, environment config, request correlation, structured API error logs, health/status runtime metadata, metrics endpoint, production runbook, migration deploy command, backup/restore guidance, rollback checklist, and release notes template exist. Needs external monitoring integrations and environment-specific deployment manifests. |
 
 ## Completed Tasks
 
@@ -85,6 +85,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added product and product-variant import templates plus validated JSON batch import endpoints with duplicate code/barcode checks, reference-code validation, and audit logging.
 - Added date-filtered GSTR-1 and GSTR-2 style CSV export endpoints and Reports workspace buttons backed by the existing GST register data.
 - Added explicit `test:integration` scripts and database-backed accounting posting tests for open-year journal posting and closed-year rollback behavior.
+- Added Docker/Compose packaging, production static frontend serving from the API container, container migration startup, and root Docker helper scripts.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -115,28 +116,32 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Add date range filters, exports, and drilldowns for non-GST reports.
 - Broaden transaction integrity tests across purchase, sales, inventory, payments, and workshop posting workflows.
 - Add API tests and frontend workflow tests.
-- Add deployment packaging automation, external monitoring integrations, and richer operational smoke tests.
-- Add migration/deployment runbook and backup/restore guidance.
+- Add external monitoring integrations and richer operational smoke tests.
+- Add environment-specific deployment manifests for the chosen hosting platform.
 - Improve frontend tables, filters, loading states, and form validation ergonomics.
 
 ## Current Feature Being Implemented
 
-Database-backed posting workflow tests and final audit hardening.
+Deployment packaging automation and final production-candidate audit pass.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 1 to 2 focused development sessions.
+Estimated remaining iterations: 1 focused hardening session.
 
-The largest remaining chunks are broader posting workflow tests, richer settlement workflows, and production deployment hardening.
+The largest remaining chunks are broader posting workflow tests, richer settlement workflows, external monitoring, and final UAT hardening.
 
 ## Files/Modules Modified In This Session
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `RAMS_AUDIT_REPORT.md`
+- `.dockerignore`
+- `Dockerfile`
+- `README.md`
+- `docker-compose.yml`
+- `docker-entrypoint.sh`
 - `package.json`
-- `server/package.json`
-- `server/src/modules/accounting/accounting.posting.integration.ts`
+- `server/src/app.ts`
 
 ## Next Implementation Target
 
-Deployment packaging automation and final production-candidate audit pass.
+Final production-candidate audit pass and broader posting workflow test expansion.

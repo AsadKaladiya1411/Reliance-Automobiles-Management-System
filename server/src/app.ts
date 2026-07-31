@@ -1,5 +1,7 @@
 import express from "express";
 import type { Request } from "express";
+import fs from "node:fs";
+import path from "node:path";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
@@ -61,6 +63,18 @@ app.use("/api", paymentRoutes);
 app.use("/api", purchaseRoutes);
 app.use("/api", salesRoutes);
 app.use("/api", workshopRoutes);
+
+if (env.nodeEnv === "production") {
+  const publicDir = path.resolve(process.cwd(), "public");
+  const indexHtml = path.join(publicDir, "index.html");
+
+  if (fs.existsSync(indexHtml)) {
+    app.use(express.static(publicDir));
+    app.get(/^\/(?!api).*/, (_req, res) => {
+      res.sendFile(indexHtml);
+    });
+  }
+}
 
 app.use(notFound);
 app.use(errorHandler);
