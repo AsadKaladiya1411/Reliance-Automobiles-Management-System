@@ -4,7 +4,7 @@ Last updated: 2026-07-30
 
 ## Overall Completion
 
-Estimated completion: 84%
+Estimated completion: 85%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -27,7 +27,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Reports/Analytics | 50% | Reports workspace, business snapshot, financial statements, GST summary/registers, CSV exports, outstanding, reorder, audit, and approval visibility in Settings. Needs broader date filters, drilldowns, dashboards, operational analytics. |
 | UI/UX | 50% | Responsive desktop-focused shell, working forms/lists, list search, global API errors, reports workspace, GST report filters/exports, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
 | Testing/Quality | 26% | Typecheck, lint, build, and Node test runner are configured with focused unit coverage for GST totals, payment allocation validation, and document numbering. Needs transaction tests, API tests, frontend workflow tests. |
-| Deployment/Operations | 30% | Build scripts, environment config, request correlation, structured API error logs, health/status runtime metadata, and metrics endpoint exist. Needs production deployment packaging, migrations process, backup/restore, monitoring integrations, release docs. |
+| Deployment/Operations | 42% | Build scripts, verify script, environment config, request correlation, structured API error logs, health/status runtime metadata, metrics endpoint, production runbook, migration deploy command, backup/restore guidance, rollback checklist, and release notes template exist. Needs deployment packaging automation and monitoring integrations. |
 
 ## Completed Tasks
 
@@ -71,6 +71,8 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added Node test runner scripts and focused TypeScript unit tests for GST net payable calculation, payment allocation validation, duplicate allocation merging, and document number formatting.
 - Extracted pure GST summary and document-numbering utilities to reduce database/env coupling in testable business logic.
 - Added request correlation IDs, response request IDs, request-aware Morgan logging, structured API/error logs, runtime metrics helper, and health/status/metrics metadata.
+- Added production runbook covering release verification, migrations, backup/restore, rollback, monitoring, security, and release notes.
+- Added root `npm run verify` and production `npm run prisma:deploy` scripts, and refreshed README operational guidance.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -99,33 +101,28 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Add GSTR-ready export formats, GST reconciliation checks, and tax drilldowns.
 - Add date range filters, exports, and drilldowns for non-GST reports.
 - Add transaction integrity tests, API tests, and frontend workflow tests.
-- Add external monitoring integration guidance, backup/restore process, migration runbook, and deployment packaging.
+- Add deployment packaging automation, external monitoring integrations, and richer operational smoke tests.
 - Add migration/deployment runbook and backup/restore guidance.
 - Improve frontend tables, filters, loading states, and form validation ergonomics.
 
 ## Current Feature Being Implemented
 
-Server logging, request correlation, and operational monitoring hooks.
+Deployment runbook, migration process, backup/restore guidance, and production readiness documentation.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 4 to 7 focused development sessions.
+Estimated remaining iterations: 4 to 6 focused development sessions.
 
 The largest remaining chunks are configurable approvals, reporting/export depth, automated testing, richer settlement workflows, and production deployment hardening.
 
 ## Files/Modules Modified In This Session
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
-- `server/src/app.ts`
-- `server/src/middleware/error-handler.ts`
-- `server/src/middleware/request-context.ts`
-- `server/src/modules/system/system.routes.ts`
-- `server/src/types/express.d.ts`
-- `server/src/utils/api-response.ts`
-- `server/src/utils/logger.ts`
-- `server/src/utils/runtime-metrics.ts`
-- `server/src/utils/runtime-metrics.test.ts`
+- `README.md`
+- `docs/PRODUCTION_RUNBOOK.md`
+- `package.json`
+- `server/package.json`
 
 ## Next Implementation Target
 
-Deployment runbook, migration process, backup/restore guidance, and production readiness documentation.
+Master data import/export and server-side pagination foundation.
