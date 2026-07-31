@@ -4,7 +4,7 @@ Last updated: 2026-07-31
 
 ## Overall Completion
 
-Estimated completion: 93%
+Estimated completion: 94%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -20,13 +20,13 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | Inventory | 70% | Opening stock, stock balances, movements, adjustments, transfers, negative stock protection, reorder alerts, and open-period posting controls. Needs valuation reports, batch/serial handling, stronger location selection, stock aging. |
 | Purchase | 72% | Purchase orders, approval-rule-aware PO/GRN creation, PO-to-GRN line conversion, GRN workflow, GRN-to-purchase-invoice traceability, source quantity controls, partial receipt/invoice indicators, default purchase cost application, purchase invoice posting/cancel, purchase return, GST/input tax, supplier ledger integration, and open-period posting controls. Needs landed cost. |
 | Sales | 76% | Quotations, orders, delivery challans, approval-rule-aware planning creation, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, source quantity controls, partial delivery/invoice indicators, sales line discounts, default sale price application, customer credit-limit/overdue checks, sales invoice posting/cancel, sales return, GST/output tax, customer ledger integration, and open-period posting controls. Needs richer pricing rules. |
-| Accounting | 68% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding, settlement-open-document queries, date-aware GST reporting endpoints, and open-period posting controls. Needs voucher types, reconciliation, account mappings. |
+| Accounting | 70% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding, settlement-open-document queries, date-aware GST reporting endpoints, open-period posting controls, and database-backed posting smoke tests. Needs voucher types, reconciliation, account mappings. |
 | GST/Tax | 68% | CGST/SGST/IGST calculations, summary reports, input/output GST registers, workshop GST inclusion, date filters, CSV exports, GSTR-1/GSTR-2 style exports, and unit coverage for GST net payable logic. Needs tax reconciliation and deeper statutory validation. |
 | Payments/Notes | 65% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact, payment allocations against open customer/supplier documents, settlement visibility, and open-period posting controls. Needs multi-document allocation UI polish and settlement aging. |
 | Workshop/Service | 67% | Job cards, vehicle complaints, parts/labor estimates, technician assignment, technician progress statuses/notes, service history, inspection/QC notes and checklist, status transitions, parts issue posting, GST-aware workshop billing, open-period posting controls, and delivery closeout timestamps/notes. Needs richer task allocation and customer-facing service summaries. |
 | Reports/Analytics | 53% | Reports workspace, business snapshot, financial statements, GST summary/registers, GSTR-style CSV exports, outstanding, reorder, audit, and approval visibility in Settings. Needs broader date filters, drilldowns, dashboards, operational analytics. |
 | UI/UX | 53% | Responsive desktop-focused shell, working forms/lists, server-side paged master lists for high-volume data, list search, global API errors, reports workspace, GST report filters/exports, master CSV export buttons, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
-| Testing/Quality | 28% | Typecheck, lint, build, verify script, and Node test runner are configured with focused unit coverage for GST totals, payment allocation validation, CSV/pagination utilities, runtime metrics, and document numbering. Needs transaction tests, API tests, frontend workflow tests. |
+| Testing/Quality | 38% | Typecheck, lint, build, verify script, Node test runner, explicit integration test script, focused unit coverage for GST totals, payment allocation validation, CSV/pagination utilities, runtime metrics, document numbering, and database-backed journal posting smoke tests. Needs broader transaction tests, API tests, frontend workflow tests. |
 | Deployment/Operations | 42% | Build scripts, verify script, environment config, request correlation, structured API error logs, health/status runtime metadata, metrics endpoint, production runbook, migration deploy command, backup/restore guidance, rollback checklist, and release notes template exist. Needs deployment packaging automation and monitoring integrations. |
 
 ## Completed Tasks
@@ -84,6 +84,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added reusable open-financial-year posting controls for journal entries, contra vouchers, payments, notes, inventory postings, purchase invoice/return/cancel, sales invoice/return/cancel, workshop parts issue, and workshop billing.
 - Added product and product-variant import templates plus validated JSON batch import endpoints with duplicate code/barcode checks, reference-code validation, and audit logging.
 - Added date-filtered GSTR-1 and GSTR-2 style CSV export endpoints and Reports workspace buttons backed by the existing GST register data.
+- Added explicit `test:integration` scripts and database-backed accounting posting tests for open-year journal posting and closed-year rollback behavior.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -112,28 +113,30 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Extend approval-rule integration to workshop/accounting posting workflows where approval should block posting.
 - Add GST reconciliation checks and tax drilldowns.
 - Add date range filters, exports, and drilldowns for non-GST reports.
-- Add transaction integrity tests, API tests, and frontend workflow tests.
+- Broaden transaction integrity tests across purchase, sales, inventory, payments, and workshop posting workflows.
+- Add API tests and frontend workflow tests.
 - Add deployment packaging automation, external monitoring integrations, and richer operational smoke tests.
 - Add migration/deployment runbook and backup/restore guidance.
 - Improve frontend tables, filters, loading states, and form validation ergonomics.
 
 ## Current Feature Being Implemented
 
-GSTR-ready exports and final audit hardening.
+Database-backed posting workflow tests and final audit hardening.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 2 focused development sessions.
+Estimated remaining iterations: 1 to 2 focused development sessions.
 
-The largest remaining chunks are database-backed workflow tests, richer settlement workflows, and production deployment hardening.
+The largest remaining chunks are broader posting workflow tests, richer settlement workflows, and production deployment hardening.
 
 ## Files/Modules Modified In This Session
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `RAMS_AUDIT_REPORT.md`
-- `client/src/App.tsx`
-- `server/src/modules/accounting/accounting.routes.ts`
+- `package.json`
+- `server/package.json`
+- `server/src/modules/accounting/accounting.posting.integration.ts`
 
 ## Next Implementation Target
 
-Database-backed posting workflow tests and deployment packaging automation.
+Deployment packaging automation and final production-candidate audit pass.
