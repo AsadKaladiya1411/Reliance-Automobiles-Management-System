@@ -3,6 +3,7 @@ import prisma from "../../lib/prisma";
 import type { RequestContext } from "../../types/request-context";
 import { ApiError } from "../../utils/api-error";
 import { approvalStatusForDocument, createApprovalRequestForDocument } from "../approvals/approvals.service";
+import { requireOpenFinancialYear } from "../financial-year/fiscal-period.service";
 import { formatDocumentNumber } from "../number-series/number-series.service";
 
 type PurchaseContext = RequestContext & {
@@ -635,6 +636,8 @@ export async function postPurchaseInvoice(context: PurchaseContext, body: unknow
   }
 
   return prisma.$transaction(async (tx) => {
+    await requireOpenFinancialYear(tx, context.companyId, invoiceDate);
+
     const supplier = await tx.supplier.findFirst({
       where: { id: supplierId, companyId: context.companyId, status: "ACTIVE" },
     });
@@ -947,8 +950,11 @@ export async function postPurchaseInvoice(context: PurchaseContext, body: unknow
 export async function cancelPurchaseInvoice(context: PurchaseContext, invoiceId: string, body: unknown) {
   const data = body as Record<string, unknown>;
   const reason = requiredString(data.reason, "Cancellation reason");
+  const cancellationDate = parseDate(data.cancellationDate);
 
   return prisma.$transaction(async (tx) => {
+    await requireOpenFinancialYear(tx, context.companyId, cancellationDate);
+
     const invoice = await tx.purchaseInvoice.findFirst({
       where: { id: invoiceId, companyId: context.companyId },
       include: {
@@ -1015,7 +1021,7 @@ export async function cancelPurchaseInvoice(context: PurchaseContext, invoiceId:
           movementType: "PURCHASE_RETURN",
           documentType: "PURCHASE_INVOICE_CANCEL",
           documentNumber: invoice.invoiceNumber,
-          documentDate: new Date(),
+          documentDate: cancellationDate,
           quantityOut: line.quantity,
           unitCost: line.unitCost,
           totalValue: line.taxableAmount,
@@ -1029,7 +1035,7 @@ export async function cancelPurchaseInvoice(context: PurchaseContext, invoiceId:
       data: {
         companyId: context.companyId,
         entryNumber: journalNumber,
-        entryDate: new Date(),
+        entryDate: cancellationDate,
         sourceModule: "purchase",
         sourceType: "PURCHASE_INVOICE_CANCEL",
         sourceId: invoice.id,
@@ -1107,6 +1113,8 @@ export async function postPurchaseReturn(context: PurchaseContext, body: unknown
   }
 
   return prisma.$transaction(async (tx) => {
+    await requireOpenFinancialYear(tx, context.companyId, returnDate);
+
     const invoice = await tx.purchaseInvoice.findFirst({
       where: { id: purchaseInvoiceId, companyId: context.companyId, status: "POSTED" },
       include: { lines: true, supplier: true },

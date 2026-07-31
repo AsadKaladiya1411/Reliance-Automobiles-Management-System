@@ -2,6 +2,7 @@ import { Prisma } from "../../generated/prisma/client";
 import prisma from "../../lib/prisma";
 import type { RequestContext } from "../../types/request-context";
 import { ApiError } from "../../utils/api-error";
+import { requireOpenFinancialYear } from "../financial-year/fiscal-period.service";
 import { formatDocumentNumber } from "../number-series/number-series.service";
 
 type WorkshopContext = RequestContext & {
@@ -468,8 +469,11 @@ export async function updateJobCardTechnician(context: WorkshopContext, jobCardI
 export async function issueJobCardParts(context: WorkshopContext, jobCardId: string, body: unknown) {
   const data = body as Record<string, unknown>;
   const warehouseId = requiredString(data.warehouseId, "Warehouse");
+  const issueDate = parseDate(data.issueDate);
 
   return prisma.$transaction(async (tx) => {
+    await requireOpenFinancialYear(tx, context.companyId, issueDate);
+
     const jobCard = await tx.jobCard.findFirst({
       where: { id: jobCardId, companyId: context.companyId },
       include: { parts: { include: { productVariant: { include: { product: true } } } } },
@@ -531,7 +535,7 @@ export async function issueJobCardParts(context: WorkshopContext, jobCardId: str
       data: {
         companyId: context.companyId,
         entryNumber: journalNumber,
-        entryDate: new Date(),
+        entryDate: issueDate,
         sourceModule: "workshop",
         sourceType: "WORKSHOP_PARTS_ISSUE",
         sourceId: jobCard.id,
@@ -571,9 +575,9 @@ export async function issueJobCardParts(context: WorkshopContext, jobCardId: str
             warehouseId,
             locationKey: key,
             movementType: "ADJUSTMENT_OUT",
-            documentType: "WORKSHOP_PARTS_ISSUE",
-            documentNumber: jobCard.jobCardNumber,
-            documentDate: new Date(),
+          documentType: "WORKSHOP_PARTS_ISSUE",
+          documentNumber: jobCard.jobCardNumber,
+          documentDate: issueDate,
             quantityOut: line.part.quantity,
             unitCost: line.unitCost,
             totalValue: line.totalValue,
@@ -629,6 +633,8 @@ export async function postJobCardBilling(context: WorkshopContext, jobCardId: st
   const taxMode = optionalTaxMode(data.taxMode);
 
   return prisma.$transaction(async (tx) => {
+    await requireOpenFinancialYear(tx, context.companyId, billingDate);
+
     const jobCard = await tx.jobCard.findFirst({
       where: { id: jobCardId, companyId: context.companyId },
       include: {

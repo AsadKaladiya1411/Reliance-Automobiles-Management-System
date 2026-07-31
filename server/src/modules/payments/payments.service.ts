@@ -2,6 +2,7 @@ import { Prisma } from "../../generated/prisma/client";
 import prisma from "../../lib/prisma";
 import type { RequestContext } from "../../types/request-context";
 import { ApiError } from "../../utils/api-error";
+import { requireOpenFinancialYear } from "../financial-year/fiscal-period.service";
 import { formatDocumentNumber } from "../number-series/number-series.service";
 import { mergePaymentAllocations, validatePaymentAllocations } from "./payment-allocation.utils";
 
@@ -178,6 +179,8 @@ export async function postPayment(context: PaymentContext, body: unknown) {
   }
 
   return prisma.$transaction(async (tx) => {
+    await requireOpenFinancialYear(tx, context.companyId, paymentDate);
+
     const paymentMode = await tx.paymentMode.findFirst({
       where: { id: paymentModeId, companyId: context.companyId, status: "ACTIVE" },
     });

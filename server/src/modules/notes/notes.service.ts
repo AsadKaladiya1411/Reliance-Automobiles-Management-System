@@ -2,6 +2,7 @@ import { Prisma } from "../../generated/prisma/client";
 import prisma from "../../lib/prisma";
 import type { RequestContext } from "../../types/request-context";
 import { ApiError } from "../../utils/api-error";
+import { requireOpenFinancialYear } from "../financial-year/fiscal-period.service";
 import { formatDocumentNumber } from "../number-series/number-series.service";
 
 type NoteContext = RequestContext & {
@@ -91,6 +92,8 @@ export async function postFinancialNote(context: NoteContext, body: unknown) {
   }
 
   return prisma.$transaction(async (tx) => {
+    await requireOpenFinancialYear(tx, context.companyId, noteDate);
+
     const receivableAccount = await requireAccount(tx, context.companyId, "1100");
     const payableAccount = await requireAccount(tx, context.companyId, "2000");
     const adjustmentAccount = await requireAccount(tx, context.companyId, "5100");

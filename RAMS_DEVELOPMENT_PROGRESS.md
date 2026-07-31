@@ -4,7 +4,7 @@ Last updated: 2026-07-31
 
 ## Overall Completion
 
-Estimated completion: 90%
+Estimated completion: 91%
 
 This estimate reflects a working web ERP foundation with authentication, setup, masters, warehouse hierarchy, inventory posting, purchase/sales posting, accounting, GST summaries, payments, notes, workshop job cards, reports, audit logging, and basic RBAC administration. Remaining effort is mostly deeper ERP workflows, richer UI ergonomics, configurable approvals, stronger validation/testing, exports, and production deployment hardening.
 
@@ -14,16 +14,16 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 | --- | ---: | --- |
 | Platform/Foundation | 80% | Web app, API, environment config, Prisma, setup flow, number series, audit logs, approval foundation, request correlation IDs, structured server logging, runtime metrics, global API errors, same-origin mutation guard, audit reporting, and test script foundation are in place. Needs broader tests, deployment hardening, and operational docs. |
 | Authentication/RBAC | 82% | Login, registration, current-user session, auth/setup rate limiting, account lockout enforcement, Super Admin, Staff role, user-role administration, backend module permission middleware, explicit sensitive-route permission guards, role-aware navigation, and permission-aware Settings queries. Needs permission management UI and richer user lifecycle controls. |
-| Company/Financial Year/Settings | 68% | Company profile, financial years, number series, approval rules/requests, default seeding, audit view. Needs closing/opening year workflows and more settings. |
+| Company/Financial Year/Settings | 74% | Company profile, financial years, number series, approval rules/requests, default seeding, audit view, and open financial-year posting controls. Needs closing/opening year workflows and more settings. |
 | Masters | 86% | Units, HSN, tax rates, brands, categories, products, variants, warehouses, block/rack/shelf basics. Edit/deactivate exists for Units, HSN codes, Brands, Categories, Warehouses, Products, Product Variants, Tax Rates, and warehouse hierarchy records. Product/variant server-side pagination UI and CSV exports exist. Needs import. |
 | Commercial Masters | 79% | Customers, suppliers, employees, vehicles, payment modes with edit/deactivate lifecycle controls, customer credit limit/day settings, dependency safeguards, customer/supplier server-side pagination UI, CSV exports, import templates, and validated JSON batch import endpoints. Needs richer profiles and contact/address handling. |
-| Inventory | 68% | Opening stock, stock balances, movements, adjustments, transfers, negative stock protection, reorder alerts. Needs valuation reports, batch/serial handling, stronger location selection, stock aging. |
-| Purchase | 70% | Purchase orders, approval-rule-aware PO/GRN creation, PO-to-GRN line conversion, GRN workflow, GRN-to-purchase-invoice traceability, source quantity controls, partial receipt/invoice indicators, default purchase cost application, purchase invoice posting/cancel, purchase return, GST/input tax and supplier ledger integration. Needs landed cost. |
-| Sales | 74% | Quotations, orders, delivery challans, approval-rule-aware planning creation, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, source quantity controls, partial delivery/invoice indicators, sales line discounts, default sale price application, customer credit-limit/overdue checks, sales invoice posting/cancel, sales return, GST/output tax and customer ledger integration. Needs richer pricing rules. |
-| Accounting | 65% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding, settlement-open-document queries, and date-aware GST reporting endpoints. Needs fiscal period controls, voucher types, reconciliation, account mappings. |
+| Inventory | 70% | Opening stock, stock balances, movements, adjustments, transfers, negative stock protection, reorder alerts, and open-period posting controls. Needs valuation reports, batch/serial handling, stronger location selection, stock aging. |
+| Purchase | 72% | Purchase orders, approval-rule-aware PO/GRN creation, PO-to-GRN line conversion, GRN workflow, GRN-to-purchase-invoice traceability, source quantity controls, partial receipt/invoice indicators, default purchase cost application, purchase invoice posting/cancel, purchase return, GST/input tax, supplier ledger integration, and open-period posting controls. Needs landed cost. |
+| Sales | 76% | Quotations, orders, delivery challans, approval-rule-aware planning creation, quotation-to-order conversion, order-to-delivery-challan conversion, order/challan-to-sales-invoice traceability, source quantity controls, partial delivery/invoice indicators, sales line discounts, default sale price application, customer credit-limit/overdue checks, sales invoice posting/cancel, sales return, GST/output tax, customer ledger integration, and open-period posting controls. Needs richer pricing rules. |
+| Accounting | 68% | Chart of accounts, posted journals, contra vouchers, GL, trial balance, P&L, balance sheet, party ledger/outstanding, settlement-open-document queries, date-aware GST reporting endpoints, and open-period posting controls. Needs voucher types, reconciliation, account mappings. |
 | GST/Tax | 61% | CGST/SGST/IGST calculations, summary reports, input/output GST registers, workshop GST inclusion, date filters, CSV exports, and unit coverage for GST net payable logic. Needs GSTR formats and tax reconciliation. |
-| Payments/Notes | 63% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact, payment allocations against open customer/supplier documents, and settlement visibility. Needs multi-document allocation UI polish and settlement aging. |
-| Workshop/Service | 65% | Job cards, vehicle complaints, parts/labor estimates, technician assignment, technician progress statuses/notes, service history, inspection/QC notes and checklist, status transitions, parts issue posting, GST-aware workshop billing, and delivery closeout timestamps/notes. Needs richer task allocation and customer-facing service summaries. |
+| Payments/Notes | 65% | Receipts/payments, payment modes, credit/debit notes with ledger and GL impact, payment allocations against open customer/supplier documents, settlement visibility, and open-period posting controls. Needs multi-document allocation UI polish and settlement aging. |
+| Workshop/Service | 67% | Job cards, vehicle complaints, parts/labor estimates, technician assignment, technician progress statuses/notes, service history, inspection/QC notes and checklist, status transitions, parts issue posting, GST-aware workshop billing, open-period posting controls, and delivery closeout timestamps/notes. Needs richer task allocation and customer-facing service summaries. |
 | Reports/Analytics | 50% | Reports workspace, business snapshot, financial statements, GST summary/registers, CSV exports, outstanding, reorder, audit, and approval visibility in Settings. Needs broader date filters, drilldowns, dashboards, operational analytics. |
 | UI/UX | 53% | Responsive desktop-focused shell, working forms/lists, server-side paged master lists for high-volume data, list search, global API errors, reports workspace, GST report filters/exports, master CSV export buttons, and role-aware navigation. Needs richer data tables, advanced filtering, edit/detail pages, loading/empty states. |
 | Testing/Quality | 28% | Typecheck, lint, build, verify script, and Node test runner are configured with focused unit coverage for GST totals, payment allocation validation, CSV/pagination utilities, runtime metrics, and document numbering. Needs transaction tests, API tests, frontend workflow tests. |
@@ -81,6 +81,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Added auth/setup rate limiting for bootstrap, login, and registration endpoints.
 - Refreshed project-wide audit report to reflect current implementation, verification, and remaining production gaps.
 - Added account lockout enforcement after repeated failed login attempts and automatic lock reset after successful login.
+- Added reusable open-financial-year posting controls for journal entries, contra vouchers, payments, notes, inventory postings, purchase invoice/return/cancel, sales invoice/return/cancel, workshop parts issue, and workshop billing.
 - Company profile, financial years, number series, and operational default seeding.
 - Core master data for units, HSN codes, tax rates, brands, categories, subcategories, products, variants.
 - Warehouse hierarchy foundation: Warehouse -> Block -> Rack -> Shelf.
@@ -105,6 +106,7 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 - Add product/variant import validation, richer contact/address profiles, and remaining workflow polish.
 - Add richer customer/supplier ledger drilldowns, multi-document allocation UI polish, and settlement aging.
 - Add richer technician task allocation, labor execution tracking, and customer-facing service summaries for workshop jobs.
+- Add financial-year close/reopen workflows and stronger year-end operating controls.
 - Extend approval-rule integration to workshop/accounting posting workflows where approval should block posting.
 - Add GSTR-ready export formats, GST reconciliation checks, and tax drilldowns.
 - Add date range filters, exports, and drilldowns for non-GST reports.
@@ -115,25 +117,27 @@ This estimate reflects a working web ERP foundation with authentication, setup, 
 
 ## Current Feature Being Implemented
 
-Final audit hardening: workflow smoke tests, residual bug fixes, and production readiness review.
+Fiscal year posting controls and final audit hardening.
 
 ## Estimated Iterations Remaining
 
-Estimated remaining iterations: 2 to 4 focused development sessions.
+Estimated remaining iterations: 2 to 3 focused development sessions.
 
-The largest remaining chunks are configurable approvals, reporting/export depth, automated testing, richer settlement workflows, and production deployment hardening.
+The largest remaining chunks are database-backed workflow tests, GSTR-ready exports, product/variant import validation, richer settlement workflows, and production deployment hardening.
 
 ## Files/Modules Modified In This Session
 
 - `RAMS_DEVELOPMENT_PROGRESS.md`
 - `RAMS_AUDIT_REPORT.md`
-- `client/src/App.css`
-- `client/src/App.tsx`
-- `server/src/middleware/rate-limit.ts`
-- `server/src/modules/auth/auth.routes.ts`
-- `server/src/modules/commercial-masters/commercial-masters.routes.ts`
-- `server/src/modules/commercial-masters/commercial-masters.service.ts`
+- `server/src/modules/accounting/accounting.service.ts`
+- `server/src/modules/financial-year/fiscal-period.service.ts`
+- `server/src/modules/inventory/inventory.service.ts`
+- `server/src/modules/notes/notes.service.ts`
+- `server/src/modules/payments/payments.service.ts`
+- `server/src/modules/purchase/purchase.service.ts`
+- `server/src/modules/sales/sales.service.ts`
+- `server/src/modules/workshop/workshop.service.ts`
 
 ## Next Implementation Target
 
-Account lockout, fiscal year posting controls, and final production-candidate audit.
+Product/variant import validation, GSTR-ready exports, and database-backed posting workflow tests.

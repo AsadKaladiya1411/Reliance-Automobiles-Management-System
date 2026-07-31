@@ -2,6 +2,7 @@ import { Prisma } from "../../generated/prisma/client";
 import prisma from "../../lib/prisma";
 import { ApiError } from "../../utils/api-error";
 import type { RequestContext } from "../../types/request-context";
+import { requireOpenFinancialYear } from "../financial-year/fiscal-period.service";
 import { formatDocumentNumber } from "../number-series/number-series.service";
 
 type InventoryContext = RequestContext & {
@@ -302,6 +303,8 @@ export async function postOpeningStock(context: InventoryContext, body: unknown)
   const totalValue = Number((input.quantity * input.unitCost).toFixed(2));
 
   return prisma.$transaction(async (tx) => {
+    await requireOpenFinancialYear(tx, context.companyId, documentDate);
+
     const series = await tx.numberSeries.findFirst({
       where: {
         companyId: context.companyId,
@@ -459,6 +462,8 @@ export async function postStockAdjustment(context: InventoryContext, body: unkno
   const totalValue = Number((input.quantity * input.unitCost).toFixed(2));
 
   return prisma.$transaction(async (tx) => {
+    await requireOpenFinancialYear(tx, context.companyId, documentDate);
+
     const inventoryAccount = await requireAccount(tx, context.companyId, "1200");
     const adjustmentAccount = await requireAccount(tx, context.companyId, "5100");
     const documentNumber = await nextDocumentNumber(tx, context.companyId, "STOCK_ADJUSTMENT");
@@ -626,6 +631,8 @@ export async function postStockTransfer(context: InventoryContext, body: unknown
   const documentDate = parseDate(input.documentDate);
 
   return prisma.$transaction(async (tx) => {
+    await requireOpenFinancialYear(tx, context.companyId, documentDate);
+
     const documentNumber = await nextDocumentNumber(tx, context.companyId, "STOCK_TRANSFER");
     const fromBalance = await tx.stockBalance.findUnique({
       where: {

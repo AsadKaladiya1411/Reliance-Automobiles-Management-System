@@ -3,6 +3,7 @@ import prisma from "../../lib/prisma";
 import type { RequestContext } from "../../types/request-context";
 import { ApiError } from "../../utils/api-error";
 import { approvalStatusForDocument, createApprovalRequestForDocument } from "../approvals/approvals.service";
+import { requireOpenFinancialYear } from "../financial-year/fiscal-period.service";
 import { formatDocumentNumber } from "../number-series/number-series.service";
 
 type SalesContext = RequestContext & {
@@ -745,6 +746,8 @@ export async function postSalesInvoice(context: SalesContext, body: unknown) {
   }
 
   return prisma.$transaction(async (tx) => {
+    await requireOpenFinancialYear(tx, context.companyId, invoiceDate);
+
     const customer = await tx.customer.findFirst({
       where: { id: customerId, companyId: context.companyId, status: "ACTIVE" },
     });
@@ -1065,8 +1068,11 @@ export async function postSalesInvoice(context: SalesContext, body: unknown) {
 export async function cancelSalesInvoice(context: SalesContext, invoiceId: string, body: unknown) {
   const data = body as Record<string, unknown>;
   const reason = requiredString(data.reason, "Cancellation reason");
+  const cancellationDate = parseDate(data.cancellationDate);
 
   return prisma.$transaction(async (tx) => {
+    await requireOpenFinancialYear(tx, context.companyId, cancellationDate);
+
     const invoice = await tx.salesInvoice.findFirst({
       where: { id: invoiceId, companyId: context.companyId },
       include: {
@@ -1144,7 +1150,7 @@ export async function cancelSalesInvoice(context: SalesContext, invoiceId: strin
           movementType: "SALES_RETURN",
           documentType: "SALES_INVOICE_CANCEL",
           documentNumber: invoice.invoiceNumber,
-          documentDate: new Date(),
+          documentDate: cancellationDate,
           quantityIn: line.quantity,
           unitCost: line.unitCost,
           totalValue: line.costAmount,
@@ -1158,7 +1164,7 @@ export async function cancelSalesInvoice(context: SalesContext, invoiceId: strin
       data: {
         companyId: context.companyId,
         entryNumber: journalNumber,
-        entryDate: new Date(),
+        entryDate: cancellationDate,
         sourceModule: "sales",
         sourceType: "SALES_INVOICE_CANCEL",
         sourceId: invoice.id,
@@ -1236,6 +1242,8 @@ export async function postSalesReturn(context: SalesContext, body: unknown) {
   }
 
   return prisma.$transaction(async (tx) => {
+    await requireOpenFinancialYear(tx, context.companyId, returnDate);
+
     const invoice = await tx.salesInvoice.findFirst({
       where: { id: salesInvoiceId, companyId: context.companyId, status: "POSTED" },
       include: { lines: true, customer: true },

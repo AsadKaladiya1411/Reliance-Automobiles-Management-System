@@ -6,7 +6,7 @@ Audit date: 2026-07-31
 
 Not Ready for Production.
 
-RAMS is now a strong commercial ERP MVP foundation with working authentication, setup, masters, inventory, purchase, sales, workshop, accounting, GST, payments, reports, approvals, audit logs, operational logging, tests, and runbook documentation. It should still go through additional hardening before real production business use because transaction-level integration tests, fiscal period controls, rate limiting/account lockout, richer reporting drilldowns, and deployment packaging automation are not yet complete.
+RAMS is now a strong commercial ERP MVP foundation with working authentication, setup, masters, inventory, purchase, sales, workshop, accounting, GST, payments, reports, approvals, audit logs, fiscal-year posting controls, operational logging, tests, and runbook documentation. It should still go through additional hardening before real production business use because transaction-level integration tests, richer GSTR-ready reporting, product/variant import, workflow drilldowns, and deployment packaging automation are not yet complete.
 
 ## Verification Performed
 
@@ -25,6 +25,7 @@ RAMS is now a strong commercial ERP MVP foundation with working authentication, 
 - GST summary excluded workshop tax from output tax total; fixed net payable calculation and added unit coverage.
 - Payment allocation could be split across duplicate rows to bypass validation; added merge-before-validation logic and tests.
 - Workflow navigation blink/redirect issues were resolved through role-aware routing and query behavior fixes.
+- Posted financial/stock workflows could post into missing or closed financial periods; added reusable open-financial-year guards across accounting, payments, notes, inventory, purchase, sales, and workshop posting paths.
 
 ## Security Observations
 
@@ -52,14 +53,14 @@ RAMS is now a strong commercial ERP MVP foundation with working authentication, 
 | Module | Health | Notes |
 | --- | --- | --- |
 | Foundation | Good | Env, API shell, setup, audit, number series, approvals, request logging, metrics, runbook, and verify script exist. |
-| Auth/RBAC | Fair | Auth and RBAC work. Needs lockout/rate limiting and richer permission UI. |
+| Auth/RBAC | Good | Auth, rate limiting, account lockout, and RBAC work. Needs richer permission UI and lifecycle controls. |
 | Masters | Good | Core master lifecycle, warehouse hierarchy, pagination, and exports exist. Product/variant import remains. |
 | Commercial Masters | Good | Lifecycle, credit controls, pagination, exports, and customer/supplier import endpoints exist. Needs richer profiles. |
 | Inventory | Fair | Stock balances/movements, transfers, adjustments, reorder, and negative-stock prevention exist. Needs valuation depth and batch/serial tracking. |
 | Purchase | Good | PO, GRN, invoice, return, source controls, approvals, GST/accounting/ledger integration exist. Needs landed cost. |
 | Sales | Good | Quotation/order/challan/invoice/return, discounts, credit controls, approvals, source controls, GST/accounting/ledger integration exist. Needs pricing rules. |
 | Workshop | Fair | Job cards, technician progress, inspection, parts issue, billing, GST, service history, and delivery closeout exist. Needs richer task/labor execution. |
-| Accounting | Fair | COA, journals, contra, GL, statements, party ledger/outstanding, settlement foundation exist. Needs fiscal-period controls and reconciliation. |
+| Accounting | Fair | COA, journals, contra, GL, statements, party ledger/outstanding, settlement foundation, and fiscal-period posting controls exist. Needs reconciliation and richer voucher workflows. |
 | GST | Fair | GST calculation, summary, registers, workshop inclusion, filters, CSV exports exist. Needs GSTR-ready exports and reconciliation. |
 | Reports | Fair | Business snapshot, statements, GST registers, outstanding, reorder, audit exist. Needs broader drilldowns and exports. |
 | Testing | Fair | Unit test foundation exists. Needs API, DB transaction, and frontend workflow tests. |
@@ -83,7 +84,7 @@ RAMS is now a strong commercial ERP MVP foundation with working authentication, 
 - [x] Account lockout is enforced.
 - [ ] Automated database transaction tests exist for posting workflows.
 - [ ] Automated frontend workflow tests exist.
-- [ ] Fiscal year close/lock posting controls exist.
+- [x] Fiscal year close/lock posting controls exist.
 - [ ] Product/variant import exists.
 - [ ] GSTR-ready exports exist.
 - [ ] Deployment packaging automation exists.

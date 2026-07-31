@@ -2,6 +2,7 @@ import { Prisma } from "../../generated/prisma/client";
 import prisma from "../../lib/prisma";
 import type { RequestContext } from "../../types/request-context";
 import { ApiError } from "../../utils/api-error";
+import { requireOpenFinancialYear } from "../financial-year/fiscal-period.service";
 import { calculateGstSummaryFromTotals } from "./gst-summary.utils";
 import { formatDocumentNumber } from "../number-series/number-series.service";
 
@@ -678,7 +679,11 @@ export async function postJournalEntry(context: AccountingContext, body: unknown
     throw new ApiError(400, "UNBALANCED_JOURNAL", "Journal debit and credit totals must match.");
   }
 
+  const journalDate = entryDate(data.entryDate);
+
   return prisma.$transaction(async (tx) => {
+    await requireOpenFinancialYear(tx, context.companyId, journalDate);
+
     const accountCount = await tx.account.count({
       where: {
         companyId: context.companyId,
@@ -695,7 +700,7 @@ export async function postJournalEntry(context: AccountingContext, body: unknown
       data: {
         companyId: context.companyId,
         entryNumber: await nextJournalNumber(tx, context.companyId),
-        entryDate: entryDate(data.entryDate),
+        entryDate: journalDate,
         sourceModule: optionalString(data.sourceModule) ?? "accounting",
         sourceType: optionalString(data.sourceType) ?? "MANUAL_JOURNAL",
         sourceId: optionalString(data.sourceId),
@@ -743,6 +748,8 @@ export async function postContraVoucher(context: AccountingContext, body: unknow
   }
 
   return prisma.$transaction(async (tx) => {
+    await requireOpenFinancialYear(tx, context.companyId, voucherDate);
+
     const accounts = await tx.account.findMany({
       where: {
         companyId: context.companyId,
