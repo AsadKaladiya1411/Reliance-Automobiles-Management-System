@@ -5,6 +5,7 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "local-helpers.ps1")
 
 $projectRoot = Get-RamsProjectRoot
+& (Join-Path $PSScriptRoot "ensure-local-jwt-secret.ps1")
 $port = Import-RamsEnvironment
 $serverRoot = Join-Path $projectRoot "server"
 $serverEntry = Join-Path $serverRoot "dist\server.js"

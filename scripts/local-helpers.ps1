@@ -22,6 +22,7 @@ function Import-RamsEnvironment {
 
   $port = if ($env:PORT) { $env:PORT } else { "5000" }
   $env:NODE_ENV = "production"
+  $env:HOST = "127.0.0.1"
   $env:CLIENT_URL = "http://localhost:$port"
   $env:VITE_API_BASE_URL = "/api"
   return $port

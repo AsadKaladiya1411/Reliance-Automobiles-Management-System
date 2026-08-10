@@ -59,6 +59,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $environmentFile = Join-Path $projectRoot ".env"
 $databaseUrl = Read-DatabaseUrl -EnvironmentFile $environmentFile
 $pgDump = Resolve-PostgresTool -ToolName "pg_dump"
+$pgRestore = Resolve-PostgresTool -ToolName "pg_restore"
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
   $OutputDirectory = Join-Path $projectRoot "backups"
@@ -85,6 +86,12 @@ $backupFile = Get-Item -LiteralPath $backupPath
 if ($backupFile.Length -le 0) {
   Remove-Item -LiteralPath $backupPath -Force
   throw "Database backup was empty and has been removed."
+}
+
+& $pgRestore --list $backupPath | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  Remove-Item -LiteralPath $backupPath -Force
+  throw "Database backup validation failed and the invalid file was removed."
 }
 
 Write-Host "Backup completed successfully."

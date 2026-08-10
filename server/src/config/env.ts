@@ -1,7 +1,10 @@
+import { validateJwtSecret } from "./security-config";
+
 type NodeEnv = "development" | "test" | "production";
 
 export type AppEnv = {
   nodeEnv: NodeEnv;
+  host: string;
   port: number;
   clientUrl: string;
   databaseUrl: string;
@@ -63,14 +66,30 @@ function parseSaltRounds(value: string | undefined) {
   return rounds;
 }
 
+function readJwtSecret(nodeEnv: NodeEnv) {
+  const secret = readEnv("JWT_SECRET", "development-only-change-before-production", nodeEnv);
+  return validateJwtSecret(secret, nodeEnv);
+}
+
+function readHost(value: string | undefined) {
+  const host = value?.trim() || "127.0.0.1";
+
+  if (/\s/.test(host)) {
+    throw new Error("HOST must be a valid hostname or IP address.");
+  }
+
+  return host;
+}
+
 const nodeEnv = parseNodeEnv(process.env.NODE_ENV);
 
 export const env: AppEnv = {
   nodeEnv,
+  host: readHost(process.env.HOST),
   port: parsePort(process.env.PORT),
   clientUrl: readEnv("CLIENT_URL", "http://localhost:5173", nodeEnv),
   databaseUrl: requireEnv("DATABASE_URL"),
-  jwtSecret: readEnv("JWT_SECRET", "development-only-change-before-production", nodeEnv),
+  jwtSecret: readJwtSecret(nodeEnv),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "8h",
   cookieName: process.env.AUTH_COOKIE_NAME || "rams_session",
   passwordSaltRounds: parseSaltRounds(process.env.PASSWORD_SALT_ROUNDS),

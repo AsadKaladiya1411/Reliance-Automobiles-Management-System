@@ -4,12 +4,15 @@ RAMS can run as a local production-style application on one Windows laptop. The 
 
 ## First-time setup or application update
 
-Right-click `installer/Setup RAMS.cmd` and choose **Run as administrator**. Setup:
+Double-click `installer/Setup RAMS.cmd` as the normal Windows user. Administrator access is not required for the application build. Setup:
 
-1. Loads the project `.env` into the current process without printing secrets.
-2. Builds the frontend and backend for production.
-3. Copies the frontend build into the local API server.
-4. Applies pending Prisma database migrations.
+1. Generates a strong local JWT signing secret if the current value is missing, short, or a documented default. The value is never printed.
+2. Loads the project `.env` into the current process without printing secrets.
+3. Generates the database client in the packaged server format.
+4. Builds the frontend and backend for production.
+5. Copies the frontend build into the local API server.
+6. Creates a verified pre-migration database backup.
+7. Applies pending Prisma database migrations.
 
 Setup does not delete business records.
 
@@ -21,6 +24,8 @@ Setup does not delete business records.
 - Double-click `installer/Backup RAMS Now.cmd` to create an immediate database backup.
 
 The launcher deliberately loads `DATABASE_URL` from the RAMS `.env`, so an unrelated system-level variable cannot redirect the local application to another database.
+
+The local launcher binds RAMS to `127.0.0.1`, so other devices on the Wi-Fi/LAN cannot open the ERP. User self-registration is disabled. A Super Admin creates staff accounts from **Configuration > Users & security > User access** and assigns the required role.
 
 ## Install the automatic daily backup
 

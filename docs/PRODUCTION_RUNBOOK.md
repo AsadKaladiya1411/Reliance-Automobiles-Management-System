@@ -15,6 +15,7 @@ This runbook defines the current production operating process for RAMS. It shoul
 Use `.env.example` as the baseline and provide production values through the host secret manager.
 
 - `NODE_ENV=production`
+- `HOST`
 - `PORT`
 - `CLIENT_URL`
 - `DATABASE_URL`
@@ -26,7 +27,8 @@ Use `.env.example` as the baseline and provide production values through the hos
 
 Production requirements:
 
-- `JWT_SECRET` must be a long random secret and must not reuse development values.
+- `JWT_SECRET` must be a unique random value of at least 32 characters. Startup rejects documented defaults and short values.
+- `HOST` defaults to `127.0.0.1`; set `0.0.0.0` only behind an intentionally configured trusted network or HTTPS reverse proxy.
 - `DATABASE_URL` must point to the production PostgreSQL database.
 - `CLIENT_URL` must be the exact deployed frontend origin.
 - `VITE_API_BASE_URL` must be the public API base URL used by the frontend.

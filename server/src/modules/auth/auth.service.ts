@@ -1,13 +1,14 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import type { SignOptions } from "jsonwebtoken";
-import type { Prisma } from "../../generated/prisma/client";
+import { Prisma } from "../../generated/prisma/client";
 import prisma from "../../lib/prisma";
 import { env } from "../../config/env";
 import { ApiError } from "../../utils/api-error";
 import type { AuthUser } from "../../types/auth";
 import type { RequestContext } from "../../types/request-context";
 import { writeAuditLog } from "../audit/audit.service";
+import { removesLastSuperAdmin } from "./user-access-policy";
 
 type BootstrapInput = {
   companyName: string;
@@ -22,10 +23,12 @@ type LoginInput = {
   password: string;
 };
 
-type RegisterInput = {
+type CreateManagedUserInput = {
   username: string;
   email?: string;
+  fullName: string;
   password: string;
+  roleId: string;
 };
 
 type AuthContext = RequestContext & {
@@ -36,6 +39,8 @@ type AuthContext = RequestContext & {
 
 const maxFailedLoginAttempts = 5;
 const lockoutMinutes = 15;
+const jwtIssuer = "rams-erp";
+const jwtAudience = "rams-users";
 
 const defaultStaffPermissionMatrix: Record<string, string[]> = {
   dashboard: ["read"],
@@ -97,10 +102,28 @@ async function syncDefaultStaffPermissions(tx: Prisma.TransactionClient, company
   return role;
 }
 
-function assertPassword(password: string) {
-  if (password.length < 8) {
+function assertPassword(password: unknown): asserts password is string {
+  if (typeof password !== "string" || password.length < 8) {
     throw new ApiError(400, "WEAK_PASSWORD", "Password must be at least 8 characters.");
   }
+
+  if (Buffer.byteLength(password, "utf8") > 72) {
+    throw new ApiError(400, "INVALID_PASSWORD", "Password must be 72 bytes or fewer.");
+  }
+}
+
+function normalizeManagedEmail(value: unknown) {
+  if (typeof value !== "string" || value.trim() === "") {
+    return null;
+  }
+
+  const email = value.trim().toLowerCase();
+
+  if (email.length > 160 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new ApiError(400, "INVALID_EMAIL", "Enter a valid email address.");
+  }
+
+  return email;
 }
 
 function assertSuperAdmin(context: AuthContext) {
@@ -152,13 +175,22 @@ export function signAuthToken(user: AuthUser) {
       username: user.username,
     },
     env.jwtSecret,
-    { expiresIn: env.jwtExpiresIn as SignOptions["expiresIn"] },
+    {
+      algorithm: "HS256",
+      issuer: jwtIssuer,
+      audience: jwtAudience,
+      expiresIn: env.jwtExpiresIn as SignOptions["expiresIn"],
+    },
   );
 }
 
 export function verifyAuthToken(token: string) {
   try {
-    const payload = jwt.verify(token, env.jwtSecret);
+    const payload = jwt.verify(token, env.jwtSecret, {
+      algorithms: ["HS256"],
+      issuer: jwtIssuer,
+      audience: jwtAudience,
+    });
 
     if (!payload || typeof payload !== "object" || typeof payload.sub !== "string") {
       throw new ApiError(401, "INVALID_TOKEN", "Invalid authentication token.");
@@ -247,6 +279,8 @@ export async function bootstrapSystem(input: BootstrapInput, context: RequestCon
         permissionId: permission.id,
       })),
     });
+
+    await syncDefaultStaffPermissions(tx, company.id);
 
     const user = await tx.user.create({
       data: {
@@ -371,10 +405,6 @@ export async function login(input: LoginInput, context: RequestContext) {
     },
   });
 
-  await prisma.$transaction(async (tx) => {
-    await syncDefaultStaffPermissions(tx, user.companyId);
-  });
-
   const refreshedUser = await prisma.user.findUniqueOrThrow({
     where: { id: user.id },
     include: {
@@ -411,30 +441,55 @@ export async function login(input: LoginInput, context: RequestContext) {
   return authUser;
 }
 
-export async function registerUser(input: RegisterInput, context: RequestContext) {
-  if (!input.username.trim()) {
-    throw new ApiError(400, "INVALID_REGISTER_REQUEST", "Username is required.");
+export async function createManagedUser(
+  context: AuthContext,
+  input: unknown,
+) {
+  assertSuperAdmin(context);
+  const data = input && typeof input === "object"
+    ? input as Partial<CreateManagedUserInput>
+    : {};
+
+  if (typeof data.username !== "string" || !data.username.trim()) {
+    throw new ApiError(400, "INVALID_USER", "Username is required.");
   }
 
-  assertPassword(input.password);
-
-  const company = await prisma.company.findFirst({
-    where: { status: "ACTIVE" },
-    orderBy: { createdAt: "asc" },
-  });
-
-  if (!company) {
-    throw new ApiError(400, "SETUP_REQUIRED", "Initial system setup must be completed before user registration.");
+  if (typeof data.fullName !== "string" || !data.fullName.trim()) {
+    throw new ApiError(400, "INVALID_USER", "Full name is required.");
   }
 
-  const username = normalizeUsername(input.username);
-  const email = input.email?.trim().toLowerCase() || null;
-  const passwordHash = await bcrypt.hash(input.password, env.passwordSaltRounds);
+  if (typeof data.roleId !== "string" || !data.roleId.trim()) {
+    throw new ApiError(400, "INVALID_ROLE", "Select a role for the user.");
+  }
 
-  const result = await prisma.$transaction(async (tx) => {
+  const username = normalizeUsername(data.username);
+  const fullName = data.fullName.trim();
+  const roleId = data.roleId.trim();
+
+  if (username.length > 80 || fullName.length > 160) {
+    throw new ApiError(400, "INVALID_USER", "Username or full name is too long.");
+  }
+
+  const email = normalizeManagedEmail(data.email);
+  assertPassword(data.password);
+  const passwordHash = await bcrypt.hash(data.password, env.passwordSaltRounds);
+
+  return prisma.$transaction(async (tx) => {
+    const role = await tx.role.findFirst({
+      where: {
+        id: roleId,
+        companyId: context.companyId,
+        status: "ACTIVE",
+      },
+    });
+
+    if (!role) {
+      throw new ApiError(400, "INVALID_ROLE", "Selected role is not active for this company.");
+    }
+
     const existing = await tx.user.findFirst({
       where: {
-        companyId: company.id,
+        companyId: context.companyId,
         OR: [
           { username },
           ...(email ? [{ email }] : []),
@@ -446,30 +501,28 @@ export async function registerUser(input: RegisterInput, context: RequestContext
       throw new ApiError(409, "USER_ALREADY_EXISTS", "Username or email is already registered.");
     }
 
-    const role = await syncDefaultStaffPermissions(tx, company.id);
-
     const user = await tx.user.create({
       data: {
-        companyId: company.id,
+        companyId: context.companyId,
         username,
         email,
-        fullName: username,
+        fullName,
         passwordHash,
         passwordChangedAt: new Date(),
         userRoles: { create: { roleId: role.id } },
       },
-      include: {
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        fullName: true,
+        phone: true,
+        status: true,
+        lastLoginAt: true,
+        createdAt: true,
         userRoles: {
-          include: {
-            role: {
-              include: {
-                rolePermissions: {
-                  include: {
-                    permission: true,
-                  },
-                },
-              },
-            },
+          select: {
+            role: { select: { id: true, code: true, name: true } },
           },
         },
       },
@@ -477,22 +530,27 @@ export async function registerUser(input: RegisterInput, context: RequestContext
 
     await tx.auditLog.create({
       data: {
-        companyId: company.id,
-        actorUserId: user.id,
-        module: "auth",
+        companyId: context.companyId,
+        actorUserId: context.userId,
+        module: "settings",
         action: "CREATE",
         entityType: "User",
         entityId: user.id,
-        description: "User registered.",
+        description: "User account created by Super Admin.",
+        afterData: {
+          username: user.username,
+          email: user.email,
+          fullName: user.fullName,
+          role: role.code,
+          status: user.status,
+        },
         ipAddress: context.ipAddress,
         userAgent: context.userAgent,
       },
     });
 
-    return toAuthUser(user);
+    return user;
   });
-
-  return result;
 }
 
 export async function listUsers(companyId: string) {
@@ -563,6 +621,35 @@ export async function updateUserRoles(context: AuthContext, userId: string, body
       throw new ApiError(400, "INVALID_ROLE", "One or more selected roles are invalid.");
     }
 
+    const currentlySuperAdmin = user.userRoles.some((userRole) => userRole.role.code === "SUPER_ADMIN");
+    const otherActiveSuperAdminCount = currentlySuperAdmin
+      ? await tx.user.count({
+          where: {
+            companyId: context.companyId,
+            id: { not: user.id },
+            status: "ACTIVE",
+            deletedAt: null,
+            userRoles: {
+              some: {
+                role: { code: "SUPER_ADMIN", status: "ACTIVE" },
+              },
+            },
+          },
+        })
+      : 0;
+
+    if (removesLastSuperAdmin({
+      currentlySuperAdmin,
+      nextRoleCodes: roles.map((role) => role.code),
+      otherActiveSuperAdminCount,
+    })) {
+      throw new ApiError(
+        400,
+        "LAST_SUPER_ADMIN_REQUIRED",
+        "Assign another active Super Admin before changing this user's role.",
+      );
+    }
+
     await tx.userRole.deleteMany({ where: { userId } });
     await tx.userRole.createMany({ data: roles.map((role) => ({ userId, roleId: role.id })) });
 
@@ -603,7 +690,7 @@ export async function updateUserRoles(context: AuthContext, userId: string, body
     });
 
     return updated;
-  });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
 export async function getUserById(userId: string) {

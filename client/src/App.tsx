@@ -1094,7 +1094,7 @@ function SetupForm() {
   );
 }
 
-function LoginForm({ onRegister }: { onRegister: () => void }) {
+function LoginForm() {
   const [form, setForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
 
@@ -1142,73 +1142,7 @@ function LoginForm({ onRegister }: { onRegister: () => void }) {
         </Button>
       </form>
       <p className="auth-switch">
-        New to RAMS? <button type="button" onClick={onRegister}>Register account</button>
-      </p>
-    </AuthPanel>
-  );
-}
-
-function RegisterForm({ onLogin }: { onLogin: () => void }) {
-  const [form, setForm] = useState({
-    username: "",
-    email: "",
-    password: "",
-  });
-  const [error, setError] = useState("");
-
-  const mutation = useMutation({
-    mutationFn: async () => {
-      await api.post("/auth/register", form);
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries();
-    },
-    onError: (error) => {
-      setError(apiErrorMessage(error, "Registration failed. Please check your details and try again."));
-    },
-  });
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    setError("");
-    if (!form.username.trim() || !form.email.trim()) {
-      setError("Username and email are required.");
-      return;
-    }
-    if (form.password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
-    mutation.mutate();
-  }
-
-  return (
-    <AuthPanel title="Register for RAMS" subtitle="Create a staff account for the configured company.">
-      <form className="auth-form" onSubmit={submit}>
-        <label>
-          Username
-          <input autoComplete="username" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} />
-        </label>
-        <label>
-          Email
-          <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
-        </label>
-        <label>
-          Password
-          <input
-            autoComplete="new-password"
-            type="password"
-            value={form.password}
-            onChange={(event) => setForm({ ...form, password: event.target.value })}
-          />
-        </label>
-        {error ? <p className="form-error">{error}</p> : null}
-        <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? "Creating..." : "Register"}
-        </Button>
-      </form>
-      <p className="auth-switch">
-        Already registered? <button type="button" onClick={onLogin}>Sign in</button>
+        Need access? Ask your Super Admin to create your user account.
       </p>
     </AuthPanel>
   );
@@ -2135,6 +2069,8 @@ function SecurityPosturePanel({ users, roles }: { users: AdminUser[]; roles: Adm
       <div className="panel-heading"><div><p className="section-kicker dark">Security posture</p><h2>Access protection</h2></div><span className="security-status">Operational</span></div>
       <div className="security-grid">
         <div><strong>HTTP-only sessions</strong><span>Browser scripts cannot read authentication cookies.</span></div>
+        <div><strong>Controlled onboarding</strong><span>Public registration is disabled; only a Super Admin can create users.</span></div>
+        <div><strong>Local-only service</strong><span>The Windows launcher accepts connections from this laptop only.</span></div>
         <div><strong>Role-based access</strong><span>{`${roles.length} active roles control module permissions.`}</span></div>
         <div><strong>Login protection</strong><span>Rate limiting and temporary lockout protect repeated attempts.</span></div>
         <div><strong>Audit accountability</strong><span>{`${users.length} active user records are tied to auditable actions.`}</span></div>
@@ -2251,6 +2187,30 @@ function ApprovalWorkflowPanel({ requests, rules }: { requests: ApprovalRequest[
 
 function UserRolePanel({ roles, users }: { roles: AdminRole[]; users: AdminUser[] }) {
   const [form, setForm] = useState({ userId: "", roleId: "" });
+  const [createForm, setCreateForm] = useState({
+    fullName: "",
+    username: "",
+    email: "",
+    password: "",
+    roleId: "",
+  });
+  const [createError, setCreateError] = useState("");
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      await api.post("/auth/users", createForm);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["auth-users"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
+      ]);
+      setCreateForm({ fullName: "", username: "", email: "", password: "", roleId: "" });
+      setCreateError("");
+    },
+    onError: (error) => {
+      setCreateError(apiErrorMessage(error, "User account could not be created."));
+    },
+  });
   const mutation = useMutation({
     mutationFn: async () => {
       await api.patch(`/auth/users/${form.userId}/roles`, { roleIds: [form.roleId] });
@@ -2266,7 +2226,28 @@ function UserRolePanel({ roles, users }: { roles: AdminRole[]; users: AdminUser[
 
   return (
     <article className="setup-panel wide-panel">
-      <h2>User Access</h2>
+      <div className="panel-heading">
+        <div><p className="section-kicker dark">Controlled onboarding</p><h2>User access</h2></div>
+        <span className="context-note">Only a Super Admin can create users and assign their first role.</span>
+      </div>
+      <h3>Create user account</h3>
+      <form className="labeled-form settings-form" autoComplete="off" onSubmit={(event) => {
+        event.preventDefault();
+        setCreateError("");
+        createMutation.mutate();
+      }}>
+        <label className="form-field"><span>Full name *</span><input required maxLength={160} value={createForm.fullName} onChange={(event) => setCreateForm({ ...createForm, fullName: event.target.value })} /></label>
+        <label className="form-field"><span>Username *</span><input required maxLength={80} autoComplete="off" value={createForm.username} onChange={(event) => setCreateForm({ ...createForm, username: event.target.value })} /></label>
+        <label className="form-field"><span>Email</span><input type="email" maxLength={160} value={createForm.email} onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })} /></label>
+        <label className="form-field"><span>Initial password *</span><input required minLength={8} maxLength={72} type="password" autoComplete="new-password" value={createForm.password} onChange={(event) => setCreateForm({ ...createForm, password: event.target.value })} /></label>
+        <label className="form-field"><span>Role *</span><select required value={createForm.roleId} onChange={(event) => setCreateForm({ ...createForm, roleId: event.target.value })}>
+          <option value="">Select role</option>
+          {roles.map((role) => <option key={role.id} value={role.id}>{`${role.code} / ${role.name}`}</option>)}
+        </select></label>
+        {createError ? <p className="form-error field-span-full">{createError}</p> : null}
+        <div className="form-actions field-span-full"><Button type="submit" disabled={createMutation.isPending}>{createMutation.isPending ? "Creating..." : "Create user"}</Button></div>
+      </form>
+      <h3>Change an existing user's role</h3>
       <form className="inline-form" onSubmit={(event) => {
         event.preventDefault();
         mutation.mutate();
@@ -5959,7 +5940,6 @@ function NotificationViewport() {
 }
 
 function AppContent() {
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const setup = useSetupStatus();
   const currentUser = useCurrentUser();
 
@@ -5972,9 +5952,7 @@ function AppContent() {
   }
 
   if (!currentUser.data) {
-    return authMode === "register"
-      ? <RegisterForm onLogin={() => setAuthMode("login")} />
-      : <LoginForm onRegister={() => setAuthMode("register")} />;
+    return <LoginForm />;
   }
 
   return <DashboardShell user={currentUser.data} />;

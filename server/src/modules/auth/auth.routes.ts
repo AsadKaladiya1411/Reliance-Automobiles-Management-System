@@ -7,11 +7,11 @@ import { sendSuccess } from "../../utils/api-response";
 import { rateLimit } from "../../middleware/rate-limit";
 import {
   bootstrapSystem,
+  createManagedUser,
   getSetupStatus,
   listRoles,
   listUsers,
   login,
-  registerUser,
   signAuthToken,
   updateUserRoles,
 } from "./auth.service";
@@ -28,6 +28,12 @@ function requestContext(req: Request) {
   };
 }
 
+function requestBody(req: Request) {
+  return req.body && typeof req.body === "object"
+    ? req.body as Record<string, unknown>
+    : {};
+}
+
 router.get(
   "/setup/status",
   asyncHandler(async (_req, res) => {
@@ -39,9 +45,15 @@ router.post(
   "/setup/bootstrap",
   setupAttemptLimit,
   asyncHandler(async (req, res) => {
-    const { companyName, adminFullName, adminUsername, adminEmail, adminPassword } = req.body;
+    const { companyName, adminFullName, adminUsername, adminEmail, adminPassword } = requestBody(req);
 
-    if (!companyName || !adminFullName || !adminUsername || !adminPassword) {
+    if (
+      typeof companyName !== "string" || !companyName.trim()
+      || typeof adminFullName !== "string" || !adminFullName.trim()
+      || typeof adminUsername !== "string" || !adminUsername.trim()
+      || typeof adminPassword !== "string" || !adminPassword
+      || (adminEmail !== undefined && typeof adminEmail !== "string")
+    ) {
       throw new ApiError(
         400,
         "INVALID_BOOTSTRAP_REQUEST",
@@ -76,9 +88,9 @@ router.post(
   "/auth/login",
   authAttemptLimit,
   asyncHandler(async (req, res) => {
-    const { username, password } = req.body;
+    const { username, password } = requestBody(req);
 
-    if (!username || !password) {
+    if (typeof username !== "string" || !username.trim() || typeof password !== "string" || !password) {
       throw new ApiError(400, "INVALID_LOGIN_REQUEST", "Username and password are required.");
     }
 
@@ -93,30 +105,6 @@ router.post(
     });
 
     sendSuccess(res, { user }, "Login successful.");
-  }),
-);
-
-router.post(
-  "/auth/register",
-  authAttemptLimit,
-  asyncHandler(async (req, res) => {
-    const { username, email, password } = req.body;
-
-    if (!username || !email || !password) {
-      throw new ApiError(400, "INVALID_REGISTER_REQUEST", "Username, email, and password are required.");
-    }
-
-    const user = await registerUser({ username, email, password }, requestContext(req));
-    const token = signAuthToken(user);
-
-    res.cookie(env.cookieName, token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: env.nodeEnv === "production",
-      maxAge: 8 * 60 * 60 * 1000,
-    });
-
-    sendSuccess(res, { user }, "Registration successful.", 201);
   }),
 );
 
@@ -142,6 +130,29 @@ router.get(
   requireModuleAccess("settings"),
   asyncHandler(async (req, res) => {
     sendSuccess(res, await listUsers(req.user!.companyId));
+  }),
+);
+
+router.post(
+  "/auth/users",
+  requireAuth,
+  requireModuleAccess("settings"),
+  asyncHandler(async (req, res) => {
+    sendSuccess(
+      res,
+      await createManagedUser(
+        {
+          companyId: req.user!.companyId,
+          userId: req.user!.id,
+          roles: req.user!.roles,
+          ipAddress: req.ip,
+          userAgent: req.get("user-agent"),
+        },
+        req.body,
+      ),
+      "User account created.",
+      201,
+    );
   }),
 );
 
