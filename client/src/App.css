@@ -689,9 +689,23 @@ h1 {
 .form-field { display: grid; gap: 7px; color: #334155; font-size: 12px; font-weight: 700; }
 .form-field input, .form-field select, .form-field textarea { width: 100%; height: 44px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fbfdfe; color: #0f172a; padding: 0 11px; font-size: 13px; font-weight: 400; outline: none; }
 .form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: #0f766e; background: #fff; box-shadow: 0 0 0 3px rgba(15,118,110,.12); }
+.form-field textarea { min-height: 86px; height: auto; padding: 10px 11px; resize: vertical; line-height: 1.45; }
 .field-span-2 { grid-column: span 2; }
 .field-span-full { grid-column: 1 / -1; }
-.form-actions { display: flex; justify-content: flex-end; border-top: 1px solid #edf1f3; padding-top: 16px; }
+.form-actions { display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #edf1f3; padding-top: 16px; }
+.selected-record { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 12px; border: 1px solid #d8e5e2; border-radius: 10px; background: #f5fbf9; }
+.selected-record div { display: grid; gap: 4px; }
+.selected-record span { color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .45px; }
+.selected-record strong { color: #0f3d36; font-size: 13px; }
+.checklist-field { display: grid; gap: 9px; padding: 12px; border: 1px solid #dbe4ea; border-radius: 10px; background: #fbfdfe; color: #334155; font-size: 13px; }
+.checklist-field > span { font-size: 12px; font-weight: 700; }
+.checklist-field label { display: flex; align-items: center; gap: 8px; }
+.checklist-field input { width: 16px; height: 16px; accent-color: #0f766e; }
+.line-preview { display: grid; gap: 6px; padding: 12px; border: 1px solid #dbe4ea; border-radius: 10px; background: #fbfdfe; color: #475569; font-size: 13px; }
+.line-preview strong { color: #0f172a; }
+.form-warning { margin: 0; padding: 11px 12px; border: 1px solid #fed7aa; border-radius: 9px; background: #fff7ed; color: #9a3412; font-size: 13px; font-weight: 700; }
+.queue-heading { display: flex; justify-content: space-between; align-items: center; margin-top: 22px; padding: 12px 2px 8px; border-top: 1px solid #e5e7eb; color: #334155; }
+.queue-heading span { color: #64748b; font-size: 12px; }
 .section-kicker.dark { color: #0f766e !important; }
 
 .security-panel { background: linear-gradient(145deg, #f8fffd, #fff); }
@@ -755,6 +769,7 @@ h1 {
   .section-tabs { grid-template-columns: 1fr; }
   .settings-tabs, .labeled-form, .security-grid { grid-template-columns: 1fr; }
   .field-span-2 { grid-column: auto; }
+  .selected-record { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .workflow-guide, .panel-heading { align-items: flex-start; flex-direction: column; }
   .context-note { border-radius: 10px; }
   .user-identity { justify-items: start; }

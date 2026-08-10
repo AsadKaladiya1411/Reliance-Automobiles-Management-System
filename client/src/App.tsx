@@ -720,6 +720,8 @@ type JobCard = {
   customer: Customer;
   vehicle: Vehicle;
   technician?: Employee | null;
+  parts?: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; estimatedRate: string | number; estimatedAmount: string | number }>;
+  laborLines?: Array<{ id: string; description: string; estimatedAmount: string | number }>;
 };
 
 const modules = [
@@ -1449,6 +1451,7 @@ function DashboardView({
 }
 
 function WorkshopView({ workshopSummary }: { workshopSummary?: WorkshopSummary }) {
+  const [stage, setStage] = useState<"intake" | "inspection" | "parts" | "billing" | "history">("intake");
   const customers = useMasterList<Customer>("customers", "/commercial-masters/customers");
   const vehicles = useMasterList<Vehicle>("vehicles", "/commercial-masters/vehicles");
   const employees = useMasterList<Employee>("employees", "/commercial-masters/employees");
@@ -1461,15 +1464,19 @@ function WorkshopView({ workshopSummary }: { workshopSummary?: WorkshopSummary }
   return (
     <>
       <section className="view-header">
-        <h2>Workshop</h2>
-        <p>Job cards, vehicle complaints, service status, estimated parts, and labor tracking.</p>
+        <div><p className="section-kicker">Service operations</p><h2>Workshop</h2><p>Move each vehicle from intake to inspection, parts issue, billing and service history.</p></div>
       </section>
-      <section className="setup-panel">
-        <h2>Workshop Readiness</h2>
+      <section className="setup-panel compact-summary">
+        <div className="panel-heading"><div><p className="section-kicker dark">Live workload</p><h2>Workshop readiness</h2></div><span className="context-note">Complete inspection before marking ready. Issue estimated parts before billing.</span></div>
         <WorkshopReadinessGrid workshopSummary={workshopSummary} />
       </section>
-      <section className="masters-grid">
-        <JobCardPanel
+      <section className="stage-tabs" aria-label="Workshop workflow steps">
+        {([['intake', '1. Vehicle intake'], ['inspection', '2. Inspection & work'], ['parts', '3. Issue parts'], ['billing', '4. Bill & deliver'], ['history', '5. Service history']] as const).map(([id, label]) => (
+          <button type="button" key={id} className={stage === id ? "active" : ""} onClick={() => setStage(id)}>{label}</button>
+        ))}
+      </section>
+      {stage !== "history" ? <JobCardPanel
+          stage={stage}
           customers={customers.data ?? []}
           employees={employees.data ?? []}
           items={jobCards.data ?? []}
@@ -1477,9 +1484,8 @@ function WorkshopView({ workshopSummary }: { workshopSummary?: WorkshopSummary }
           variants={variants.data ?? []}
           vehicles={vehicles.data ?? []}
           warehouses={warehouses.data ?? []}
-        />
-        <ServiceHistoryPanel items={serviceHistory.data ?? []} />
-      </section>
+        /> : null}
+      {stage === "history" ? <ServiceHistoryPanel items={serviceHistory.data ?? []} /> : null}
       <ModuleGrid filter={["Workshop"]} />
     </>
   );
@@ -4741,6 +4747,7 @@ function FinancialNotePanel({
 }
 
 function JobCardPanel({
+  stage,
   customers,
   employees,
   items,
@@ -4749,6 +4756,7 @@ function JobCardPanel({
   vehicles,
   warehouses,
 }: {
+  stage: "intake" | "inspection" | "parts" | "billing";
   customers: Customer[];
   employees: Employee[];
   items: JobCard[];
@@ -4758,17 +4766,22 @@ function JobCardPanel({
   warehouses: Warehouse[];
 }) {
   const [form, setForm] = useState({
+    activeJobCardId: "",
     customerId: "",
     vehicleId: "",
     advisorEmployeeId: "",
     technicianEmployeeId: "",
     jobDate: new Date().toISOString().slice(0, 10),
+    expectedDeliveryAt: "",
     odometerReading: "0",
     fuelLevel: "",
     complaint: "",
     diagnosis: "",
     workNotes: "",
     inspectionNotes: "",
+    complaintVerified: false,
+    roadTestCompleted: false,
+    qualityCheckCompleted: false,
     deliveryNotes: "",
     technicianStatus: "ASSIGNED",
     technicianNotes: "",
@@ -4778,10 +4791,34 @@ function JobCardPanel({
     laborDescription: "",
     laborAmount: "0",
     issueWarehouseId: "",
+    issueDate: new Date().toISOString().slice(0, 10),
+    billingDate: new Date().toISOString().slice(0, 10),
+    billingAmount: "0",
     billingTaxMode: "CGST_SGST",
     serviceTaxRateId: "",
   });
   const customerVehicles = vehicles.filter((vehicle) => !form.customerId || vehicle.customer?.id === form.customerId);
+  const eligibleJobCards = items.filter((item) => {
+    if (stage === "inspection") return !["CANCELLED", "DELIVERED"].includes(item.status);
+    if (stage === "parts") return !item.partsIssuedAt && !["CANCELLED", "DELIVERED"].includes(item.status);
+    if (stage === "billing") return !item.billedAt && item.status !== "CANCELLED";
+    return true;
+  });
+  const activeJobCard = eligibleJobCards.find((item) => item.id === form.activeJobCardId);
+  const selectJobCard = (jobCardId: string) => {
+    const jobCard = items.find((item) => item.id === jobCardId);
+    setForm((current) => ({
+      ...current,
+      activeJobCardId: jobCardId,
+      diagnosis: jobCard?.diagnosis ?? "",
+      workNotes: jobCard?.workNotes ?? "",
+      inspectionNotes: jobCard?.inspectionNotes ?? "",
+      technicianStatus: jobCard?.technicianStatus ?? "ASSIGNED",
+      technicianNotes: jobCard?.technicianNotes ?? "",
+      billingAmount: String(jobCard?.estimatedTotal ?? 0),
+      deliveryNotes: jobCard?.deliveryNotes ?? "",
+    }));
+  };
   const createMutation = useMutation({
     mutationFn: async () => {
       await api.post("/workshop/job-cards", {
@@ -4790,6 +4827,7 @@ function JobCardPanel({
         advisorEmployeeId: form.advisorEmployeeId,
         technicianEmployeeId: form.technicianEmployeeId,
         jobDate: form.jobDate,
+        expectedDeliveryAt: form.expectedDeliveryAt,
         odometerReading: form.odometerReading,
         fuelLevel: form.fuelLevel,
         complaint: form.complaint,
@@ -4841,9 +4879,9 @@ function JobCardPanel({
         workNotes: form.workNotes,
         inspectionNotes: form.inspectionNotes,
         inspectionChecklist: [
-          { label: "Complaint verified", checked: true },
-          { label: "Road test completed", checked: true },
-          { label: "Final quality check completed", checked: true },
+          { label: "Complaint verified", checked: form.complaintVerified },
+          { label: "Road test completed", checked: form.roadTestCompleted },
+          { label: "Final quality check completed", checked: form.qualityCheckCompleted },
         ],
       });
     },
@@ -4852,6 +4890,7 @@ function JobCardPanel({
         queryClient.invalidateQueries({ queryKey: ["job-cards"] }),
         queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
       ]);
+      setForm((current) => ({ ...current, activeJobCardId: "" }));
     },
   });
   const technicianMutation = useMutation({
@@ -4868,11 +4907,12 @@ function JobCardPanel({
         queryClient.invalidateQueries({ queryKey: ["workshop-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
       ]);
+      setForm((current) => ({ ...current, activeJobCardId: "" }));
     },
   });
   const issueMutation = useMutation({
     mutationFn: async (id: string) => {
-      await api.post(`/workshop/job-cards/${id}/issue-parts`, { warehouseId: form.issueWarehouseId });
+      await api.post(`/workshop/job-cards/${id}/issue-parts`, { warehouseId: form.issueWarehouseId, issueDate: form.issueDate });
     },
     onSuccess: async () => {
       await Promise.all([
@@ -4895,9 +4935,11 @@ function JobCardPanel({
   const billingMutation = useMutation({
     mutationFn: async (id: string) => {
       await api.post(`/workshop/job-cards/${id}/bill`, {
-        billingDate: new Date().toISOString().slice(0, 10),
+        billingDate: form.billingDate,
+        billingAmount: form.billingAmount,
         taxMode: form.billingTaxMode,
         serviceTaxRateId: form.serviceTaxRateId,
+        deliveryNotes: form.deliveryNotes,
       });
     },
     onSuccess: async () => {
@@ -4921,135 +4963,69 @@ function JobCardPanel({
 
   return (
     <article className="setup-panel master-panel wide-panel">
-      <h2>Create Job Card</h2>
-      <form className="compact-form product-form" onSubmit={(event) => {
+      <div className="panel-heading"><div><p className="section-kicker dark">{stage === "intake" ? "Workshop - Step 1" : stage === "inspection" ? "Workshop - Step 2" : stage === "parts" ? "Workshop - Step 3" : "Workshop - Step 4"}</p><h2>{stage === "intake" ? "Create job card" : stage === "inspection" ? "Inspect and update work" : stage === "parts" ? "Issue estimated parts" : "Bill and deliver vehicle"}</h2></div><span className="context-note">{stage === "intake" ? "Record the vehicle complaint and estimate. Stock and accounts are not changed." : stage === "inspection" ? "Select one open job card, record actual findings and complete the checklist honestly." : stage === "parts" ? "This reduces warehouse stock and posts inventory cost. Verify every estimated part first." : "This creates customer outstanding, GST and accounting entries, then closes the job card."}</span></div>
+
+      {stage === "intake" ? <form className="labeled-form transaction-form" onSubmit={(event) => { event.preventDefault(); createMutation.mutate(); }}>
+        <label className="form-field"><span>Customer *</span><select required value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value, vehicleId: "" })}><option value="">Select customer</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}</select></label>
+        <label className="form-field"><span>Vehicle *</span><select required value={form.vehicleId} onChange={(event) => setForm({ ...form, vehicleId: event.target.value })}><option value="">Select vehicle</option>{customerVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{`${vehicle.registrationNumber} - ${vehicle.brand} ${vehicle.model}`}</option>)}</select></label>
+        <label className="form-field"><span>Service advisor</span><select value={form.advisorEmployeeId} onChange={(event) => setForm({ ...form, advisorEmployeeId: event.target.value })}><option value="">Not assigned</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></label>
+        <label className="form-field"><span>Technician</span><select value={form.technicianEmployeeId} onChange={(event) => setForm({ ...form, technicianEmployeeId: event.target.value })}><option value="">Assign later</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></label>
+        <label className="form-field"><span>Job date *</span><input required type="date" value={form.jobDate} onChange={(event) => setForm({ ...form, jobDate: event.target.value })} /></label>
+        <label className="form-field"><span>Expected delivery</span><input type="datetime-local" value={form.expectedDeliveryAt} onChange={(event) => setForm({ ...form, expectedDeliveryAt: event.target.value })} /></label>
+        <label className="form-field"><span>Odometer *</span><input required type="number" min="0" step="1" value={form.odometerReading} onChange={(event) => setForm({ ...form, odometerReading: event.target.value })} /></label>
+        <label className="form-field"><span>Fuel level</span><input placeholder="Example: Half tank" value={form.fuelLevel} onChange={(event) => setForm({ ...form, fuelLevel: event.target.value })} /></label>
+        <label className="form-field field-span-full"><span>Customer complaint *</span><textarea required rows={3} value={form.complaint} onChange={(event) => setForm({ ...form, complaint: event.target.value })} /></label>
+        <label className="form-field"><span>Estimated part</span><select value={form.partVariantId} onChange={(event) => setForm({ ...form, partVariantId: event.target.value, partRate: priceForVariant(variants, event.target.value) })}><option value="">No part estimate</option>{variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}</select></label>
+        <label className="form-field"><span>Part quantity</span><input type="number" min="0.001" step="0.001" disabled={!form.partVariantId} value={form.partQuantity} onChange={(event) => setForm({ ...form, partQuantity: event.target.value })} /></label>
+        <label className="form-field"><span>Estimated part rate</span><input type="number" min="0" step="0.01" disabled={!form.partVariantId} value={form.partRate} onChange={(event) => setForm({ ...form, partRate: event.target.value })} /></label>
+        <label className="form-field"><span>Labor description</span><input placeholder="Example: General service" value={form.laborDescription} onChange={(event) => setForm({ ...form, laborDescription: event.target.value })} /></label>
+        <label className="form-field"><span>Estimated labor amount</span><input type="number" min="0" step="0.01" disabled={!form.laborDescription} value={form.laborAmount} onChange={(event) => setForm({ ...form, laborAmount: event.target.value })} /></label>
+        <div className="form-actions field-span-full"><Button type="submit" disabled={createMutation.isPending}>{createMutation.isPending ? "Creating..." : "Create job card"}</Button></div>
+      </form> : null}
+
+      {stage !== "intake" ? <form className="labeled-form transaction-form" onSubmit={(event) => {
         event.preventDefault();
-        createMutation.mutate();
+        if (!activeJobCard) return;
+        if (stage === "inspection") inspectionMutation.mutate(activeJobCard.id);
+        if (stage === "parts" && window.confirm(`Issue parts for ${activeJobCard.jobCardNumber}? Warehouse stock and inventory cost will be posted.`)) issueMutation.mutate(activeJobCard.id);
+        if (stage === "billing" && window.confirm(`Bill ${activeJobCard.jobCardNumber} for ${form.billingAmount}? Customer outstanding, tax and accounts will be posted.`)) billingMutation.mutate(activeJobCard.id);
       }}>
-        <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value, vehicleId: "" })}>
-          <option value="">Customer</option>
-          {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-        </select>
-        <select value={form.vehicleId} onChange={(event) => setForm({ ...form, vehicleId: event.target.value })}>
-          <option value="">Vehicle</option>
-          {customerVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.registrationNumber}</option>)}
-        </select>
-        <select value={form.advisorEmployeeId} onChange={(event) => setForm({ ...form, advisorEmployeeId: event.target.value })}>
-          <option value="">Advisor</option>
-          {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
-        </select>
-        <select value={form.technicianEmployeeId} onChange={(event) => setForm({ ...form, technicianEmployeeId: event.target.value })}>
-          <option value="">Technician</option>
-          {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
-        </select>
-        <input type="date" value={form.jobDate} onChange={(event) => setForm({ ...form, jobDate: event.target.value })} />
-        <input placeholder="Odometer" value={form.odometerReading} onChange={(event) => setForm({ ...form, odometerReading: event.target.value })} />
-        <input placeholder="Fuel level" value={form.fuelLevel} onChange={(event) => setForm({ ...form, fuelLevel: event.target.value })} />
-        <input placeholder="Complaint" value={form.complaint} onChange={(event) => setForm({ ...form, complaint: event.target.value })} />
-        <input placeholder="Diagnosis" value={form.diagnosis} onChange={(event) => setForm({ ...form, diagnosis: event.target.value })} />
-        <input placeholder="Work notes" value={form.workNotes} onChange={(event) => setForm({ ...form, workNotes: event.target.value })} />
-        <input placeholder="Inspection notes" value={form.inspectionNotes} onChange={(event) => setForm({ ...form, inspectionNotes: event.target.value })} />
-        <input placeholder="Delivery notes" value={form.deliveryNotes} onChange={(event) => setForm({ ...form, deliveryNotes: event.target.value })} />
-        <select value={form.technicianStatus} onChange={(event) => setForm({ ...form, technicianStatus: event.target.value })}>
-          <option value="ASSIGNED">Assigned</option>
-          <option value="IN_PROGRESS">In progress</option>
-          <option value="COMPLETED">Completed</option>
-          <option value="ON_HOLD">On hold</option>
-          <option value="PENDING">Pending</option>
-        </select>
-        <input placeholder="Technician notes" value={form.technicianNotes} onChange={(event) => setForm({ ...form, technicianNotes: event.target.value })} />
-        <select value={form.partVariantId} onChange={(event) => setForm({ ...form, partVariantId: event.target.value })}>
-          <option value="">Estimated part</option>
-          {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
-        </select>
-        <input placeholder="Part qty" value={form.partQuantity} onChange={(event) => setForm({ ...form, partQuantity: event.target.value })} />
-        <input placeholder="Part rate" value={form.partRate} onChange={(event) => setForm({ ...form, partRate: event.target.value })} />
-        <input placeholder="Labor" value={form.laborDescription} onChange={(event) => setForm({ ...form, laborDescription: event.target.value })} />
-        <input placeholder="Labor amount" value={form.laborAmount} onChange={(event) => setForm({ ...form, laborAmount: event.target.value })} />
-        <select value={form.issueWarehouseId} onChange={(event) => setForm({ ...form, issueWarehouseId: event.target.value })}>
-          <option value="">Issue warehouse</option>
-          {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
-        </select>
-        <select value={form.billingTaxMode} onChange={(event) => setForm({ ...form, billingTaxMode: event.target.value })}>
-          <option value="CGST_SGST">CGST + SGST</option>
-          <option value="IGST">IGST</option>
-        </select>
-        <select value={form.serviceTaxRateId} onChange={(event) => setForm({ ...form, serviceTaxRateId: event.target.value })}>
-          <option value="">Service tax rate</option>
-          {taxRates.map((taxRate) => <option key={taxRate.id} value={taxRate.id}>{taxRate.name}</option>)}
-        </select>
-        <Button type="submit" variant="outline" disabled={createMutation.isPending}>Create</Button>
-      </form>
-      <JobCardList
-        canIssueParts={Boolean(form.issueWarehouseId)}
-        items={items}
-        onInspect={(id) => inspectionMutation.mutate(id)}
-        onBill={(id) => billingMutation.mutate(id)}
-        onIssueParts={(id) => issueMutation.mutate(id)}
-        onTechnicianUpdate={(id) => technicianMutation.mutate(id)}
-        onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
-      />
+        <label className="form-field field-span-2"><span>Job card *</span><select required value={form.activeJobCardId} onChange={(event) => selectJobCard(event.target.value)}><option value="">Select an active job card</option>{eligibleJobCards.map((item) => <option key={item.id} value={item.id}>{`${item.jobCardNumber} / ${item.vehicle.registrationNumber} / ${item.customer.name}`}</option>)}</select></label>
+
+        {activeJobCard ? <div className="selected-record field-span-full"><div><span>Vehicle</span><strong>{activeJobCard.vehicle.registrationNumber}</strong></div><div><span>Status</span><strong>{activeJobCard.status}</strong></div><div><span>Estimate</span><strong>{activeJobCard.estimatedTotal}</strong></div><div><span>Quality check</span><strong>{activeJobCard.qualityCheckedAt ? "Completed" : "Pending"}</strong></div></div> : null}
+
+        {stage === "inspection" ? <>
+          <label className="form-field field-span-2"><span>Diagnosis *</span><textarea required rows={3} value={form.diagnosis} onChange={(event) => setForm({ ...form, diagnosis: event.target.value })} /></label>
+          <label className="form-field field-span-2"><span>Work performed / planned</span><textarea rows={3} value={form.workNotes} onChange={(event) => setForm({ ...form, workNotes: event.target.value })} /></label>
+          <label className="form-field field-span-2"><span>Inspection notes *</span><textarea required rows={3} value={form.inspectionNotes} onChange={(event) => setForm({ ...form, inspectionNotes: event.target.value })} /></label>
+          <div className="checklist-field field-span-2"><span>Inspection checklist</span><label><input type="checkbox" checked={form.complaintVerified} onChange={(event) => setForm({ ...form, complaintVerified: event.target.checked })} /> Complaint verified</label><label><input type="checkbox" checked={form.roadTestCompleted} onChange={(event) => setForm({ ...form, roadTestCompleted: event.target.checked })} /> Road test completed</label><label><input type="checkbox" checked={form.qualityCheckCompleted} onChange={(event) => setForm({ ...form, qualityCheckCompleted: event.target.checked })} /> Final quality check completed</label></div>
+          <label className="form-field"><span>Technician status</span><select value={form.technicianStatus} onChange={(event) => setForm({ ...form, technicianStatus: event.target.value })}><option value="ASSIGNED">Assigned</option><option value="IN_PROGRESS">In progress</option><option value="COMPLETED">Completed</option><option value="ON_HOLD">On hold</option><option value="PENDING">Pending</option></select></label>
+          <label className="form-field"><span>Technician notes</span><input value={form.technicianNotes} onChange={(event) => setForm({ ...form, technicianNotes: event.target.value })} /></label>
+          <div className="form-actions field-span-full"><Button type="submit" disabled={!activeJobCard || inspectionMutation.isPending}>{inspectionMutation.isPending ? "Saving..." : "Save inspection"}</Button><Button type="button" variant="outline" disabled={!activeJobCard || technicianMutation.isPending} onClick={() => activeJobCard && technicianMutation.mutate(activeJobCard.id)}>Update technician</Button>{activeJobCard?.qualityCheckedAt ? <Button type="button" variant="outline" onClick={() => statusMutation.mutate({ id: activeJobCard.id, status: "READY" })}>Mark vehicle ready</Button> : null}<Button type="button" variant="outline" disabled={!activeJobCard} onClick={() => activeJobCard && window.confirm(`Cancel ${activeJobCard.jobCardNumber}?`) && statusMutation.mutate({ id: activeJobCard.id, status: "CANCELLED" })}>Cancel job card</Button></div>
+        </> : null}
+
+        {stage === "parts" ? <>
+          <label className="form-field"><span>Issue date *</span><input required type="date" value={form.issueDate} onChange={(event) => setForm({ ...form, issueDate: event.target.value })} /></label>
+          <label className="form-field"><span>Issue warehouse *</span><select required value={form.issueWarehouseId} onChange={(event) => setForm({ ...form, issueWarehouseId: event.target.value })}><option value="">Select warehouse</option>{warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}</select></label>
+          <div className="field-span-full line-preview"><strong>Parts to issue</strong>{activeJobCard?.parts?.length ? activeJobCard.parts.map((part) => <span key={part.id}>{`${part.productVariant.code} - ${part.productVariant.name} / Qty ${part.quantity}`}</span>) : <span>No estimated parts on this job card.</span>}</div>
+          <div className="form-actions field-span-full"><Button type="submit" disabled={!activeJobCard?.parts?.length || issueMutation.isPending}>{issueMutation.isPending ? "Posting..." : "Issue parts and post stock"}</Button></div>
+        </> : null}
+
+        {stage === "billing" ? <>
+          {activeJobCard && !activeJobCard.qualityCheckedAt ? <p className="form-warning field-span-full">Final quality check is pending. Complete Step 2 before billing.</p> : null}
+          {activeJobCard?.parts?.length && !activeJobCard.partsIssuedAt ? <p className="form-warning field-span-full">Parts are estimated but not issued. Complete Step 3 before billing.</p> : null}
+          <label className="form-field"><span>Billing date *</span><input required type="date" value={form.billingDate} onChange={(event) => setForm({ ...form, billingDate: event.target.value })} /></label>
+          <label className="form-field"><span>Taxable billing amount *</span><input required type="number" min="0.01" step="0.01" value={form.billingAmount} onChange={(event) => setForm({ ...form, billingAmount: event.target.value })} /></label>
+          <label className="form-field"><span>Tax mode *</span><select required value={form.billingTaxMode} onChange={(event) => setForm({ ...form, billingTaxMode: event.target.value })}><option value="CGST_SGST">CGST + SGST</option><option value="IGST">IGST</option></select></label>
+          <label className="form-field"><span>Service tax rate</span><select value={form.serviceTaxRateId} onChange={(event) => setForm({ ...form, serviceTaxRateId: event.target.value })}><option value="">No service tax</option>{taxRates.map((taxRate) => <option key={taxRate.id} value={taxRate.id}>{`${taxRate.name} / IGST ${taxRate.igstRate}%`}</option>)}</select></label>
+          <label className="form-field field-span-2"><span>Delivery notes</span><textarea rows={3} value={form.deliveryNotes} onChange={(event) => setForm({ ...form, deliveryNotes: event.target.value })} /></label>
+          <div className="form-actions field-span-full"><Button type="submit" disabled={!activeJobCard || !activeJobCard.qualityCheckedAt || Boolean(activeJobCard?.parts?.length && !activeJobCard.partsIssuedAt) || billingMutation.isPending}>{billingMutation.isPending ? "Billing..." : "Post bill and deliver"}</Button></div>
+        </> : null}
+      </form> : null}
+
+      <div className="queue-heading"><strong>{stage === "intake" ? "Recent job cards" : "Job cards available for this step"}</strong><span>{stage === "intake" ? items.length : eligibleJobCards.length} record(s)</span></div>
+      <MasterList items={(stage === "intake" ? items : eligibleJobCards).map((item) => ({ id: item.id, label: `${item.jobCardNumber} / ${item.vehicle.registrationNumber}`, meta: `${item.customer.name} / ${item.status} / Tech ${item.technicianStatus ?? "PENDING"} / ${item.qualityCheckedAt ? "QC done" : "QC pending"} / ${item.partsIssuedAt ? "Parts issued" : "Parts pending"} / ${item.billingNumber ?? "Unbilled"} / ${item.billingAmount ?? item.estimatedTotal}` }))} />
     </article>
-  );
-}
-
-function JobCardList({
-  canIssueParts,
-  items,
-  onInspect,
-  onIssueParts,
-  onBill,
-  onTechnicianUpdate,
-  onStatusChange,
-}: {
-  canIssueParts: boolean;
-  items: JobCard[];
-  onInspect: (id: string) => void;
-  onBill: (id: string) => void;
-  onIssueParts: (id: string) => void;
-  onTechnicianUpdate: (id: string) => void;
-  onStatusChange: (id: string, status: string) => void;
-}) {
-  if (items.length === 0) {
-    return <p className="empty-text">No records yet.</p>;
-  }
-
-  return (
-    <ul className="compact-list action-list">
-      {items.slice(0, 8).map((item) => (
-        <li key={item.id}>
-          <span>{`${item.jobCardNumber} / ${item.vehicle.registrationNumber}`}</span>
-          <strong>{`${item.customer.name} / ${item.status} / Tech ${item.technicianStatus ?? "PENDING"} / ${item.qualityCheckedAt ? "QC done" : "QC pending"} / ${item.billingNumber ?? "Unbilled"} / Total ${item.billingAmount ?? item.estimatedTotal}`}</strong>
-          <select value={item.status} onChange={(event) => onStatusChange(item.id, event.target.value)}>
-            <option value="OPEN">OPEN</option>
-            <option value="IN_PROGRESS">IN_PROGRESS</option>
-            <option value="READY">READY</option>
-            <option value="DELIVERED">DELIVERED</option>
-            <option value="CANCELLED">CANCELLED</option>
-          </select>
-          {!item.partsIssuedAt && !["CANCELLED", "DELIVERED"].includes(item.status) ? (
-            <Button type="button" variant="outline" disabled={!canIssueParts} onClick={() => onIssueParts(item.id)}>
-              Issue Parts
-            </Button>
-          ) : null}
-          {!item.qualityCheckedAt && !["CANCELLED", "DELIVERED"].includes(item.status) ? (
-            <Button type="button" variant="outline" onClick={() => onInspect(item.id)}>
-              Inspect
-            </Button>
-          ) : null}
-          {!["CANCELLED", "DELIVERED"].includes(item.status) ? (
-            <Button type="button" variant="outline" onClick={() => onTechnicianUpdate(item.id)}>
-              Tech Update
-            </Button>
-          ) : null}
-          {!item.billedAt && !["CANCELLED"].includes(item.status) ? (
-            <Button type="button" variant="outline" onClick={() => onBill(item.id)}>
-              Bill
-            </Button>
-          ) : null}
-        </li>
-      ))}
-    </ul>
   );
 }
 

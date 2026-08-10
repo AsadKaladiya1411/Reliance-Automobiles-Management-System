@@ -385,6 +385,11 @@ export async function updateJobCardInspection(context: WorkshopContext, jobCardI
   }
 
   const checklist = inspectionChecklist(data.inspectionChecklist);
+  const finalQualityCheckCompleted = Array.isArray(data.inspectionChecklist) && data.inspectionChecklist.some((item) => {
+    if (typeof item !== "object" || item === null) return false;
+    const row = item as Record<string, unknown>;
+    return row.label === "Final quality check completed" && row.checked === true;
+  });
   const updated = await prisma.jobCard.update({
     where: { id: existing.id },
     data: {
@@ -392,8 +397,8 @@ export async function updateJobCardInspection(context: WorkshopContext, jobCardI
       workNotes: optionalString(data.workNotes) ?? existing.workNotes,
       ...(checklist ? { inspectionChecklist: checklist } : {}),
       inspectionNotes: optionalString(data.inspectionNotes) ?? existing.inspectionNotes,
-      qualityCheckedByUserId: context.userId,
-      qualityCheckedAt: new Date(),
+      qualityCheckedByUserId: finalQualityCheckCompleted ? context.userId : existing.qualityCheckedByUserId,
+      qualityCheckedAt: finalQualityCheckCompleted ? existing.qualityCheckedAt ?? new Date() : existing.qualityCheckedAt,
     },
   });
 
@@ -631,6 +636,7 @@ export async function postJobCardBilling(context: WorkshopContext, jobCardId: st
   const billingDate = parseDate(data.billingDate);
   const serviceTaxRateId = optionalString(data.serviceTaxRateId);
   const taxMode = optionalTaxMode(data.taxMode);
+  const deliveryNotes = optionalString(data.deliveryNotes);
 
   return prisma.$transaction(async (tx) => {
     await requireOpenFinancialYear(tx, context.companyId, billingDate);
@@ -655,6 +661,10 @@ export async function postJobCardBilling(context: WorkshopContext, jobCardId: st
 
     if (jobCard.billedAt) {
       throw new ApiError(400, "JOB_CARD_ALREADY_BILLED", "Job card has already been billed.");
+    }
+
+    if (!jobCard.qualityCheckedAt) {
+      throw new ApiError(400, "JOB_CARD_QC_REQUIRED", "Complete the final quality check before billing the job card.");
     }
 
     if (jobCard.parts.length > 0 && !jobCard.partsIssuedAt) {
@@ -742,6 +752,8 @@ export async function postJobCardBilling(context: WorkshopContext, jobCardId: st
         billingJournalEntryId: journalEntry.id,
         billedByUserId: context.userId,
         billedAt: new Date(),
+        deliveryNotes: deliveryNotes ?? jobCard.deliveryNotes,
+        deliveredAt: new Date(),
       },
       include: {
         customer: true,
