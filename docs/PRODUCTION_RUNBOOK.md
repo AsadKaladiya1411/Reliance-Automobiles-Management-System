@@ -84,14 +84,18 @@ Minimum backup policy for commercial use:
 Manual backup example:
 
 ```powershell
-pg_dump $env:DATABASE_URL -Fc -f rams-backup.dump
+npm run backup
 ```
 
-Manual restore example:
+For a local Windows installation, this uses `scripts/backup-database.ps1`, discovers the installed PostgreSQL tools, reads the project `.env`, and creates a timestamped custom-format dump in `backups`.
+
+Manual restore example (replace the filename with the verified backup):
 
 ```powershell
-pg_restore --clean --if-exists --dbname $env:DATABASE_URL rams-backup.dump
+npm run restore -- -BackupFile "D:\RAMS\backups\rams-YYYYMMDD-HHMMSS.dump" -ConfirmRestore
 ```
+
+The restore utility creates a pre-restore safety backup and uses a single database transaction. See [LOCAL_BACKUP_GUIDE.md](LOCAL_BACKUP_GUIDE.md) for local operator instructions.
 
 Use provider-native backup tooling when available.
 

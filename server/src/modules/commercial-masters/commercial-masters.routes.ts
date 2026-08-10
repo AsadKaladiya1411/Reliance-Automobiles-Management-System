@@ -59,7 +59,7 @@ router.get("/commercial-masters/customers/page", asyncHandler(async (req, res) =
 router.get("/commercial-masters/customers/export.csv", asyncHandler(async (req, res) => {
   const page = await listCustomersPage(req.user!.companyId, { ...parsePageQuery(req.query), page: 1, pageSize: 1000, skip: 0, take: 1000 });
   const csv = toCsv(
-    ["Code", "Name", "Type", "Phone", "Email", "GSTIN", "Credit Limit", "Credit Days", "Status"],
+    ["Code", "Name", "Type", "Phone", "Email", "GSTIN", "Address 1", "Address 2", "City", "State", "Pincode", "Place of Supply", "Credit Limit", "Credit Days", "Status"],
     page.items.map((customer) => [
       customer.code,
       customer.name,
@@ -67,6 +67,12 @@ router.get("/commercial-masters/customers/export.csv", asyncHandler(async (req, 
       customer.phone ?? "",
       customer.email ?? "",
       customer.gstin ?? "",
+      customer.addressLine1 ?? "",
+      customer.addressLine2 ?? "",
+      customer.city ?? "",
+      customer.state ?? "",
+      customer.pincode ?? "",
+      customer.placeOfSupply ?? "",
       customer.creditLimit,
       customer.creditDays,
       customer.status,
@@ -78,7 +84,7 @@ router.get("/commercial-masters/customers/import-template.csv", asyncHandler(asy
   res
     .header("content-type", "text/csv; charset=utf-8")
     .attachment("rams-customers-import-template.csv")
-    .send(toCsv(["code", "name", "customerType", "phone", "email", "gstin", "pan", "creditLimit", "creditDays"], []));
+    .send(toCsv(["code", "name", "customerType", "phone", "email", "gstin", "pan", "addressLine1", "addressLine2", "city", "state", "pincode", "placeOfSupply", "creditLimit", "creditDays"], []));
 }));
 router.post("/commercial-masters/customers", asyncHandler(async (req, res) => {
   sendSuccess(res, await createCustomer(context(req), req.body), "Customer created.", 201);

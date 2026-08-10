@@ -2,9 +2,18 @@ import { Router } from "express";
 import { requireAuth, requireModuleAccess } from "../auth/auth.middleware";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
-import { getCompany, updateCompany } from "./company.service";
+import { getCompany, getInvoiceCompanyProfile, updateCompany } from "./company.service";
 
 const router = Router();
+
+router.get(
+  "/company/invoice-profile",
+  requireAuth,
+  requireModuleAccess("sales"),
+  asyncHandler(async (req, res) => {
+    sendSuccess(res, await getInvoiceCompanyProfile(req.user!.companyId));
+  }),
+);
 
 router.use(requireAuth, requireModuleAccess("company"));
 

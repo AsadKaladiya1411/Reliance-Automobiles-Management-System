@@ -74,8 +74,17 @@ type Company = {
   legalName?: string | null;
   gstin?: string | null;
   pan?: string | null;
+  tan?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
   city?: string | null;
   state?: string | null;
+  pincode?: string | null;
+  country?: string;
+  baseCurrency?: string;
+  timezone?: string;
 };
 
 type FinancialYear = {
@@ -336,6 +345,12 @@ type Customer = {
   name: string;
   phone?: string | null;
   gstin?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  placeOfSupply?: string | null;
   customerType: string;
   creditLimit?: string | number;
   creditDays?: number;
@@ -553,13 +568,35 @@ type SalesInvoice = {
   id: string;
   invoiceNumber: string;
   invoiceDate: string;
+  taxMode: string;
+  taxableAmount: string | number;
+  cgstAmount: string | number;
+  sgstAmount: string | number;
+  igstAmount: string | number;
+  totalTaxAmount: string | number;
   grandTotal: string | number;
   status: string;
+  narration?: string | null;
   customer: Customer;
   warehouse: Warehouse;
   salesOrder?: SalesOrder | null;
   deliveryChallan?: DeliveryChallan | null;
-  lines: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; lineTotal?: string | number }>;
+  lines: Array<{
+    id: string;
+    hsnCode?: string | null;
+    productVariant: ProductVariant;
+    quantity: string | number;
+    unitPrice: string | number;
+    discountAmount: string | number;
+    taxableAmount: string | number;
+    cgstRate: string | number;
+    sgstRate: string | number;
+    igstRate: string | number;
+    cgstAmount: string | number;
+    sgstAmount: string | number;
+    igstAmount: string | number;
+    lineTotal: string | number;
+  }>;
 };
 
 type SalesQuotation = {
@@ -733,6 +770,17 @@ function useCompany(enabled = true) {
     enabled,
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<Company>>("/company");
+      return response.data.data;
+    },
+  });
+}
+
+function useInvoiceCompanyProfile(enabled = true) {
+  return useQuery({
+    queryKey: ["invoice-company-profile"],
+    enabled,
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<Company>>("/company/invoice-profile");
       return response.data.data;
     },
   });
@@ -1219,16 +1267,20 @@ function DashboardShell({ user }: { user: AuthUser }) {
             </button>
           ))}
         </nav>
+        <div className="sidebar-assurance">
+          <span className="assurance-dot" />
+          <div><strong>Protected workspace</strong><span>Role-based access & audit trail</span></div>
+        </div>
       </aside>
 
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Foundation milestone</p>
-            <h1>Reliance Automobiles Management System</h1>
+            <p className="eyebrow">Reliance Automobiles</p>
+            <h1>{navItems.find((item) => item.id === activeView)?.label ?? "Workspace"}</h1>
           </div>
           <div className="user-actions">
-            <span>{user.fullName}</span>
+            <div className="user-identity"><span>{user.fullName}</span><small>{user.roles.join(" · ")}</small></div>
             <Button variant="outline" onClick={() => logout.mutate()}>
               Sign Out
             </Button>
@@ -1440,6 +1492,7 @@ function MastersView({
   commercialMasterSummary?: CommercialMasterSummary;
   masterSummary?: MasterSummary;
 }) {
+  const [section, setSection] = useState<"catalog" | "parties" | "workshop" | "operations">("catalog");
   const units = useMasterList<Unit>("units", "/masters/units");
   const hsnCodes = useMasterList<HsnCode>("hsn-codes", "/masters/hsn-codes");
   const taxRates = useMasterList<TaxRate>("tax-rates", "/masters/tax-rates");
@@ -1457,53 +1510,53 @@ function MastersView({
   return (
     <>
       <section className="view-header">
-        <h2>Masters</h2>
-        <p>Core master data required before inventory, purchase, sales, and workshop transactions.</p>
+        <div>
+          <p className="section-kicker">Business setup</p>
+          <h2>Master data</h2>
+          <p>Create reusable records once, then use them across inventory, purchase, sales and workshop workflows.</p>
+        </div>
       </section>
-      <section className="setup-panel">
-        <h2>Master Data Readiness</h2>
-        <MasterReadinessGrid masterSummary={masterSummary} />
+      <section className="section-tabs" aria-label="Master data categories">
+        {([
+          ["catalog", "Products & tax", "Units, tax, brands and catalog"],
+          ["parties", "Customers & suppliers", "Trading relationships"],
+          ["workshop", "Workshop", "Employees and vehicles"],
+          ["operations", "Operations", "Warehouses and payment modes"],
+        ] as const).map(([id, label, description]) => (
+          <button key={id} type="button" className={section === id ? "active" : ""} onClick={() => setSection(id)}>
+            <strong>{label}</strong>
+            <span>{description}</span>
+          </button>
+        ))}
       </section>
-      <section className="setup-panel">
-        <h2>Commercial Master Readiness</h2>
-        <CommercialReadinessGrid commercialMasterSummary={commercialMasterSummary} />
-      </section>
+      {section === "catalog" ? (
+        <section className="setup-panel compact-summary">
+          <div className="panel-heading">
+            <div><p className="section-kicker">Readiness</p><h2>Product catalog</h2></div>
+            <span className="context-note">Recommended order: Unit → HSN → Tax → Brand → Category → Product → Variant</span>
+          </div>
+          <MasterReadinessGrid masterSummary={masterSummary} />
+        </section>
+      ) : null}
+      {section === "parties" ? (
+        <section className="setup-panel compact-summary">
+          <div className="panel-heading"><div><p className="section-kicker">Readiness</p><h2>Commercial relationships</h2></div></div>
+          <CommercialReadinessGrid commercialMasterSummary={commercialMasterSummary} />
+        </section>
+      ) : null}
       <section className="masters-grid">
-        <CustomerPanel items={customers.data ?? []} />
-        <SupplierPanel items={suppliers.data ?? []} />
-        <EmployeePanel items={employees.data ?? []} />
-        <PaymentModePanel items={paymentModes.data ?? []} />
-        <VehiclePanel customers={customers.data ?? []} items={vehicles.data ?? []} />
-        <UnitMasterPanel items={units.data ?? []} />
-        <HsnMasterPanel items={hsnCodes.data ?? []} />
-        <TaxRatePanel hsnCodes={hsnCodes.data ?? []} items={taxRates.data ?? []} />
-        <SimpleCodeNamePanel
-          items={brands.data ?? []}
-          path="/masters/brands"
-          queryKeys={["brands", "master-summary"]}
-          title="Brands"
-        />
-        <SimpleCodeNamePanel
-          items={categories.data ?? []}
-          path="/masters/categories"
-          queryKeys={["categories", "master-summary"]}
-          title="Categories"
-        />
-        <ProductPanel
-          brands={brands.data ?? []}
-          categories={categories.data ?? []}
-          hsnCodes={hsnCodes.data ?? []}
-          items={products.data ?? []}
-          taxRates={taxRates.data ?? []}
-          units={units.data ?? []}
-        />
-        <VariantPanel items={variants.data ?? []} products={products.data ?? []} />
-        <SimpleCodeNamePanel
-          items={warehouses.data ?? []}
-          path="/masters/warehouses"
-          queryKeys={["warehouses", "master-summary"]}
-          title="Warehouses"
-        />
+        {section === "parties" ? <><CustomerPanel items={customers.data ?? []} /><SupplierPanel items={suppliers.data ?? []} /></> : null}
+        {section === "workshop" ? <><EmployeePanel items={employees.data ?? []} /><VehiclePanel customers={customers.data ?? []} items={vehicles.data ?? []} /></> : null}
+        {section === "operations" ? <><PaymentModePanel items={paymentModes.data ?? []} /><SimpleCodeNamePanel items={warehouses.data ?? []} path="/masters/warehouses" queryKeys={["warehouses", "master-summary"]} title="Warehouses" /></> : null}
+        {section === "catalog" ? <>
+          <UnitMasterPanel items={units.data ?? []} />
+          <HsnMasterPanel items={hsnCodes.data ?? []} />
+          <TaxRatePanel hsnCodes={hsnCodes.data ?? []} items={taxRates.data ?? []} />
+          <SimpleCodeNamePanel items={brands.data ?? []} path="/masters/brands" queryKeys={["brands", "master-summary"]} title="Brands" />
+          <SimpleCodeNamePanel items={categories.data ?? []} path="/masters/categories" queryKeys={["categories", "master-summary"]} title="Categories" />
+          <ProductPanel brands={brands.data ?? []} categories={categories.data ?? []} hsnCodes={hsnCodes.data ?? []} items={products.data ?? []} taxRates={taxRates.data ?? []} units={units.data ?? []} />
+          <VariantPanel items={variants.data ?? []} products={products.data ?? []} />
+        </> : null}
       </section>
     </>
   );
@@ -1579,6 +1632,12 @@ function TransactionsView({
   paymentSummary?: PaymentSummary;
   gstSummary?: GstSummary;
 }) {
+  const [section, setSection] = useState<"purchase" | "sales" | "payments" | "accounting">("purchase");
+  const [purchaseStage, setPurchaseStage] = useState<"order" | "grn" | "invoice" | "return">("order");
+  const [salesStage, setSalesStage] = useState<"quote" | "order" | "delivery" | "invoice" | "return">("quote");
+  const [paymentStage, setPaymentStage] = useState<"payment" | "notes" | "outstanding">("payment");
+  const [accountingStage, setAccountingStage] = useState<"accounts" | "journals" | "statements" | "ledger">("accounts");
+  const invoiceCompany = useInvoiceCompanyProfile(section === "sales");
   const accounts = useMasterList<Account>("accounts", "/accounting/accounts");
   const journalEntries = useMasterList<JournalEntry>("journal-entries", "/accounting/journal-entries");
   const trialBalance = useQuery({
@@ -1625,89 +1684,96 @@ function TransactionsView({
   return (
     <>
       <section className="view-header">
-        <h2>Transactions</h2>
-        <p>Purchase, sales, workshop, accounting, and GST posting workflows will be added here incrementally.</p>
+        <div>
+          <p className="section-kicker">Daily operations</p>
+          <h2>Transactions</h2>
+          <p>Choose one workflow and complete it in order. Only the forms relevant to that job are shown.</p>
+        </div>
       </section>
-      <section className="setup-panel">
-        <h2>Accounting Foundation</h2>
-        <AccountingReadinessGrid accountingSummary={accountingSummary} />
+      <section className="section-tabs workflow-tabs" aria-label="Transaction workflows">
+        {([
+          ["purchase", "Purchase", "Order → Receive → Invoice"],
+          ["sales", "Sales", "Quote → Order → Deliver → Invoice"],
+          ["payments", "Payments", "Receive, pay and allocate"],
+          ["accounting", "Accounting", "Accounts, journals and ledgers"],
+        ] as const).map(([id, label, description]) => (
+          <button key={id} type="button" className={section === id ? "active" : ""} onClick={() => setSection(id)}>
+            <strong>{label}</strong><span>{description}</span>
+          </button>
+        ))}
       </section>
-      <section className="setup-panel">
-        <h2>Purchase Posting</h2>
-        <PurchaseReadinessGrid purchaseSummary={purchaseSummary} />
+      <section className="workflow-guide" aria-label="Current workflow guidance">
+        <div className="workflow-badge">{section === "purchase" ? "PO" : section === "sales" ? "SO" : section === "payments" ? "₹" : "GL"}</div>
+        <div>
+          <strong>{section === "purchase" ? "Purchase workflow" : section === "sales" ? "Sales workflow" : section === "payments" ? "Settlement workflow" : "Accounting workspace"}</strong>
+          <p>{section === "purchase" ? "Create the purchase order first, record receipt with a GRN, then post the supplier invoice." : section === "sales" ? "Start with a quotation, confirm the order, record delivery, then post the customer invoice." : section === "payments" ? "Choose the party, enter the amount, then allocate it against an open invoice." : "Seed the chart once, then use journals and reports for controlled financial work."}</p>
+        </div>
       </section>
-      <section className="setup-panel">
-        <h2>Sales Posting</h2>
-        <SalesReadinessGrid salesSummary={salesSummary} />
-      </section>
-      <section className="setup-panel">
-        <h2>Ledger and GST Reports</h2>
-        <ReportReadinessGrid partyLedgerSummary={partyLedgerSummary} gstSummary={gstSummary} />
-      </section>
-      <section className="setup-panel">
-        <h2>Payments</h2>
-        <PaymentReadinessGrid paymentSummary={paymentSummary} />
-      </section>
+      {section === "purchase" ? <section className="stage-tabs" aria-label="Purchase steps">
+        {([['order', '1. Purchase order'], ['grn', '2. Goods receipt'], ['invoice', '3. Supplier invoice'], ['return', '4. Purchase return']] as const).map(([id, label]) => <button type="button" key={id} className={purchaseStage === id ? 'active' : ''} onClick={() => setPurchaseStage(id)}>{label}</button>)}
+      </section> : null}
+      {section === "sales" ? <section className="stage-tabs" aria-label="Sales steps">
+        {([['quote', '1. Quotation'], ['order', '2. Sales order'], ['delivery', '3. Delivery'], ['invoice', '4. Customer invoice'], ['return', '5. Sales return']] as const).map(([id, label]) => <button type="button" key={id} className={salesStage === id ? 'active' : ''} onClick={() => setSalesStage(id)}>{label}</button>)}
+      </section> : null}
+      {section === "payments" ? <section className="stage-tabs" aria-label="Payment workspaces">
+        {([['payment', 'Receipts & payments'], ['notes', 'Credit / debit notes'], ['outstanding', 'Outstanding balances']] as const).map(([id, label]) => <button type="button" key={id} className={paymentStage === id ? 'active' : ''} onClick={() => setPaymentStage(id)}>{label}</button>)}
+      </section> : null}
+      {section === "accounting" ? <section className="stage-tabs" aria-label="Accounting workspaces">
+        {([['accounts', 'Chart of accounts'], ['journals', 'Journals & contra'], ['statements', 'Financial statements'], ['ledger', 'General & party ledgers']] as const).map(([id, label]) => <button type="button" key={id} className={accountingStage === id ? 'active' : ''} onClick={() => setAccountingStage(id)}>{label}</button>)}
+      </section> : null}
+      {section === "purchase" ? <section className="setup-panel compact-summary"><h2>Purchase summary</h2><PurchaseReadinessGrid purchaseSummary={purchaseSummary} /></section> : null}
+      {section === "sales" ? <section className="setup-panel compact-summary"><h2>Sales summary</h2><SalesReadinessGrid salesSummary={salesSummary} /></section> : null}
+      {section === "payments" ? <section className="setup-panel compact-summary"><h2>Payment summary</h2><PaymentReadinessGrid paymentSummary={paymentSummary} /></section> : null}
+      {section === "accounting" ? <>
+        <section className="setup-panel compact-summary"><h2>Accounting summary</h2><AccountingReadinessGrid accountingSummary={accountingSummary} /></section>
+        <section className="setup-panel compact-summary"><h2>Ledger and GST</h2><ReportReadinessGrid partyLedgerSummary={partyLedgerSummary} gstSummary={gstSummary} /></section>
+      </> : null}
       <section className="masters-grid">
-        <PurchaseOrderPanel
+        {section === "purchase" && purchaseStage === "order" ? <PurchaseOrderPanel
           items={purchaseOrders.data ?? []}
           suppliers={suppliers.data ?? []}
           variants={variants.data ?? []}
-        />
-        <PurchaseInvoicePanel
-          grns={grns.data ?? []}
-          invoices={purchaseInvoices.data ?? []}
-          suppliers={suppliers.data ?? []}
-          variants={variants.data ?? []}
-          warehouses={warehouses.data ?? []}
-        />
-        <GoodsReceiptNotePanel
+        /> : null}
+        {section === "purchase" && purchaseStage === "grn" ? <GoodsReceiptNotePanel
           items={grns.data ?? []}
           orders={purchaseOrders.data ?? []}
           suppliers={suppliers.data ?? []}
           variants={variants.data ?? []}
           warehouses={warehouses.data ?? []}
-        />
-        <SalesInvoicePanel
+        /> : null}
+        {section === "purchase" && purchaseStage === "invoice" ? <PurchaseInvoicePanel
+          grns={grns.data ?? []}
+          invoices={purchaseInvoices.data ?? []}
+          suppliers={suppliers.data ?? []}
+          variants={variants.data ?? []}
+          warehouses={warehouses.data ?? []}
+        /> : null}
+        {section === "purchase" && purchaseStage === "return" ? <PurchaseReturnPanel invoices={purchaseInvoices.data ?? []} items={purchaseReturns.data ?? []} /> : null}
+        {section === "sales" && salesStage === "quote" ? <SalesQuotationPanel customers={customers.data ?? []} items={salesQuotations.data ?? []} variants={variants.data ?? []} /> : null}
+        {section === "sales" && salesStage === "order" ? <SalesOrderPanel customers={customers.data ?? []} items={salesOrders.data ?? []} quotations={salesQuotations.data ?? []} variants={variants.data ?? []} /> : null}
+        {section === "sales" && salesStage === "delivery" ? <DeliveryChallanPanel customers={customers.data ?? []} items={deliveryChallans.data ?? []} orders={salesOrders.data ?? []} variants={variants.data ?? []} warehouses={warehouses.data ?? []} /> : null}
+        {section === "sales" && salesStage === "invoice" ? <SalesInvoicePanel
+          company={invoiceCompany.data}
           customers={customers.data ?? []}
           deliveryChallans={deliveryChallans.data ?? []}
           invoices={salesInvoices.data ?? []}
           orders={salesOrders.data ?? []}
           variants={variants.data ?? []}
           warehouses={warehouses.data ?? []}
-        />
-        <SalesQuotationPanel customers={customers.data ?? []} items={salesQuotations.data ?? []} variants={variants.data ?? []} />
-        <SalesOrderPanel
-          customers={customers.data ?? []}
-          items={salesOrders.data ?? []}
-          quotations={salesQuotations.data ?? []}
-          variants={variants.data ?? []}
-        />
-        <DeliveryChallanPanel
-          customers={customers.data ?? []}
-          items={deliveryChallans.data ?? []}
-          orders={salesOrders.data ?? []}
-          variants={variants.data ?? []}
-          warehouses={warehouses.data ?? []}
-        />
-        <PurchaseReturnPanel invoices={purchaseInvoices.data ?? []} items={purchaseReturns.data ?? []} />
-        <SalesReturnPanel invoices={salesInvoices.data ?? []} items={salesReturns.data ?? []} />
-        <AccountPanel items={accounts.data ?? []} />
-        <JournalPanel accounts={accounts.data ?? []} items={journalEntries.data ?? []} />
-        <ContraVoucherPanel accounts={accounts.data ?? []} />
-        <TrialBalancePanel trialBalance={trialBalance.data} />
-        <GeneralLedgerPanel items={generalLedger.data ?? []} />
-        <ProfitAndLossPanel statement={profitAndLoss.data} />
-        <BalanceSheetPanel statement={balanceSheet.data} />
-        <PaymentPanel
+        /> : null}
+        {section === "sales" && salesStage === "return" ? <SalesReturnPanel invoices={salesInvoices.data ?? []} items={salesReturns.data ?? []} /> : null}
+        {section === "accounting" && accountingStage === "accounts" ? <AccountPanel items={accounts.data ?? []} /> : null}
+        {section === "accounting" && accountingStage === "journals" ? <><JournalPanel accounts={accounts.data ?? []} items={journalEntries.data ?? []} /><ContraVoucherPanel accounts={accounts.data ?? []} /></> : null}
+        {section === "accounting" && accountingStage === "statements" ? <><TrialBalancePanel trialBalance={trialBalance.data} /><ProfitAndLossPanel statement={profitAndLoss.data} /><BalanceSheetPanel statement={balanceSheet.data} /></> : null}
+        {section === "accounting" && accountingStage === "ledger" ? <><GeneralLedgerPanel items={generalLedger.data ?? []} /><PartyLedgerPanel items={partyLedger.data ?? []} /></> : null}
+        {section === "payments" && paymentStage === "payment" ? <PaymentPanel
           customers={customers.data ?? []}
           items={payments.data ?? []}
           paymentModes={paymentModes.data ?? []}
           suppliers={suppliers.data ?? []}
-        />
-        <FinancialNotePanel customers={customers.data ?? []} items={notes.data ?? []} suppliers={suppliers.data ?? []} />
-        <OutstandingPanel outstanding={outstanding.data} />
-        <PartyLedgerPanel items={partyLedger.data ?? []} />
+        /> : null}
+        {section === "payments" && paymentStage === "notes" ? <FinancialNotePanel customers={customers.data ?? []} items={notes.data ?? []} suppliers={suppliers.data ?? []} /> : null}
+        {section === "payments" && paymentStage === "outstanding" ? <><OutstandingPanel outstanding={outstanding.data} /><PartyLedgerPanel items={partyLedger.data ?? []} /></> : null}
       </section>
       <ModuleGrid filter={["Purchase", "Sales", "Workshop", "Accounting"]} />
     </>
@@ -1941,6 +2007,7 @@ function SettingsView({
   financialYears: FinancialYear[];
   numberSeries: NumberSeries[];
 }) {
+  const [section, setSection] = useState<"business" | "documents" | "security" | "approvals" | "audit">("business");
   const roles = useMasterList<AdminRole>("auth-roles", "/auth/roles");
   const users = useMasterList<AdminUser>("auth-users", "/auth/users");
   const approvalRules = useMasterList<ApprovalRule>("approval-rules", "/approvals/rules");
@@ -1949,35 +2016,98 @@ function SettingsView({
   return (
     <>
       <section className="view-header">
-        <h2>Settings</h2>
-        <p>Company, financial year, and document numbering configuration.</p>
+        <div>
+          <p className="section-kicker">Control centre</p>
+          <h2>Configuration</h2>
+          <p>Manage the business identity, operational rules, access control and compliance from one place.</p>
+        </div>
       </section>
-      <section className="foundation-grid" aria-label="Foundation setup">
-        <article className="setup-panel">
-          <h2>Company Profile</h2>
-          <dl>
-            <div>
-              <dt>Name</dt>
-              <dd>{company?.name ?? "Loading"}</dd>
-            </div>
-            <div>
-              <dt>GSTIN</dt>
-              <dd>{company?.gstin ?? "Not configured"}</dd>
-            </div>
-            <div>
-              <dt>Location</dt>
-              <dd>{[company?.city, company?.state].filter(Boolean).join(", ") || "Not configured"}</dd>
-            </div>
-          </dl>
-        </article>
-
-        <FinancialYearPanel financialYears={financialYears} />
-        <NumberSeriesPanel numberSeries={numberSeries} />
-        <UserRolePanel roles={roles.data ?? []} users={users.data ?? []} />
-        <ApprovalWorkflowPanel requests={approvalRequests.data ?? []} rules={approvalRules.data ?? []} />
-        <AuditLogPanel items={auditLogs} />
+      <section className="section-tabs settings-tabs" aria-label="Configuration categories">
+        {([
+          ["business", "Business profile", "Identity, tax and address"],
+          ["documents", "Documents", "Financial year and numbering"],
+          ["security", "Users & security", "Roles and access posture"],
+          ["approvals", "Approvals", "Flexible control rules"],
+          ["audit", "Audit trail", "Accountability and history"],
+        ] as const).map(([id, label, description]) => (
+          <button key={id} type="button" className={section === id ? "active" : ""} onClick={() => setSection(id)}>
+            <strong>{label}</strong><span>{description}</span>
+          </button>
+        ))}
+      </section>
+      <section className="foundation-grid configuration-grid" aria-label="Configuration workspace">
+        {section === "business" ? <CompanyProfilePanel company={company} /> : null}
+        {section === "documents" ? <><FinancialYearPanel financialYears={financialYears} /><NumberSeriesPanel numberSeries={numberSeries} /></> : null}
+        {section === "security" ? <><SecurityPosturePanel users={users.data ?? []} roles={roles.data ?? []} /><UserRolePanel roles={roles.data ?? []} users={users.data ?? []} /></> : null}
+        {section === "approvals" ? <ApprovalWorkflowPanel requests={approvalRequests.data ?? []} rules={approvalRules.data ?? []} /> : null}
+        {section === "audit" ? <AuditLogPanel items={auditLogs} /> : null}
       </section>
     </>
+  );
+}
+
+function CompanyProfilePanel({ company }: { company?: Company }) {
+  const [form, setForm] = useState({
+    name: "", legalName: "", gstin: "", pan: "", tan: "", phone: "", email: "",
+    addressLine1: "", addressLine2: "", city: "", state: "", pincode: "",
+  });
+
+  useEffect(() => {
+    if (!company) return;
+    setForm({
+      name: company.name ?? "", legalName: company.legalName ?? "", gstin: company.gstin ?? "",
+      pan: company.pan ?? "", tan: company.tan ?? "", phone: company.phone ?? "", email: company.email ?? "",
+      addressLine1: company.addressLine1 ?? "", addressLine2: company.addressLine2 ?? "",
+      city: company.city ?? "", state: company.state ?? "", pincode: company.pincode ?? "",
+    });
+  }, [company]);
+
+  const mutation = useMutation({
+    mutationFn: async () => { await api.patch("/company", form); },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["company"] }),
+        queryClient.invalidateQueries({ queryKey: ["audit-logs"] }),
+      ]);
+    },
+  });
+
+  return (
+    <article className="setup-panel wide-panel">
+      <div className="panel-heading">
+        <div><p className="section-kicker dark">Business identity</p><h2>Company profile</h2></div>
+        <span className="context-note">Used on invoices, GST reports and statutory documents.</span>
+      </div>
+      <form className="labeled-form" onSubmit={(event) => { event.preventDefault(); mutation.mutate(); }}>
+        <label className="form-field"><span>Business name *</span><input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
+        <label className="form-field"><span>Legal name</span><input value={form.legalName} onChange={(event) => setForm({ ...form, legalName: event.target.value })} /></label>
+        <label className="form-field"><span>GSTIN</span><input maxLength={15} placeholder="24ABCDE1234F1Z5" value={form.gstin} onChange={(event) => setForm({ ...form, gstin: event.target.value.toUpperCase() })} /></label>
+        <label className="form-field"><span>PAN</span><input maxLength={10} placeholder="ABCDE1234F" value={form.pan} onChange={(event) => setForm({ ...form, pan: event.target.value.toUpperCase() })} /></label>
+        <label className="form-field"><span>TAN</span><input value={form.tan} onChange={(event) => setForm({ ...form, tan: event.target.value.toUpperCase() })} /></label>
+        <label className="form-field"><span>Phone</span><input type="tel" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></label>
+        <label className="form-field"><span>Email</span><input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label>
+        <label className="form-field field-span-2"><span>Address line 1</span><input value={form.addressLine1} onChange={(event) => setForm({ ...form, addressLine1: event.target.value })} /></label>
+        <label className="form-field field-span-2"><span>Address line 2</span><input value={form.addressLine2} onChange={(event) => setForm({ ...form, addressLine2: event.target.value })} /></label>
+        <label className="form-field"><span>City</span><input value={form.city} onChange={(event) => setForm({ ...form, city: event.target.value })} /></label>
+        <label className="form-field"><span>State</span><input value={form.state} onChange={(event) => setForm({ ...form, state: event.target.value })} /></label>
+        <label className="form-field"><span>Pincode</span><input inputMode="numeric" value={form.pincode} onChange={(event) => setForm({ ...form, pincode: event.target.value })} /></label>
+        <div className="form-actions field-span-full"><Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? "Saving..." : "Save company profile"}</Button></div>
+      </form>
+    </article>
+  );
+}
+
+function SecurityPosturePanel({ users, roles }: { users: AdminUser[]; roles: AdminRole[] }) {
+  return (
+    <article className="setup-panel wide-panel security-panel">
+      <div className="panel-heading"><div><p className="section-kicker dark">Security posture</p><h2>Access protection</h2></div><span className="security-status">Operational</span></div>
+      <div className="security-grid">
+        <div><strong>HTTP-only sessions</strong><span>Browser scripts cannot read authentication cookies.</span></div>
+        <div><strong>Role-based access</strong><span>{`${roles.length} active roles control module permissions.`}</span></div>
+        <div><strong>Login protection</strong><span>Rate limiting and temporary lockout protect repeated attempts.</span></div>
+        <div><strong>Audit accountability</strong><span>{`${users.length} active user records are tied to auditable actions.`}</span></div>
+      </div>
+    </article>
   );
 }
 
@@ -2396,16 +2526,16 @@ function PurchaseOrderPanel({
 
   return (
     <article className="setup-panel master-panel wide-panel">
-      <h2>Create Purchase Order</h2>
-      <form className="compact-form product-form" onSubmit={(event) => {
+      <div className="panel-heading"><div><p className="section-kicker dark">Purchase · Step 1</p><h2>Create purchase order</h2></div><span className="context-note">Confirms what you intend to buy. Stock and accounts are not changed yet.</span></div>
+      <form className="labeled-form transaction-form" onSubmit={(event) => {
         event.preventDefault();
         mutation.mutate();
       }}>
-        <select value={form.supplierId} onChange={(event) => setForm({ ...form, supplierId: event.target.value })}>
+        <label className="form-field"><span>Supplier *</span><select required value={form.supplierId} onChange={(event) => setForm({ ...form, supplierId: event.target.value })}>
           <option value="">Supplier</option>
           {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-        </select>
-        <select
+        </select></label>
+        <label className="form-field"><span>Product variant *</span><select required
           value={form.productVariantId}
           onChange={(event) => setForm({
             ...form,
@@ -2415,13 +2545,13 @@ function PurchaseOrderPanel({
         >
           <option value="">Product variant</option>
           {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
-        </select>
-        <input type="date" value={form.orderDate} onChange={(event) => setForm({ ...form, orderDate: event.target.value })} />
-        <input type="date" value={form.expectedDate} onChange={(event) => setForm({ ...form, expectedDate: event.target.value })} />
-        <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
-        <input placeholder="Unit cost" value={form.unitCost} onChange={(event) => setForm({ ...form, unitCost: event.target.value })} />
-        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Create</Button>
+        </select></label>
+        <label className="form-field"><span>Order date *</span><input required type="date" value={form.orderDate} onChange={(event) => setForm({ ...form, orderDate: event.target.value })} /></label>
+        <label className="form-field"><span>Expected delivery</span><input type="date" value={form.expectedDate} onChange={(event) => setForm({ ...form, expectedDate: event.target.value })} /></label>
+        <label className="form-field"><span>Quantity *</span><input required inputMode="decimal" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} /></label>
+        <label className="form-field"><span>Unit cost *</span><input required inputMode="decimal" value={form.unitCost} onChange={(event) => setForm({ ...form, unitCost: event.target.value })} /></label>
+        <label className="form-field field-span-2"><span>Narration</span><input value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} /></label>
+        <div className="form-actions field-span-full"><Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? "Creating..." : "Create purchase order"}</Button></div>
       </form>
       <MasterList
         items={items.map((order) => ({
@@ -2485,16 +2615,16 @@ function GoodsReceiptNotePanel({
 
   return (
     <article className="setup-panel master-panel wide-panel">
-      <h2>Create GRN</h2>
-      <form className="compact-form product-form" onSubmit={(event) => {
+      <div className="panel-heading"><div><p className="section-kicker dark">Purchase · Step 2</p><h2>Record goods receipt</h2></div><span className="context-note">Use a PO where possible. The receipt remains traceable to the original order.</span></div>
+      <form className="labeled-form transaction-form" onSubmit={(event) => {
         event.preventDefault();
         mutation.mutate();
       }}>
-        <select value={form.supplierId} onChange={(event) => setForm({ ...form, supplierId: event.target.value, purchaseOrderId: "" })}>
+        <label className="form-field"><span>Supplier *</span><select required value={form.supplierId} onChange={(event) => setForm({ ...form, supplierId: event.target.value, purchaseOrderId: "" })}>
           <option value="">Supplier</option>
           {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-        </select>
-        <select
+        </select></label>
+        <label className="form-field"><span>Purchase order</span><select
           value={form.purchaseOrderId}
           onChange={(event) => {
             const order = orders.find((item) => item.id === event.target.value);
@@ -2509,19 +2639,19 @@ function GoodsReceiptNotePanel({
         >
           <option value="">No purchase order</option>
           {supplierOrders.map((order) => <option key={order.id} value={order.id}>{`${order.orderNumber} / ${order.grandTotal}`}</option>)}
-        </select>
-        <select value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value })}>
+        </select></label>
+        <label className="form-field"><span>Receiving warehouse *</span><select required value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value })}>
           <option value="">Warehouse</option>
           {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
-        </select>
-        <select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
+        </select></label>
+        <label className="form-field"><span>Product variant</span><select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
           <option value="">Product variant</option>
           {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
-        </select>
-        <input type="date" value={form.grnDate} onChange={(event) => setForm({ ...form, grnDate: event.target.value })} />
-        <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
-        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Create</Button>
+        </select></label>
+        <label className="form-field"><span>Receipt date *</span><input required type="date" value={form.grnDate} onChange={(event) => setForm({ ...form, grnDate: event.target.value })} /></label>
+        <label className="form-field"><span>Quantity</span><input inputMode="decimal" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} /></label>
+        <label className="form-field field-span-2"><span>Narration</span><input value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} /></label>
+        <div className="form-actions field-span-full"><Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? "Recording..." : "Create goods receipt"}</Button></div>
       </form>
       {conversionLines?.length ? <p className="empty-text">{conversionLines.length} purchase order line(s) will be copied.</p> : null}
       <MasterList
@@ -2741,14 +2871,15 @@ function SimpleCodeNamePanel({
 }
 
 function CustomerPanel({ items }: { items: Customer[] }) {
-  const [form, setForm] = useState({ code: "", name: "", customerType: "Retail", phone: "", gstin: "", creditLimit: "0", creditDays: "0" });
+  const emptyForm = { code: "", name: "", customerType: "Retail", phone: "", gstin: "", addressLine1: "", addressLine2: "", city: "", state: "", pincode: "", placeOfSupply: "", creditLimit: "0", creditDays: "0" };
+  const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState("");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const pagedCustomers = usePagedMasterList<Customer>("customers-page", "/commercial-masters/customers/page", page, search);
   const displayCustomers = pagedCustomers.data?.items ?? items;
   const mutation = useCreateMaster("/commercial-masters/customers", ["customers", "commercial-master-summary", "party-outstanding"], () =>
-    setForm({ code: "", name: "", customerType: "Retail", phone: "", gstin: "", creditLimit: "0", creditDays: "0" }),
+    setForm(emptyForm),
   );
   const updateMutation = useMutation({
     mutationFn: async () => {
@@ -2757,7 +2888,7 @@ function CustomerPanel({ items }: { items: Customer[] }) {
     onSuccess: async () => {
       await invalidateKeys(["customers", "customers-page", "commercial-master-summary", "party-outstanding"]);
       setEditingId("");
-      setForm({ code: "", name: "", customerType: "Retail", phone: "", gstin: "", creditLimit: "0", creditDays: "0" });
+      setForm(emptyForm);
     },
   });
   const deactivateMutation = useMutation({
@@ -2778,7 +2909,7 @@ function CustomerPanel({ items }: { items: Customer[] }) {
           <Button type="button" variant="outline" onClick={() => downloadCsv("/commercial-masters/customers/export.csv")}>Export CSV</Button>
         </div>
       </div>
-      <form className="compact-form product-form" onSubmit={(event) => {
+      <form className="labeled-form transaction-form" onSubmit={(event) => {
         event.preventDefault();
         if (editingId) {
           updateMutation.mutate();
@@ -2786,24 +2917,30 @@ function CustomerPanel({ items }: { items: Customer[] }) {
         }
         mutation.mutate(form);
       }}>
-        <input placeholder="Code" value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
-        <input placeholder="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-        <input placeholder="Type" value={form.customerType} onChange={(event) => setForm({ ...form, customerType: event.target.value })} />
-        <input placeholder="Phone" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
-        <input placeholder="GSTIN" value={form.gstin} onChange={(event) => setForm({ ...form, gstin: event.target.value })} />
-        <input placeholder="Credit limit" value={form.creditLimit} onChange={(event) => setForm({ ...form, creditLimit: event.target.value })} />
-        <input placeholder="Credit days" value={form.creditDays} onChange={(event) => setForm({ ...form, creditDays: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending || updateMutation.isPending}>
-          {editingId ? "Save" : "Add"}
+        <label className="form-field"><span>Customer code *</span><input required value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} /></label>
+        <label className="form-field"><span>Customer name *</span><input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
+        <label className="form-field"><span>Customer type</span><input value={form.customerType} onChange={(event) => setForm({ ...form, customerType: event.target.value })} /></label>
+        <label className="form-field"><span>Phone</span><input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></label>
+        <label className="form-field"><span>GSTIN</span><input maxLength={15} value={form.gstin} onChange={(event) => setForm({ ...form, gstin: event.target.value.toUpperCase() })} /></label>
+        <label className="form-field field-span-2"><span>Billing address</span><input value={form.addressLine1} onChange={(event) => setForm({ ...form, addressLine1: event.target.value })} /></label>
+        <label className="form-field field-span-2"><span>Address line 2</span><input value={form.addressLine2} onChange={(event) => setForm({ ...form, addressLine2: event.target.value })} /></label>
+        <label className="form-field"><span>City</span><input value={form.city} onChange={(event) => setForm({ ...form, city: event.target.value })} /></label>
+        <label className="form-field"><span>State</span><input value={form.state} onChange={(event) => setForm({ ...form, state: event.target.value })} /></label>
+        <label className="form-field"><span>Pincode</span><input inputMode="numeric" maxLength={12} value={form.pincode} onChange={(event) => setForm({ ...form, pincode: event.target.value })} /></label>
+        <label className="form-field"><span>Place of supply</span><input value={form.placeOfSupply} onChange={(event) => setForm({ ...form, placeOfSupply: event.target.value })} /></label>
+        <label className="form-field"><span>Credit limit</span><input type="number" min="0" step="0.01" value={form.creditLimit} onChange={(event) => setForm({ ...form, creditLimit: event.target.value })} /></label>
+        <label className="form-field"><span>Credit days</span><input type="number" min="0" step="1" value={form.creditDays} onChange={(event) => setForm({ ...form, creditDays: event.target.value })} /></label>
+        <div className="form-actions field-span-full"><Button type="submit" disabled={mutation.isPending || updateMutation.isPending}>
+          {editingId ? "Save customer" : "Add customer"}
         </Button>
         {editingId ? (
           <Button type="button" variant="outline" onClick={() => {
             setEditingId("");
-            setForm({ code: "", name: "", customerType: "Retail", phone: "", gstin: "", creditLimit: "0", creditDays: "0" });
+            setForm(emptyForm);
           }}>
             Cancel
           </Button>
-        ) : null}
+        ) : null}</div>
       </form>
       <PagedEditableMasterList
         isLoading={pagedCustomers.isLoading}
@@ -2828,6 +2965,12 @@ function CustomerPanel({ items }: { items: Customer[] }) {
             customerType: item.raw.customerType,
             phone: item.raw.phone ?? "",
             gstin: item.raw.gstin ?? "",
+            addressLine1: item.raw.addressLine1 ?? "",
+            addressLine2: item.raw.addressLine2 ?? "",
+            city: item.raw.city ?? "",
+            state: item.raw.state ?? "",
+            pincode: item.raw.pincode ?? "",
+            placeOfSupply: item.raw.placeOfSupply ?? "",
             creditLimit: String(item.raw.creditLimit ?? 0),
             creditDays: String(item.raw.creditDays ?? 0),
           });
@@ -3259,23 +3402,28 @@ function JournalPanel({ accounts, items }: { accounts: Account[]; items: Journal
 
   return (
     <article className="setup-panel master-panel wide-panel">
-      <h2>Post Journal Entry</h2>
-      <form className="compact-form product-form" onSubmit={(event) => {
+      <div className="panel-heading"><div><p className="section-kicker dark">Manual accounting</p><h2>Post journal entry</h2></div><span className="context-note">Use only for adjustments not created by sales, purchases or payments. Total debit must equal total credit.</span></div>
+      <form className="labeled-form transaction-form" onSubmit={(event) => {
         event.preventDefault();
+        if (form.debitAccountId === form.creditAccountId) {
+          window.alert("Debit and credit accounts must be different.");
+          return;
+        }
+        if (!window.confirm(`Post journal entry for ${form.amount}?`)) return;
         mutation.mutate();
       }}>
-        <input type="date" value={form.entryDate} onChange={(event) => setForm({ ...form, entryDate: event.target.value })} />
-        <select value={form.debitAccountId} onChange={(event) => setForm({ ...form, debitAccountId: event.target.value })}>
+        <label className="form-field"><span>Entry date *</span><input required type="date" value={form.entryDate} onChange={(event) => setForm({ ...form, entryDate: event.target.value })} /></label>
+        <label className="form-field"><span>Debit account *</span><select required value={form.debitAccountId} onChange={(event) => setForm({ ...form, debitAccountId: event.target.value })}>
           <option value="">Debit account</option>
           {accounts.map((account) => <option key={account.id} value={account.id}>{`${account.code} - ${account.name}`}</option>)}
-        </select>
-        <select value={form.creditAccountId} onChange={(event) => setForm({ ...form, creditAccountId: event.target.value })}>
+        </select></label>
+        <label className="form-field"><span>Credit account *</span><select required value={form.creditAccountId} onChange={(event) => setForm({ ...form, creditAccountId: event.target.value })}>
           <option value="">Credit account</option>
           {accounts.map((account) => <option key={account.id} value={account.id}>{`${account.code} - ${account.name}`}</option>)}
-        </select>
-        <input placeholder="Amount" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} />
-        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
+        </select></label>
+        <label className="form-field"><span>Amount *</span><input required type="number" min="0.01" step="0.01" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} /></label>
+        <label className="form-field field-span-2"><span>Narration *</span><input required value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} /></label>
+        <div className="form-actions field-span-full"><Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? "Posting..." : "Post journal entry"}</Button></div>
       </form>
       <MasterList
         items={items.map((item) => ({
@@ -3317,23 +3465,28 @@ function ContraVoucherPanel({ accounts }: { accounts: Account[] }) {
 
   return (
     <article className="setup-panel master-panel wide-panel">
-      <h2>Post Contra Voucher</h2>
-      <form className="compact-form product-form" onSubmit={(event) => {
+      <div className="panel-heading"><div><p className="section-kicker dark">Cash and bank transfer</p><h2>Post contra voucher</h2></div><span className="context-note">Use for cash-to-bank, bank-to-cash or transfers between bank accounts.</span></div>
+      <form className="labeled-form transaction-form" onSubmit={(event) => {
         event.preventDefault();
+        if (form.fromAccountId === form.toAccountId) {
+          window.alert("From and to accounts must be different.");
+          return;
+        }
+        if (!window.confirm(`Post contra voucher for ${form.amount}?`)) return;
         mutation.mutate();
       }}>
-        <input type="date" value={form.voucherDate} onChange={(event) => setForm({ ...form, voucherDate: event.target.value })} />
-        <select value={form.fromAccountId} onChange={(event) => setForm({ ...form, fromAccountId: event.target.value })}>
+        <label className="form-field"><span>Voucher date *</span><input required type="date" value={form.voucherDate} onChange={(event) => setForm({ ...form, voucherDate: event.target.value })} /></label>
+        <label className="form-field"><span>From account *</span><select required value={form.fromAccountId} onChange={(event) => setForm({ ...form, fromAccountId: event.target.value })}>
           <option value="">From account</option>
           {assetAccounts.map((account) => <option key={account.id} value={account.id}>{`${account.code} - ${account.name}`}</option>)}
-        </select>
-        <select value={form.toAccountId} onChange={(event) => setForm({ ...form, toAccountId: event.target.value })}>
+        </select></label>
+        <label className="form-field"><span>To account *</span><select required value={form.toAccountId} onChange={(event) => setForm({ ...form, toAccountId: event.target.value })}>
           <option value="">To account</option>
           {assetAccounts.map((account) => <option key={account.id} value={account.id}>{`${account.code} - ${account.name}`}</option>)}
-        </select>
-        <input placeholder="Amount" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} />
-        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
+        </select></label>
+        <label className="form-field"><span>Amount *</span><input required type="number" min="0.01" step="0.01" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} /></label>
+        <label className="form-field field-span-2"><span>Narration *</span><input required value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} /></label>
+        <div className="form-actions field-span-full"><Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? "Posting..." : "Post contra voucher"}</Button></div>
       </form>
     </article>
   );
@@ -3522,20 +3675,21 @@ function PurchaseInvoicePanel({
 
   return (
     <article className="setup-panel master-panel wide-panel">
-      <h2>Post Purchase Invoice</h2>
-      <form className="compact-form product-form" onSubmit={(event) => {
+      <div className="panel-heading"><div><p className="section-kicker dark">Purchase - Step 3</p><h2>Post supplier invoice</h2></div><span className="context-note">Posting updates stock value, supplier outstanding and accounting. Verify the supplier bill first.</span></div>
+      <form className="labeled-form transaction-form" onSubmit={(event) => {
         event.preventDefault();
+        if (!window.confirm("Post this supplier invoice? Stock value, supplier outstanding and accounts will be updated.")) return;
         mutation.mutate();
       }}>
-        <select value={form.supplierId} onChange={(event) => setForm({ ...form, supplierId: event.target.value, goodsReceiptNoteId: "" })}>
+        <label className="form-field"><span>Supplier *</span><select required value={form.supplierId} onChange={(event) => setForm({ ...form, supplierId: event.target.value, goodsReceiptNoteId: "" })}>
           <option value="">Supplier</option>
           {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-        </select>
-        <select value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value, goodsReceiptNoteId: "" })}>
+        </select></label>
+        <label className="form-field"><span>Warehouse *</span><select required value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value, goodsReceiptNoteId: "" })}>
           <option value="">Warehouse</option>
           {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
-        </select>
-        <select
+        </select></label>
+        <label className="form-field"><span>Goods receipt (recommended)</span><select
           value={form.goodsReceiptNoteId}
           onChange={(event) => {
             const grn = grns.find((item) => item.id === event.target.value);
@@ -3551,8 +3705,10 @@ function PurchaseInvoicePanel({
         >
           <option value="">No GRN</option>
           {filteredGrns.map((grn) => <option key={grn.id} value={grn.id}>{`${grn.grnNumber} / ${grn.supplier.name}`}</option>)}
-        </select>
-        <select
+        </select></label>
+        <label className="form-field"><span>Direct product {!selectedGrn ? "*" : ""}</span><select
+          required={!selectedGrn}
+          disabled={Boolean(selectedGrn)}
           value={form.productVariantId}
           onChange={(event) => setForm({
             ...form,
@@ -3562,17 +3718,17 @@ function PurchaseInvoicePanel({
         >
           <option value="">Product variant</option>
           {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
-        </select>
-        <input type="date" value={form.invoiceDate} onChange={(event) => setForm({ ...form, invoiceDate: event.target.value })} />
-        <input placeholder="Supplier bill no." value={form.supplierBillNumber} onChange={(event) => setForm({ ...form, supplierBillNumber: event.target.value })} />
-        <select value={form.taxMode} onChange={(event) => setForm({ ...form, taxMode: event.target.value })}>
+        </select></label>
+        <label className="form-field"><span>Invoice date *</span><input required type="date" value={form.invoiceDate} onChange={(event) => setForm({ ...form, invoiceDate: event.target.value })} /></label>
+        <label className="form-field"><span>Supplier bill number *</span><input required value={form.supplierBillNumber} onChange={(event) => setForm({ ...form, supplierBillNumber: event.target.value })} /></label>
+        <label className="form-field"><span>Tax mode *</span><select required value={form.taxMode} onChange={(event) => setForm({ ...form, taxMode: event.target.value })}>
           <option value="CGST_SGST">CGST + SGST</option>
           <option value="IGST">IGST</option>
-        </select>
-        <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
-        <input placeholder="Unit cost" value={form.unitCost} onChange={(event) => setForm({ ...form, unitCost: event.target.value })} />
-        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
+        </select></label>
+        <label className="form-field"><span>{selectedGrn ? "GRN lines" : "Quantity *"}</span><input required={!selectedGrn} disabled={Boolean(selectedGrn)} inputMode="decimal" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} /></label>
+        <label className="form-field"><span>Unit cost *</span><input required inputMode="decimal" value={form.unitCost} onChange={(event) => setForm({ ...form, unitCost: event.target.value })} /></label>
+        <label className="form-field field-span-2"><span>Narration</span><input value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} /></label>
+        <div className="form-actions field-span-full"><Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? "Posting..." : "Post supplier invoice"}</Button></div>
       </form>
       {conversionLines?.length ? <p className="empty-text">{conversionLines.length} GRN line(s) will be posted with the entered unit cost.</p> : null}
       <InvoiceActionList
@@ -3634,16 +3790,16 @@ function SalesQuotationPanel({
 
   return (
     <article className="setup-panel master-panel wide-panel">
-      <h2>Create Sales Quotation</h2>
-      <form className="compact-form product-form" onSubmit={(event) => {
+      <div className="panel-heading"><div><p className="section-kicker dark">Sales - Step 1</p><h2>Create quotation</h2></div><span className="context-note">A quotation shares price and validity with the customer. It does not affect stock or accounts.</span></div>
+      <form className="labeled-form transaction-form" onSubmit={(event) => {
         event.preventDefault();
         mutation.mutate();
       }}>
-        <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value })}>
+        <label className="form-field"><span>Customer *</span><select required value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value })}>
           <option value="">Customer</option>
           {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-        </select>
-        <select
+        </select></label>
+        <label className="form-field"><span>Product variant *</span><select required
           value={form.productVariantId}
           onChange={(event) => setForm({
             ...form,
@@ -3653,14 +3809,14 @@ function SalesQuotationPanel({
         >
           <option value="">Product variant</option>
           {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
-        </select>
-        <input type="date" value={form.quotationDate} onChange={(event) => setForm({ ...form, quotationDate: event.target.value })} />
-        <input type="date" value={form.validUntil} onChange={(event) => setForm({ ...form, validUntil: event.target.value })} />
-        <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
-        <input placeholder="Unit price" value={form.unitPrice} onChange={(event) => setForm({ ...form, unitPrice: event.target.value })} />
-        <input placeholder="Discount amount" value={form.discountAmount} onChange={(event) => setForm({ ...form, discountAmount: event.target.value })} />
-        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Create</Button>
+        </select></label>
+        <label className="form-field"><span>Quotation date *</span><input required type="date" value={form.quotationDate} onChange={(event) => setForm({ ...form, quotationDate: event.target.value })} /></label>
+        <label className="form-field"><span>Valid until</span><input type="date" value={form.validUntil} onChange={(event) => setForm({ ...form, validUntil: event.target.value })} /></label>
+        <label className="form-field"><span>Quantity *</span><input required inputMode="decimal" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} /></label>
+        <label className="form-field"><span>Unit price *</span><input required inputMode="decimal" value={form.unitPrice} onChange={(event) => setForm({ ...form, unitPrice: event.target.value })} /></label>
+        <label className="form-field"><span>Discount amount</span><input inputMode="decimal" value={form.discountAmount} onChange={(event) => setForm({ ...form, discountAmount: event.target.value })} /></label>
+        <label className="form-field field-span-2"><span>Narration</span><input value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} /></label>
+        <div className="form-actions field-span-full"><Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? "Creating..." : "Create quotation"}</Button></div>
       </form>
       <MasterList
         items={items.map((quotation) => ({
@@ -3733,16 +3889,16 @@ function SalesOrderPanel({
 
   return (
     <article className="setup-panel master-panel wide-panel">
-      <h2>Create Sales Order</h2>
-      <form className="compact-form product-form" onSubmit={(event) => {
+      <div className="panel-heading"><div><p className="section-kicker dark">Sales - Step 2</p><h2>Create sales order</h2></div><span className="context-note">Convert an accepted quotation or enter a direct order. Stock is not reduced at this step.</span></div>
+      <form className="labeled-form transaction-form" onSubmit={(event) => {
         event.preventDefault();
         mutation.mutate();
       }}>
-        <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value, quotationId: "" })}>
+        <label className="form-field"><span>Customer *</span><select required value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value, quotationId: "" })}>
           <option value="">Customer</option>
           {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-        </select>
-        <select
+        </select></label>
+        <label className="form-field"><span>Quotation</span><select
           value={form.quotationId}
           onChange={(event) => {
             const quotation = quotations.find((item) => item.id === event.target.value);
@@ -3761,8 +3917,10 @@ function SalesOrderPanel({
           {customerQuotations.map((quotation) => (
             <option key={quotation.id} value={quotation.id}>{`${quotation.quotationNumber} / ${quotation.grandTotal}`}</option>
           ))}
-        </select>
-        <select
+        </select></label>
+        <label className="form-field"><span>Direct product {!selectedQuotation ? "*" : ""}</span><select
+          required={!selectedQuotation}
+          disabled={Boolean(selectedQuotation)}
           value={form.productVariantId}
           onChange={(event) => setForm({
             ...form,
@@ -3772,14 +3930,14 @@ function SalesOrderPanel({
         >
           <option value="">Product variant</option>
           {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
-        </select>
-        <input type="date" value={form.orderDate} onChange={(event) => setForm({ ...form, orderDate: event.target.value })} />
-        <input type="date" value={form.expectedDate} onChange={(event) => setForm({ ...form, expectedDate: event.target.value })} />
-        <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
-        <input placeholder="Unit price" value={form.unitPrice} onChange={(event) => setForm({ ...form, unitPrice: event.target.value })} />
-        <input placeholder="Discount amount" value={form.discountAmount} onChange={(event) => setForm({ ...form, discountAmount: event.target.value })} />
-        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Create</Button>
+        </select></label>
+        <label className="form-field"><span>Order date *</span><input required type="date" value={form.orderDate} onChange={(event) => setForm({ ...form, orderDate: event.target.value })} /></label>
+        <label className="form-field"><span>Expected delivery</span><input type="date" value={form.expectedDate} onChange={(event) => setForm({ ...form, expectedDate: event.target.value })} /></label>
+        <label className="form-field"><span>{selectedQuotation ? "Quotation lines" : "Quantity *"}</span><input required={!selectedQuotation} disabled={Boolean(selectedQuotation)} inputMode="decimal" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} /></label>
+        <label className="form-field"><span>Unit price *</span><input required disabled={Boolean(selectedQuotation)} inputMode="decimal" value={form.unitPrice} onChange={(event) => setForm({ ...form, unitPrice: event.target.value })} /></label>
+        <label className="form-field"><span>Discount amount</span><input disabled={Boolean(selectedQuotation)} inputMode="decimal" value={form.discountAmount} onChange={(event) => setForm({ ...form, discountAmount: event.target.value })} /></label>
+        <label className="form-field field-span-2"><span>Narration</span><input value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} /></label>
+        <div className="form-actions field-span-full"><Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? "Creating..." : "Create sales order"}</Button></div>
       </form>
       {conversionLines?.length ? <p className="empty-text">{conversionLines.length} quotation line(s) will be copied.</p> : null}
       <MasterList
@@ -3844,16 +4002,16 @@ function DeliveryChallanPanel({
 
   return (
     <article className="setup-panel master-panel wide-panel">
-      <h2>Create Delivery Challan</h2>
-      <form className="compact-form product-form" onSubmit={(event) => {
+      <div className="panel-heading"><div><p className="section-kicker dark">Sales - Step 3</p><h2>Create delivery challan</h2></div><span className="context-note">Records dispatch against an order. Revenue, tax, accounts and stock are posted only with the invoice.</span></div>
+      <form className="labeled-form transaction-form" onSubmit={(event) => {
         event.preventDefault();
         mutation.mutate();
       }}>
-        <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value, salesOrderId: "" })}>
+        <label className="form-field"><span>Customer *</span><select required value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value, salesOrderId: "" })}>
           <option value="">Customer</option>
           {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-        </select>
-        <select
+        </select></label>
+        <label className="form-field"><span>Sales order</span><select
           value={form.salesOrderId}
           onChange={(event) => {
             const order = orders.find((item) => item.id === event.target.value);
@@ -3868,19 +4026,19 @@ function DeliveryChallanPanel({
         >
           <option value="">No sales order</option>
           {customerOrders.map((order) => <option key={order.id} value={order.id}>{`${order.orderNumber} / ${order.grandTotal}`}</option>)}
-        </select>
-        <select value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value })}>
+        </select></label>
+        <label className="form-field"><span>Dispatch warehouse *</span><select required value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value })}>
           <option value="">Warehouse</option>
           {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
-        </select>
-        <select value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
+        </select></label>
+        <label className="form-field"><span>Direct product {!selectedOrder ? "*" : ""}</span><select required={!selectedOrder} disabled={Boolean(selectedOrder)} value={form.productVariantId} onChange={(event) => setForm({ ...form, productVariantId: event.target.value })}>
           <option value="">Product variant</option>
           {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
-        </select>
-        <input type="date" value={form.challanDate} onChange={(event) => setForm({ ...form, challanDate: event.target.value })} />
-        <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
-        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Create</Button>
+        </select></label>
+        <label className="form-field"><span>Challan date *</span><input required type="date" value={form.challanDate} onChange={(event) => setForm({ ...form, challanDate: event.target.value })} /></label>
+        <label className="form-field"><span>{selectedOrder ? "Order lines" : "Quantity *"}</span><input required={!selectedOrder} disabled={Boolean(selectedOrder)} inputMode="decimal" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} /></label>
+        <label className="form-field field-span-2"><span>Narration</span><input value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} /></label>
+        <div className="form-actions field-span-full"><Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? "Creating..." : "Create delivery challan"}</Button></div>
       </form>
       {conversionLines?.length ? <p className="empty-text">{conversionLines.length} sales order line(s) will be copied.</p> : null}
       <MasterList
@@ -3895,6 +4053,7 @@ function DeliveryChallanPanel({
 }
 
 function SalesInvoicePanel({
+  company,
   customers,
   deliveryChallans,
   invoices,
@@ -3902,6 +4061,7 @@ function SalesInvoicePanel({
   variants,
   warehouses,
 }: {
+  company?: Company;
   customers: Customer[];
   deliveryChallans: DeliveryChallan[];
   invoices: SalesInvoice[];
@@ -4002,20 +4162,21 @@ function SalesInvoicePanel({
 
   return (
     <article className="setup-panel master-panel wide-panel">
-      <h2>Post Sales Invoice</h2>
-      <form className="compact-form product-form" onSubmit={(event) => {
+      <div className="panel-heading"><div><p className="section-kicker dark">Sales - Step 4</p><h2>Post customer invoice</h2></div><span className="context-note">Posting reduces stock and creates customer outstanding, tax and accounting entries.</span></div>
+      <form className="labeled-form transaction-form" onSubmit={(event) => {
         event.preventDefault();
+        if (!window.confirm("Post this customer invoice? Stock, customer outstanding, tax and accounts will be updated.")) return;
         mutation.mutate();
       }}>
-        <select value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value, salesOrderId: "", deliveryChallanId: "" })}>
+        <label className="form-field"><span>Customer *</span><select required value={form.customerId} onChange={(event) => setForm({ ...form, customerId: event.target.value, salesOrderId: "", deliveryChallanId: "" })}>
           <option value="">Customer</option>
           {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name}</option>)}
-        </select>
-        <select value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value, deliveryChallanId: "" })}>
+        </select></label>
+        <label className="form-field"><span>Dispatch warehouse *</span><select required value={form.warehouseId} onChange={(event) => setForm({ ...form, warehouseId: event.target.value, deliveryChallanId: "" })}>
           <option value="">Warehouse</option>
           {warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
-        </select>
-        <select
+        </select></label>
+        <label className="form-field"><span>Sales order</span><select
           value={form.salesOrderId}
           onChange={(event) => {
             const order = orders.find((item) => item.id === event.target.value);
@@ -4033,8 +4194,8 @@ function SalesInvoicePanel({
         >
           <option value="">No sales order</option>
           {customerOrders.map((order) => <option key={order.id} value={order.id}>{`${order.orderNumber} / ${order.grandTotal}`}</option>)}
-        </select>
-        <select
+        </select></label>
+        <label className="form-field"><span>Delivery challan</span><select
           value={form.deliveryChallanId}
           onChange={(event) => {
             const challan = deliveryChallans.find((item) => item.id === event.target.value);
@@ -4052,8 +4213,10 @@ function SalesInvoicePanel({
         >
           <option value="">No delivery challan</option>
           {customerChallans.map((challan) => <option key={challan.id} value={challan.id}>{`${challan.challanNumber} / ${challan.customer.name}`}</option>)}
-        </select>
-        <select
+        </select></label>
+        <label className="form-field"><span>Direct product {!conversionLines?.length ? "*" : ""}</span><select
+          required={!conversionLines?.length}
+          disabled={Boolean(conversionLines?.length)}
           value={form.productVariantId}
           onChange={(event) => setForm({
             ...form,
@@ -4063,17 +4226,17 @@ function SalesInvoicePanel({
         >
           <option value="">Product variant</option>
           {variants.map((variant) => <option key={variant.id} value={variant.id}>{`${variant.code} - ${variant.name}`}</option>)}
-        </select>
-        <input type="date" value={form.invoiceDate} onChange={(event) => setForm({ ...form, invoiceDate: event.target.value })} />
-        <select value={form.taxMode} onChange={(event) => setForm({ ...form, taxMode: event.target.value })}>
+        </select></label>
+        <label className="form-field"><span>Invoice date *</span><input required type="date" value={form.invoiceDate} onChange={(event) => setForm({ ...form, invoiceDate: event.target.value })} /></label>
+        <label className="form-field"><span>Tax mode *</span><select required value={form.taxMode} onChange={(event) => setForm({ ...form, taxMode: event.target.value })}>
           <option value="CGST_SGST">CGST + SGST</option>
           <option value="IGST">IGST</option>
-        </select>
-        <input placeholder="Quantity" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} />
-        <input placeholder="Unit price" value={form.unitPrice} onChange={(event) => setForm({ ...form, unitPrice: event.target.value })} />
-        <input placeholder="Discount amount" value={form.discountAmount} onChange={(event) => setForm({ ...form, discountAmount: event.target.value })} />
-        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
+        </select></label>
+        <label className="form-field"><span>{conversionLines?.length ? "Source lines" : "Quantity *"}</span><input required={!conversionLines?.length} disabled={Boolean(conversionLines?.length)} inputMode="decimal" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} /></label>
+        <label className="form-field"><span>Unit price *</span><input required disabled={Boolean(conversionLines?.length)} inputMode="decimal" value={form.unitPrice} onChange={(event) => setForm({ ...form, unitPrice: event.target.value })} /></label>
+        <label className="form-field"><span>Discount amount</span><input disabled={Boolean(conversionLines?.length)} inputMode="decimal" value={form.discountAmount} onChange={(event) => setForm({ ...form, discountAmount: event.target.value })} /></label>
+        <label className="form-field field-span-2"><span>Narration</span><input value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} /></label>
+        <div className="form-actions field-span-full"><Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? "Posting..." : "Post customer invoice"}</Button></div>
       </form>
       {conversionLines?.length ? <p className="empty-text">{conversionLines.length} source document line(s) will be posted.</p> : null}
       <InvoiceActionList
@@ -4084,6 +4247,14 @@ function SalesInvoicePanel({
           status: invoice.status,
         }))}
         onCancel={(invoiceId) => cancelMutation.mutate(invoiceId)}
+        onPrint={(invoiceId) => {
+          const invoice = invoices.find((item) => item.id === invoiceId);
+          if (!invoice || !company) {
+            window.alert("Invoice profile is still loading. Please try again.");
+            return;
+          }
+          printSalesInvoice(company, invoice);
+        }}
       />
     </article>
   );
@@ -4092,9 +4263,11 @@ function SalesInvoicePanel({
 function InvoiceActionList({
   items,
   onCancel,
+  onPrint,
 }: {
   items: Array<{ id: string; label: string; meta: string; status: string }>;
   onCancel: (id: string) => void;
+  onPrint?: (id: string) => void;
 }) {
   if (items.length === 0) {
     return <p className="empty-text">No records yet.</p>;
@@ -4106,15 +4279,95 @@ function InvoiceActionList({
         <li key={item.id}>
           <span>{item.label}</span>
           <strong>{`${item.meta} / ${item.status}`}</strong>
-          {item.status === "POSTED" ? (
-            <Button type="button" variant="outline" onClick={() => onCancel(item.id)}>
-              Cancel
-            </Button>
-          ) : null}
+          <div className="action-buttons">
+            {onPrint ? <Button type="button" variant="outline" onClick={() => onPrint(item.id)}>Print</Button> : null}
+            {item.status === "POSTED" ? (
+              <Button type="button" variant="outline" onClick={() => onCancel(item.id)}>
+                Cancel
+              </Button>
+            ) : null}
+          </div>
         </li>
       ))}
     </ul>
   );
+}
+
+function escapePrintHtml(value: unknown) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function invoiceAmount(value: string | number | undefined) {
+  return new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value ?? 0));
+}
+
+function printSalesInvoice(company: Company, invoice: SalesInvoice) {
+  const printWindow = window.open("", "_blank", "width=1000,height=760");
+  if (!printWindow) {
+    window.alert("The print window was blocked. Allow pop-ups for RAMS and try again.");
+    return;
+  }
+
+  const companyAddress = [company.addressLine1, company.addressLine2, company.city, company.state, company.pincode]
+    .filter(Boolean).map(escapePrintHtml).join(", ");
+  const customerAddress = [invoice.customer.addressLine1, invoice.customer.addressLine2, invoice.customer.city, invoice.customer.state, invoice.customer.pincode]
+    .filter(Boolean).map(escapePrintHtml).join(", ");
+  const rows = invoice.lines.map((line, index) => {
+    const gstRate = invoice.taxMode === "IGST" ? Number(line.igstRate) : Number(line.cgstRate) + Number(line.sgstRate);
+    const taxAmount = Number(line.cgstAmount) + Number(line.sgstAmount) + Number(line.igstAmount);
+    return `<tr>
+      <td>${index + 1}</td>
+      <td><strong>${escapePrintHtml(line.productVariant.name)}</strong><small>${escapePrintHtml(line.productVariant.code)}</small></td>
+      <td>${escapePrintHtml(line.hsnCode || "-")}</td>
+      <td class="num">${escapePrintHtml(line.quantity)}</td>
+      <td class="num">${invoiceAmount(line.unitPrice)}</td>
+      <td class="num">${invoiceAmount(line.discountAmount)}</td>
+      <td class="num">${invoiceAmount(line.taxableAmount)}</td>
+      <td class="num">${invoiceAmount(gstRate)}%</td>
+      <td class="num">${invoiceAmount(taxAmount)}</td>
+      <td class="num">${invoiceAmount(line.lineTotal)}</td>
+    </tr>`;
+  }).join("");
+
+  printWindow.document.write(`<!doctype html>
+  <html lang="en"><head><meta charset="utf-8"><title>${escapePrintHtml(invoice.invoiceNumber)} - Tax Invoice</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #17202a; font: 12px Arial, sans-serif; }
+    .invoice { border: 1px solid #344054; }
+    header { display: flex; justify-content: space-between; gap: 24px; padding: 18px; border-bottom: 1px solid #344054; }
+    h1 { margin: 0 0 5px; font-size: 23px; } h2 { margin: 0; font-size: 19px; letter-spacing: 1px; }
+    p { margin: 3px 0; line-height: 1.35; } .muted { color: #667085; } .status { font-weight: 700; color: ${invoice.status === "CANCELLED" ? "#b42318" : "#067647"}; }
+    .parties { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #344054; }
+    .party { min-height: 112px; padding: 12px 18px; } .party + .party { border-left: 1px solid #344054; }
+    .label { margin-bottom: 6px; color: #475467; font-size: 10px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; }
+    table { width: 100%; border-collapse: collapse; } th, td { padding: 7px 6px; border-right: 1px solid #d0d5dd; border-bottom: 1px solid #d0d5dd; vertical-align: top; }
+    th:last-child, td:last-child { border-right: 0; } th { background: #f2f4f7; font-size: 10px; text-transform: uppercase; } td small { display: block; margin-top: 2px; color: #667085; }
+    .num { text-align: right; white-space: nowrap; }
+    .summary { display: grid; grid-template-columns: 1fr 290px; } .notes { padding: 14px 18px; } .totals { border-left: 1px solid #344054; }
+    .total-row { display: flex; justify-content: space-between; padding: 7px 12px; border-bottom: 1px solid #d0d5dd; }
+    .grand { background: #ecfdf3; font-size: 15px; font-weight: 700; }
+    footer { display: flex; justify-content: space-between; padding: 20px 18px 12px; border-top: 1px solid #344054; }
+    .signature { min-width: 190px; padding-top: 34px; border-bottom: 1px solid #344054; text-align: center; }
+    @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+  </style></head><body>
+    <main class="invoice">
+      <header><div><h1>${escapePrintHtml(company.legalName || company.name)}</h1><p>${companyAddress || "Business address not configured"}</p><p>Phone: ${escapePrintHtml(company.phone || "-")} &nbsp; Email: ${escapePrintHtml(company.email || "-")}</p><p><strong>GSTIN: ${escapePrintHtml(company.gstin || "Not configured")}</strong></p></div><div class="num"><h2>TAX INVOICE</h2><p><strong>${escapePrintHtml(invoice.invoiceNumber)}</strong></p><p>Date: ${escapePrintHtml(new Date(invoice.invoiceDate).toLocaleDateString("en-IN"))}</p><p class="status">${escapePrintHtml(invoice.status)}</p></div></header>
+      <section class="parties"><div class="party"><div class="label">Bill to</div><p><strong>${escapePrintHtml(invoice.customer.name)}</strong></p><p>${customerAddress || "Address not configured"}</p><p>Phone: ${escapePrintHtml(invoice.customer.phone || "-")}</p><p>GSTIN: ${escapePrintHtml(invoice.customer.gstin || "Unregistered")}</p></div><div class="party"><div class="label">Supply details</div><p>Place of supply: <strong>${escapePrintHtml(invoice.customer.placeOfSupply || invoice.customer.state || "Not configured")}</strong></p><p>Tax mode: ${escapePrintHtml(invoice.taxMode === "IGST" ? "IGST" : "CGST + SGST")}</p><p>Warehouse: ${escapePrintHtml(invoice.warehouse.name)}</p><p>Source: ${escapePrintHtml(invoice.deliveryChallan?.challanNumber || invoice.salesOrder?.orderNumber || "Direct invoice")}</p></div></section>
+      <table><thead><tr><th>#</th><th>Item</th><th>HSN</th><th>Qty</th><th>Rate</th><th>Discount</th><th>Taxable</th><th>GST</th><th>Tax</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table>
+      <section class="summary"><div class="notes"><div class="label">Narration</div><p>${escapePrintHtml(invoice.narration || "Sales invoice")}</p><p class="muted">Amount values are in ${escapePrintHtml(company.baseCurrency || "INR")}.</p></div><div class="totals"><div class="total-row"><span>Taxable amount</span><strong>${invoiceAmount(invoice.taxableAmount)}</strong></div><div class="total-row"><span>CGST</span><strong>${invoiceAmount(invoice.cgstAmount)}</strong></div><div class="total-row"><span>SGST</span><strong>${invoiceAmount(invoice.sgstAmount)}</strong></div><div class="total-row"><span>IGST</span><strong>${invoiceAmount(invoice.igstAmount)}</strong></div><div class="total-row"><span>Total tax</span><strong>${invoiceAmount(invoice.totalTaxAmount)}</strong></div><div class="total-row grand"><span>Grand total</span><span>${invoiceAmount(invoice.grandTotal)}</span></div></div></section>
+      <footer><p class="muted">Computer-generated invoice from RAMS ERP.</p><div><p>For ${escapePrintHtml(company.name)}</p><div class="signature">Authorised signatory</div></div></footer>
+    </main>
+  </body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  window.setTimeout(() => printWindow.print(), 250);
 }
 
 function PurchaseReturnPanel({ invoices, items }: { invoices: PurchaseInvoice[]; items: PurchaseReturn[] }) {
@@ -4353,28 +4606,30 @@ function PaymentPanel({
 
   return (
     <article className="setup-panel master-panel wide-panel">
-      <h2>Post Payment</h2>
-      <form className="compact-form product-form" onSubmit={(event) => {
+      <div className="panel-heading"><div><p className="section-kicker dark">Settlement</p><h2>Record receipt or payment</h2></div><span className="context-note">Select an open invoice to settle it. Leave allocation blank only for an advance or unallocated payment.</span></div>
+      <form className="labeled-form transaction-form" onSubmit={(event) => {
         event.preventDefault();
+        const direction = form.partyType === "CUSTOMER" ? "customer receipt" : "supplier payment";
+        if (!window.confirm(`Post this ${direction} for ${form.amount}?`)) return;
         mutation.mutate();
       }}>
-        <select value={form.partyType} onChange={(event) => setForm({ ...form, partyType: event.target.value, partyId: "", allocationDocumentNumber: "", allocationAmount: "" })}>
+        <label className="form-field"><span>Transaction type *</span><select required value={form.partyType} onChange={(event) => setForm({ ...form, partyType: event.target.value, partyId: "", allocationDocumentNumber: "", allocationAmount: "" })}>
           <option value="CUSTOMER">Customer receipt</option>
           <option value="SUPPLIER">Supplier payment</option>
-        </select>
-        <select value={form.partyId} onChange={(event) => setForm({ ...form, partyId: event.target.value, allocationDocumentNumber: "", allocationAmount: "" })}>
+        </select></label>
+        <label className="form-field"><span>{form.partyType === "CUSTOMER" ? "Customer *" : "Supplier *"}</span><select required value={form.partyId} onChange={(event) => setForm({ ...form, partyId: event.target.value, allocationDocumentNumber: "", allocationAmount: "" })}>
           <option value="">{form.partyType === "CUSTOMER" ? "Customer" : "Supplier"}</option>
           {parties.map((party) => <option key={party.id} value={party.id}>{party.name}</option>)}
-        </select>
-        <select value={form.paymentModeId} onChange={(event) => setForm({ ...form, paymentModeId: event.target.value })}>
+        </select></label>
+        <label className="form-field"><span>Payment mode *</span><select required value={form.paymentModeId} onChange={(event) => setForm({ ...form, paymentModeId: event.target.value })}>
           <option value="">Payment mode</option>
           {paymentModes.map((mode) => <option key={mode.id} value={mode.id}>{mode.name}</option>)}
-        </select>
-        <input type="date" value={form.paymentDate} onChange={(event) => setForm({ ...form, paymentDate: event.target.value })} />
-        <input placeholder="Amount" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} />
-        <input placeholder="Reference no." value={form.referenceNo} onChange={(event) => setForm({ ...form, referenceNo: event.target.value })} />
-        <input placeholder="Narration" value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} />
-        <select
+        </select></label>
+        <label className="form-field"><span>Payment date *</span><input required type="date" value={form.paymentDate} onChange={(event) => setForm({ ...form, paymentDate: event.target.value })} /></label>
+        <label className="form-field"><span>Total amount *</span><input required type="number" min="0.01" step="0.01" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} /></label>
+        <label className="form-field"><span>Reference number</span><input value={form.referenceNo} onChange={(event) => setForm({ ...form, referenceNo: event.target.value })} /></label>
+        <label className="form-field field-span-2"><span>Narration</span><input value={form.narration} onChange={(event) => setForm({ ...form, narration: event.target.value })} /></label>
+        <label className="form-field field-span-2"><span>Allocate to invoice</span><select
           value={form.allocationDocumentNumber}
           onChange={(event) => {
             const document = (openDocuments.data ?? []).find((item) => item.documentNumber === event.target.value);
@@ -4391,10 +4646,12 @@ function PaymentPanel({
               {`${document.documentNumber} / Open ${document.openAmount}`}
             </option>
           ))}
-        </select>
-        <input placeholder="Allocation amount" value={form.allocationAmount} onChange={(event) => setForm({ ...form, allocationAmount: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Post</Button>
+        </select></label>
+        <label className="form-field"><span>Allocated amount</span><input type="number" min="0" max={selectedOpenDocument?.openAmount} step="0.01" disabled={!selectedOpenDocument} value={form.allocationAmount} onChange={(event) => setForm({ ...form, allocationAmount: event.target.value })} /></label>
+        <div className="form-actions field-span-full"><Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? "Posting..." : form.partyType === "CUSTOMER" ? "Post customer receipt" : "Post supplier payment"}</Button></div>
       </form>
+      {form.partyId && openDocuments.isLoading ? <p className="empty-text">Loading open invoices...</p> : null}
+      {form.partyId && !openDocuments.isLoading && !(openDocuments.data ?? []).length ? <p className="empty-text">No open invoices for this party. The payment can be recorded as an advance.</p> : null}
       <MasterList
         items={(openDocuments.data ?? []).map((document) => ({
           id: document.id,
@@ -5303,17 +5560,16 @@ function MasterList({ items }: { items: Array<{ id: string; label: string; meta:
 
   return (
     <>
-      <input
-        className="list-search"
-        placeholder="Search records"
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-      />
+      <div className="list-toolbar">
+        <input className="list-search" placeholder="Search records" value={search} onChange={(event) => setSearch(event.target.value)} />
+        <span>{`${visibleItems.length} of ${items.length}`}</span>
+      </div>
       {visibleItems.length === 0 ? <p className="empty-text">No matching records.</p> : null}
-      <ul className="compact-list">
+      <div className="record-list-head" aria-hidden="true"><span>Record</span><span>Details</span></div>
+      <ul className="compact-list record-list">
         {visibleItems.slice(0, 8).map((item) => (
           <li key={item.id}>
-            <span>{item.label}</span>
+            <span className="record-title">{item.label}</span>
             <strong>{item.meta}</strong>
           </li>
         ))}
@@ -5496,16 +5752,16 @@ function FinancialYearPanel({ financialYears }: { financialYears: FinancialYear[
   });
 
   return (
-    <article className="setup-panel">
-      <h2>Financial Years</h2>
-      <form className="inline-form" onSubmit={(event) => {
+    <article className="setup-panel wide-panel">
+      <div className="panel-heading"><div><p className="section-kicker dark">Posting control</p><h2>Financial years</h2></div><span className="context-note">Transactions can only be posted inside an open period.</span></div>
+      <form className="labeled-form settings-form" onSubmit={(event) => {
         event.preventDefault();
         mutation.mutate();
       }}>
-        <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-        <input type="date" value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} />
-        <input type="date" value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+        <label className="form-field"><span>Year name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
+        <label className="form-field"><span>Start date</span><input type="date" value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} /></label>
+        <label className="form-field"><span>End date</span><input type="date" value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} /></label>
+        <div className="form-actions field-span-full"><Button type="submit" disabled={mutation.isPending}>Add financial year</Button></div>
       </form>
       <ul className="compact-list">
         {financialYears.map((year) => (
@@ -5551,21 +5807,21 @@ function NumberSeriesPanel({ numberSeries }: { numberSeries: NumberSeries[] }) {
   });
 
   return (
-    <article className="setup-panel">
+    <article className="setup-panel wide-panel">
       <div className="panel-title-row">
-        <h2>Number Series</h2>
+        <div><p className="section-kicker dark">Document identity</p><h2>Number series</h2></div>
         <Button type="button" variant="outline" disabled={seedMutation.isPending} onClick={() => seedMutation.mutate()}>
           Seed Defaults
         </Button>
       </div>
-      <form className="inline-form" onSubmit={(event) => {
+      <form className="labeled-form settings-form" onSubmit={(event) => {
         event.preventDefault();
         mutation.mutate();
       }}>
-        <input value={form.documentType} onChange={(event) => setForm({ ...form, documentType: event.target.value })} />
-        <input value={form.prefix} onChange={(event) => setForm({ ...form, prefix: event.target.value })} />
-        <input value={form.suffix} onChange={(event) => setForm({ ...form, suffix: event.target.value })} />
-        <Button type="submit" variant="outline" disabled={mutation.isPending}>Add</Button>
+        <label className="form-field"><span>Document type</span><input value={form.documentType} onChange={(event) => setForm({ ...form, documentType: event.target.value })} /></label>
+        <label className="form-field"><span>Prefix</span><input value={form.prefix} onChange={(event) => setForm({ ...form, prefix: event.target.value })} /></label>
+        <label className="form-field"><span>Suffix</span><input value={form.suffix} onChange={(event) => setForm({ ...form, suffix: event.target.value })} /></label>
+        <div className="form-actions field-span-full"><Button type="submit" disabled={mutation.isPending}>Add number series</Button></div>
       </form>
       <ul className="compact-list">
         {numberSeries.map((series) => (

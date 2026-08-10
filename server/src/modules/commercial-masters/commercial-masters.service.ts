@@ -18,6 +18,12 @@ type CustomerImportInput = {
   email?: unknown;
   gstin?: unknown;
   pan?: unknown;
+  addressLine1?: unknown;
+  addressLine2?: unknown;
+  city?: unknown;
+  state?: unknown;
+  pincode?: unknown;
+  placeOfSupply?: unknown;
   creditLimit?: unknown;
   creditDays?: unknown;
 };
@@ -192,6 +198,12 @@ export async function createCustomer(context: CommercialContext, body: unknown) 
       email: optionalString(data.email)?.toLowerCase(),
       gstin: optionalString(data.gstin)?.toUpperCase(),
       pan: optionalString(data.pan)?.toUpperCase(),
+      addressLine1: optionalString(data.addressLine1),
+      addressLine2: optionalString(data.addressLine2),
+      city: optionalString(data.city),
+      state: optionalString(data.state),
+      pincode: optionalString(data.pincode),
+      placeOfSupply: optionalString(data.placeOfSupply),
       creditLimit: nonNegativeNumber(data.creditLimit),
       creditDays: nonNegativeInteger(data.creditDays, "Credit days"),
     },
@@ -210,6 +222,12 @@ export async function importCustomers(context: CommercialContext, body: unknown)
     email: optionalString(row.email)?.toLowerCase(),
     gstin: optionalString(row.gstin)?.toUpperCase(),
     pan: optionalString(row.pan)?.toUpperCase(),
+    addressLine1: optionalString(row.addressLine1),
+    addressLine2: optionalString(row.addressLine2),
+    city: optionalString(row.city),
+    state: optionalString(row.state),
+    pincode: optionalString(row.pincode),
+    placeOfSupply: optionalString(row.placeOfSupply),
     creditLimit: nonNegativeNumber(row.creditLimit),
     creditDays: nonNegativeInteger(row.creditDays, "Credit days"),
   }));
@@ -255,6 +273,12 @@ export async function updateCustomer(context: CommercialContext, customerId: str
       email: optionalString(data.email)?.toLowerCase(),
       gstin: optionalString(data.gstin)?.toUpperCase(),
       pan: optionalString(data.pan)?.toUpperCase(),
+      addressLine1: optionalString(data.addressLine1),
+      addressLine2: optionalString(data.addressLine2),
+      city: optionalString(data.city),
+      state: optionalString(data.state),
+      pincode: optionalString(data.pincode),
+      placeOfSupply: optionalString(data.placeOfSupply),
       creditLimit: nonNegativeNumber(data.creditLimit),
       creditDays: nonNegativeInteger(data.creditDays, "Credit days"),
     },

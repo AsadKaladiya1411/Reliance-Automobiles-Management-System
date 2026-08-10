@@ -17,6 +17,8 @@
     "lint": "npm run lint --workspaces --if-present",
     "docker:build": "docker build -t rams-erp .",
     "docker:up": "docker compose up --build",
+    "backup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backup-database.ps1",
+    "restore": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restore-database.ps1",
     "prisma:generate": "npm run prisma:generate --workspace server",
     "prisma:migrate": "npm run prisma:migrate --workspace server",
     "prisma:deploy": "npm run prisma:deploy --workspace server"

@@ -34,6 +34,33 @@ export async function getCompany(companyId: string) {
   return company;
 }
 
+export async function getInvoiceCompanyProfile(companyId: string) {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: {
+      id: true,
+      name: true,
+      legalName: true,
+      gstin: true,
+      phone: true,
+      email: true,
+      addressLine1: true,
+      addressLine2: true,
+      city: true,
+      state: true,
+      pincode: true,
+      country: true,
+      baseCurrency: true,
+    },
+  });
+
+  if (!company) {
+    throw new ApiError(404, "COMPANY_NOT_FOUND", "Company not found.");
+  }
+
+  return company;
+}
+
 export async function updateCompany(
   companyId: string,
   input: UpdateCompanyInput,
