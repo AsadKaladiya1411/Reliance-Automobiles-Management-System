@@ -382,6 +382,9 @@ type Vehicle = {
   registrationNumber: string;
   brand: string;
   model: string;
+  variant?: string | null;
+  chassisNumber?: string | null;
+  engineNumber?: string | null;
   vehicleType?: string;
   fuelType?: string | null;
   status?: string;
@@ -696,6 +699,9 @@ type JobCard = {
   id: string;
   jobCardNumber: string;
   jobDate: string;
+  expectedDeliveryAt?: string | null;
+  odometerReading?: number;
+  fuelLevel?: string | null;
   status: string;
   complaint: string;
   diagnosis?: string | null;
@@ -710,15 +716,22 @@ type JobCard = {
   deliveryNotes?: string | null;
   deliveredAt?: string | null;
   estimatedTotal: string | number;
+  estimatedPartsTotal?: string | number;
+  estimatedLaborTotal?: string | number;
   partsIssuedAt?: string | null;
   billingNumber?: string | null;
   billingTaxMode?: string;
+  billingHsnCode?: string | null;
   billingTaxableAmount?: string | number;
+  billingCgstAmount?: string | number;
+  billingSgstAmount?: string | number;
+  billingIgstAmount?: string | number;
   billingTotalTaxAmount?: string | number;
   billingAmount?: string | number;
   billedAt?: string | null;
   customer: Customer;
   vehicle: Vehicle;
+  advisor?: Employee | null;
   technician?: Employee | null;
   parts?: Array<{ id: string; productVariant: ProductVariant; quantity: string | number; estimatedRate: string | number; estimatedAmount: string | number }>;
   laborLines?: Array<{ id: string; description: string; estimatedAmount: string | number }>;
@@ -783,6 +796,17 @@ function useInvoiceCompanyProfile(enabled = true) {
     enabled,
     queryFn: async () => {
       const response = await api.get<ApiEnvelope<Company>>("/company/invoice-profile");
+      return response.data.data;
+    },
+  });
+}
+
+function useWorkshopDocumentProfile(enabled = true) {
+  return useQuery({
+    queryKey: ["workshop-document-profile"],
+    enabled,
+    queryFn: async () => {
+      const response = await api.get<ApiEnvelope<Company>>("/workshop/document-profile");
       return response.data.data;
     },
   });
@@ -1452,6 +1476,7 @@ function DashboardView({
 
 function WorkshopView({ workshopSummary }: { workshopSummary?: WorkshopSummary }) {
   const [stage, setStage] = useState<"intake" | "inspection" | "parts" | "billing" | "history">("intake");
+  const documentCompany = useWorkshopDocumentProfile();
   const customers = useMasterList<Customer>("customers", "/commercial-masters/customers");
   const vehicles = useMasterList<Vehicle>("vehicles", "/commercial-masters/vehicles");
   const employees = useMasterList<Employee>("employees", "/commercial-masters/employees");
@@ -1476,6 +1501,7 @@ function WorkshopView({ workshopSummary }: { workshopSummary?: WorkshopSummary }
         ))}
       </section>
       {stage !== "history" ? <JobCardPanel
+          company={documentCompany.data}
           stage={stage}
           customers={customers.data ?? []}
           employees={employees.data ?? []}
@@ -1485,7 +1511,7 @@ function WorkshopView({ workshopSummary }: { workshopSummary?: WorkshopSummary }
           vehicles={vehicles.data ?? []}
           warehouses={warehouses.data ?? []}
         /> : null}
-      {stage === "history" ? <ServiceHistoryPanel items={serviceHistory.data ?? []} /> : null}
+      {stage === "history" ? <ServiceHistoryPanel company={documentCompany.data} items={serviceHistory.data ?? []} /> : null}
       <ModuleGrid filter={["Workshop"]} />
     </>
   );
@@ -4747,6 +4773,7 @@ function FinancialNotePanel({
 }
 
 function JobCardPanel({
+  company,
   stage,
   customers,
   employees,
@@ -4756,6 +4783,7 @@ function JobCardPanel({
   vehicles,
   warehouses,
 }: {
+  company?: Company;
   stage: "intake" | "inspection" | "parts" | "billing";
   customers: Customer[];
   employees: Employee[];
@@ -4992,7 +5020,7 @@ function JobCardPanel({
       }}>
         <label className="form-field field-span-2"><span>Job card *</span><select required value={form.activeJobCardId} onChange={(event) => selectJobCard(event.target.value)}><option value="">Select an active job card</option>{eligibleJobCards.map((item) => <option key={item.id} value={item.id}>{`${item.jobCardNumber} / ${item.vehicle.registrationNumber} / ${item.customer.name}`}</option>)}</select></label>
 
-        {activeJobCard ? <div className="selected-record field-span-full"><div><span>Vehicle</span><strong>{activeJobCard.vehicle.registrationNumber}</strong></div><div><span>Status</span><strong>{activeJobCard.status}</strong></div><div><span>Estimate</span><strong>{activeJobCard.estimatedTotal}</strong></div><div><span>Quality check</span><strong>{activeJobCard.qualityCheckedAt ? "Completed" : "Pending"}</strong></div></div> : null}
+        {activeJobCard ? <><div className="selected-record field-span-full"><div><span>Vehicle</span><strong>{activeJobCard.vehicle.registrationNumber}</strong></div><div><span>Status</span><strong>{activeJobCard.status}</strong></div><div><span>Estimate</span><strong>{activeJobCard.estimatedTotal}</strong></div><div><span>Quality check</span><strong>{activeJobCard.qualityCheckedAt ? "Completed" : "Pending"}</strong></div></div><div className="document-actions field-span-full"><Button type="button" variant="outline" onClick={() => company ? printWorkshopJobCard(company, activeJobCard) : window.alert("Document profile is still loading. Please try again.")}>Print job card / estimate</Button></div></> : null}
 
         {stage === "inspection" ? <>
           <label className="form-field field-span-2"><span>Diagnosis *</span><textarea required rows={3} value={form.diagnosis} onChange={(event) => setForm({ ...form, diagnosis: event.target.value })} /></label>
@@ -5029,19 +5057,87 @@ function JobCardPanel({
   );
 }
 
-function ServiceHistoryPanel({ items }: { items: JobCard[] }) {
+function ServiceHistoryPanel({ company, items }: { company?: Company; items: JobCard[] }) {
   return (
-    <article className="setup-panel master-panel">
-      <h2>Service History</h2>
-      <MasterList
-        items={items.map((jobCard) => ({
-          id: jobCard.id,
-          label: `${jobCard.vehicle.registrationNumber} / ${jobCard.jobCardNumber}`,
-          meta: `${jobCard.customer.name} / ${jobCard.billingNumber ?? "Unbilled"} / ${jobCard.deliveredAt?.slice(0, 10) ?? jobCard.billedAt?.slice(0, 10) ?? jobCard.jobDate.slice(0, 10)} / Tech ${jobCard.technician?.name ?? jobCard.technicianStatus ?? "Pending"} / Total ${jobCard.billingAmount ?? jobCard.estimatedTotal}`,
-        }))}
-      />
+    <article className="setup-panel master-panel wide-panel">
+      <div className="panel-heading"><div><p className="section-kicker dark">Customer documents</p><h2>Service history</h2></div><span className="context-note">Print the original job card or the final tax invoice for completed services.</span></div>
+      {items.length ? <ul className="compact-list document-history-list">{items.map((jobCard) => (
+        <li key={jobCard.id}>
+          <span><strong>{`${jobCard.vehicle.registrationNumber} / ${jobCard.jobCardNumber}`}</strong><small>{`${jobCard.customer.name} / ${jobCard.billingNumber ?? "Unbilled"} / ${jobCard.deliveredAt?.slice(0, 10) ?? jobCard.billedAt?.slice(0, 10) ?? jobCard.jobDate.slice(0, 10)} / Total ${jobCard.billingAmount ?? jobCard.estimatedTotal}`}</small></span>
+          <div className="action-buttons"><Button type="button" variant="outline" onClick={() => company ? printWorkshopJobCard(company, jobCard) : window.alert("Document profile is still loading. Please try again.")}>Job card</Button>{jobCard.billingNumber ? <Button type="button" onClick={() => company ? printWorkshopInvoice(company, jobCard) : window.alert("Document profile is still loading. Please try again.")}>Tax invoice</Button> : null}</div>
+        </li>
+      ))}</ul> : <p className="empty-text">No completed service records yet.</p>}
     </article>
   );
+}
+
+function openWorkshopPrintDocument(title: string, body: string) {
+  const printWindow = window.open("", "_blank", "width=1000,height=760");
+  if (!printWindow) {
+    window.alert("The print window was blocked. Allow pop-ups for RAMS and try again.");
+    return;
+  }
+
+  printWindow.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapePrintHtml(title)}</title><style>
+    @page { size: A4; margin: 12mm; } * { box-sizing: border-box; }
+    body { margin: 0; color: #17202a; font: 12px Arial, sans-serif; } .document { border: 1px solid #344054; }
+    header { display: flex; justify-content: space-between; gap: 24px; padding: 18px; border-bottom: 1px solid #344054; }
+    h1 { margin: 0 0 5px; font-size: 23px; } h2 { margin: 0; font-size: 19px; letter-spacing: 1px; }
+    p { margin: 3px 0; line-height: 1.4; } .muted { color: #667085; } .num { text-align: right; white-space: nowrap; }
+    .parties { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #344054; }
+    .party { min-height: 118px; padding: 12px 18px; } .party + .party { border-left: 1px solid #344054; }
+    .label { margin-bottom: 6px; color: #475467; font-size: 10px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; }
+    .notes { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #344054; }
+    .note { min-height: 82px; padding: 12px 18px; } .note + .note { border-left: 1px solid #344054; }
+    table { width: 100%; border-collapse: collapse; } th, td { padding: 7px 8px; border-right: 1px solid #d0d5dd; border-bottom: 1px solid #d0d5dd; vertical-align: top; }
+    th:last-child, td:last-child { border-right: 0; } th { background: #f2f4f7; font-size: 10px; text-transform: uppercase; }
+    .totals { margin-left: auto; width: 310px; border-left: 1px solid #344054; }
+    .total-row { display: flex; justify-content: space-between; padding: 7px 12px; border-bottom: 1px solid #d0d5dd; }
+    .grand { background: #ecfdf3; font-size: 15px; font-weight: 700; }
+    .detail-list { display: grid; gap: 4px; padding: 12px 18px; border-bottom: 1px solid #344054; }
+    footer { display: grid; grid-template-columns: 1fr 1fr; gap: 50px; padding: 48px 18px 14px; }
+    .signature { border-top: 1px solid #344054; padding-top: 6px; text-align: center; }
+    @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+  </style></head><body>${body}</body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  window.setTimeout(() => printWindow.print(), 250);
+}
+
+function workshopPartyAddress(party: Company | Customer) {
+  return [party.addressLine1, party.addressLine2, party.city, party.state, party.pincode].filter(Boolean).map(escapePrintHtml).join(", ");
+}
+
+function printWorkshopJobCard(company: Company, jobCard: JobCard) {
+  const estimateRows = [
+    ...(jobCard.parts ?? []).map((part) => `<tr><td>Part</td><td>${escapePrintHtml(`${part.productVariant.code} - ${part.productVariant.name}`)}</td><td class="num">${escapePrintHtml(part.quantity)}</td><td class="num">${invoiceAmount(part.estimatedRate)}</td><td class="num">${invoiceAmount(part.estimatedAmount)}</td></tr>`),
+    ...(jobCard.laborLines ?? []).map((labor) => `<tr><td>Labor</td><td>${escapePrintHtml(labor.description)}</td><td class="num">1</td><td class="num">${invoiceAmount(labor.estimatedAmount)}</td><td class="num">${invoiceAmount(labor.estimatedAmount)}</td></tr>`),
+  ].join("") || `<tr><td colspan="5" class="muted">No part or labor estimate recorded.</td></tr>`;
+  const companyAddress = workshopPartyAddress(company) || "Business address not configured";
+  const customerAddress = workshopPartyAddress(jobCard.customer) || "Address not configured";
+  const body = `<main class="document"><header><div><h1>${escapePrintHtml(company.legalName || company.name)}</h1><p>${companyAddress}</p><p>Phone: ${escapePrintHtml(company.phone || "-")} &nbsp; GSTIN: ${escapePrintHtml(company.gstin || "Not configured")}</p></div><div class="num"><h2>JOB CARD / ESTIMATE</h2><p><strong>${escapePrintHtml(jobCard.jobCardNumber)}</strong></p><p>Date: ${escapePrintHtml(new Date(jobCard.jobDate).toLocaleDateString("en-IN"))}</p><p>Status: ${escapePrintHtml(jobCard.status)}</p></div></header>
+  <section class="parties"><div class="party"><div class="label">Customer</div><p><strong>${escapePrintHtml(jobCard.customer.name)}</strong></p><p>${customerAddress}</p><p>Phone: ${escapePrintHtml(jobCard.customer.phone || "-")}</p><p>GSTIN: ${escapePrintHtml(jobCard.customer.gstin || "Unregistered")}</p></div><div class="party"><div class="label">Vehicle</div><p><strong>${escapePrintHtml(jobCard.vehicle.registrationNumber)}</strong></p><p>${escapePrintHtml(`${jobCard.vehicle.brand} ${jobCard.vehicle.model}${jobCard.vehicle.variant ? ` ${jobCard.vehicle.variant}` : ""}`)}</p><p>Odometer: ${escapePrintHtml(jobCard.odometerReading ?? 0)} &nbsp; Fuel: ${escapePrintHtml(jobCard.fuelLevel || "-")}</p><p>Advisor: ${escapePrintHtml(jobCard.advisor?.name || "-")} &nbsp; Technician: ${escapePrintHtml(jobCard.technician?.name || "-")}</p></div></section>
+  <section class="notes"><div class="note"><div class="label">Customer complaint</div><p>${escapePrintHtml(jobCard.complaint)}</p></div><div class="note"><div class="label">Initial diagnosis / work notes</div><p>${escapePrintHtml(jobCard.diagnosis || jobCard.workNotes || "Pending inspection")}</p></div></section>
+  <table><thead><tr><th>Type</th><th>Description</th><th>Qty</th><th>Rate</th><th>Estimate</th></tr></thead><tbody>${estimateRows}</tbody></table><div class="totals"><div class="total-row"><span>Parts estimate</span><strong>${invoiceAmount(jobCard.estimatedPartsTotal)}</strong></div><div class="total-row"><span>Labor estimate</span><strong>${invoiceAmount(jobCard.estimatedLaborTotal)}</strong></div><div class="total-row grand"><span>Estimated total</span><span>${invoiceAmount(jobCard.estimatedTotal)}</span></div></div>
+  <div class="detail-list"><strong>Customer approval</strong><span class="muted">This is an estimate. Additional work or parts require customer approval and may change the final amount.</span></div><footer><div class="signature">Customer signature</div><div class="signature">Service advisor</div></footer></main>`;
+  openWorkshopPrintDocument(`${jobCard.jobCardNumber} - Job Card`, body);
+}
+
+function printWorkshopInvoice(company: Company, jobCard: JobCard) {
+  if (!jobCard.billingNumber) {
+    window.alert("This job card has not been billed yet.");
+    return;
+  }
+  const companyAddress = workshopPartyAddress(company) || "Business address not configured";
+  const customerAddress = workshopPartyAddress(jobCard.customer) || "Address not configured";
+  const detailLines = [...(jobCard.parts ?? []).map((part) => `Part: ${part.productVariant.code} - ${part.productVariant.name} / Qty ${part.quantity}`), ...(jobCard.laborLines ?? []).map((labor) => `Labor: ${labor.description}`)];
+  const billedDate = jobCard.billedAt ? new Date(jobCard.billedAt) : new Date(jobCard.jobDate);
+  const body = `<main class="document"><header><div><h1>${escapePrintHtml(company.legalName || company.name)}</h1><p>${companyAddress}</p><p>Phone: ${escapePrintHtml(company.phone || "-")} &nbsp; Email: ${escapePrintHtml(company.email || "-")}</p><p><strong>GSTIN: ${escapePrintHtml(company.gstin || "Not configured")}</strong></p></div><div class="num"><h2>TAX INVOICE</h2><p><strong>${escapePrintHtml(jobCard.billingNumber)}</strong></p><p>Date: ${escapePrintHtml(billedDate.toLocaleDateString("en-IN"))}</p><p>Job card: ${escapePrintHtml(jobCard.jobCardNumber)}</p></div></header>
+  <section class="parties"><div class="party"><div class="label">Bill to</div><p><strong>${escapePrintHtml(jobCard.customer.name)}</strong></p><p>${customerAddress}</p><p>Phone: ${escapePrintHtml(jobCard.customer.phone || "-")}</p><p>GSTIN: ${escapePrintHtml(jobCard.customer.gstin || "Unregistered")}</p></div><div class="party"><div class="label">Vehicle & supply</div><p><strong>${escapePrintHtml(jobCard.vehicle.registrationNumber)}</strong></p><p>${escapePrintHtml(`${jobCard.vehicle.brand} ${jobCard.vehicle.model}`)}</p><p>Place of supply: ${escapePrintHtml(jobCard.customer.placeOfSupply || jobCard.customer.state || "Not configured")}</p><p>Tax mode: ${escapePrintHtml(jobCard.billingTaxMode === "IGST" ? "IGST" : "CGST + SGST")}</p></div></section>
+  <table><thead><tr><th>Description</th><th>HSN/SAC</th><th>Qty</th><th>Rate</th><th>Taxable</th></tr></thead><tbody><tr><td><strong>Vehicle service and parts as per ${escapePrintHtml(jobCard.jobCardNumber)}</strong></td><td>${escapePrintHtml(jobCard.billingHsnCode || "-")}</td><td class="num">1</td><td class="num">${invoiceAmount(jobCard.billingTaxableAmount)}</td><td class="num">${invoiceAmount(jobCard.billingTaxableAmount)}</td></tr></tbody></table>
+  <div class="detail-list"><strong>Service details</strong>${detailLines.length ? detailLines.map((line) => `<span>${escapePrintHtml(line)}</span>`).join("") : `<span class="muted">Service details recorded in the job card.</span>`}</div><div class="totals"><div class="total-row"><span>Taxable amount</span><strong>${invoiceAmount(jobCard.billingTaxableAmount)}</strong></div><div class="total-row"><span>CGST</span><strong>${invoiceAmount(jobCard.billingCgstAmount)}</strong></div><div class="total-row"><span>SGST</span><strong>${invoiceAmount(jobCard.billingSgstAmount)}</strong></div><div class="total-row"><span>IGST</span><strong>${invoiceAmount(jobCard.billingIgstAmount)}</strong></div><div class="total-row"><span>Total tax</span><strong>${invoiceAmount(jobCard.billingTotalTaxAmount)}</strong></div><div class="total-row grand"><span>Grand total</span><span>${invoiceAmount(jobCard.billingAmount)}</span></div></div>
+  <div class="detail-list"><span>Narration: ${escapePrintHtml(jobCard.deliveryNotes || "Workshop service completed and vehicle delivered.")}</span><span class="muted">Amount values are in ${escapePrintHtml(company.baseCurrency || "INR")}.</span></div><footer><div><span class="muted">Computer-generated invoice from RAMS ERP.</span></div><div class="signature">Authorised signatory</div></footer></main>`;
+  openWorkshopPrintDocument(`${jobCard.billingNumber} - Workshop Tax Invoice`, body);
 }
 
 function UnitMasterPanel({ items }: { items: Unit[] }) {

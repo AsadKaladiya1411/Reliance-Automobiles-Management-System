@@ -3,6 +3,7 @@ import type { Request } from "express";
 import { requireAuth, requireModuleAccess, requirePermission } from "../auth/auth.middleware";
 import { asyncHandler } from "../../utils/async-handler";
 import { sendSuccess } from "../../utils/api-response";
+import { getInvoiceCompanyProfile } from "../company/company.service";
 import {
   createJobCard,
   getWorkshopSummary,
@@ -30,6 +31,10 @@ function context(req: Request) {
 
 router.get("/workshop/summary", asyncHandler(async (req, res) => {
   sendSuccess(res, await getWorkshopSummary(req.user!.companyId));
+}));
+
+router.get("/workshop/document-profile", asyncHandler(async (req, res) => {
+  sendSuccess(res, await getInvoiceCompanyProfile(req.user!.companyId));
 }));
 
 router.get("/workshop/job-cards", asyncHandler(async (req, res) => {

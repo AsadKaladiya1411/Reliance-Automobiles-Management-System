@@ -706,6 +706,10 @@ h1 {
 .form-warning { margin: 0; padding: 11px 12px; border: 1px solid #fed7aa; border-radius: 9px; background: #fff7ed; color: #9a3412; font-size: 13px; font-weight: 700; }
 .queue-heading { display: flex; justify-content: space-between; align-items: center; margin-top: 22px; padding: 12px 2px 8px; border-top: 1px solid #e5e7eb; color: #334155; }
 .queue-heading span { color: #64748b; font-size: 12px; }
+.document-actions { display: flex; justify-content: flex-end; margin-top: -4px; }
+.document-history-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; }
+.document-history-list li > span { display: grid; gap: 4px; }
+.document-history-list small { color: #64748b; font-size: 11px; line-height: 1.45; }
 .section-kicker.dark { color: #0f766e !important; }
 
 .security-panel { background: linear-gradient(145deg, #f8fffd, #fff); }
@@ -770,6 +774,8 @@ h1 {
   .settings-tabs, .labeled-form, .security-grid { grid-template-columns: 1fr; }
   .field-span-2 { grid-column: auto; }
   .selected-record { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .document-history-list li { grid-template-columns: 1fr; }
+  .document-history-list .action-buttons { justify-content: flex-start; }
   .workflow-guide, .panel-heading { align-items: flex-start; flex-direction: column; }
   .context-note { border-radius: 10px; }
   .user-identity { justify-items: start; }
