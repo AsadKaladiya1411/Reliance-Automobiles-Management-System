@@ -19,6 +19,11 @@
     "docker:up": "docker compose up --build",
     "backup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backup-database.ps1",
     "restore": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restore-database.ps1",
+    "local:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-local.ps1",
+    "local:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local.ps1",
+    "local:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-local.ps1",
+    "local:status": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/status-local.ps1",
+    "backup:schedule": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-backup-schedule.ps1",
     "prisma:generate": "npm run prisma:generate --workspace server",
     "prisma:migrate": "npm run prisma:migrate --workspace server",
     "prisma:deploy": "npm run prisma:deploy --workspace server"

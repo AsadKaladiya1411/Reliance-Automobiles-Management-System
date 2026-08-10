@@ -22,6 +22,8 @@ npm run verify
 
 Use [docs/PRODUCTION_RUNBOOK.md](docs/PRODUCTION_RUNBOOK.md) for release verification, migrations, backup/restore, rollback, monitoring, and production readiness checks.
 
+For a single Windows laptop installation, use [docs/LOCAL_WINDOWS_OPERATIONS.md](docs/LOCAL_WINDOWS_OPERATIONS.md) for one-click setup, start/stop, status, and automatic daily backups.
+
 - Build a deployable container with `npm run docker:build`.
 - Run the local production-style stack with `npm run docker:up`.
 - Change every secret in `docker-compose.yml` before using it outside local validation.

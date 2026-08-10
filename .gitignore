@@ -13,6 +13,7 @@ server/node_modules
 dist
 client/dist
 server/dist
+server/public/
 coverage
 
 # Logs
@@ -31,3 +32,5 @@ Thumbs.db
 # Local data
 uploads/
 backups/
+server-local.pid
+backup-schedule.json
