@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import prisma from "../../lib/prisma";
 import { ApiError } from "../../utils/api-error";
-import { postPurchaseInvoice } from "./purchase.service";
+import { cancelPurchaseInvoice, postPurchaseInvoice, postPurchaseReturn } from "./purchase.service";
 
 type PurchaseFixture = {
   companyId: string;
@@ -15,7 +15,12 @@ type PurchaseFixture = {
 
 async function cleanupCompany(companyId: string) {
   await prisma.auditLog.deleteMany({ where: { companyId } });
+  await prisma.paymentAllocation.deleteMany({ where: { companyId } });
+  await prisma.payment.deleteMany({ where: { companyId } });
+  await prisma.paymentMode.deleteMany({ where: { companyId } });
   await prisma.partyLedgerEntry.deleteMany({ where: { companyId } });
+  await prisma.purchaseReturnLine.deleteMany({ where: { companyId } });
+  await prisma.purchaseReturn.deleteMany({ where: { companyId } });
   await prisma.purchaseInvoiceLine.deleteMany({ where: { companyId } });
   await prisma.purchaseInvoice.deleteMany({ where: { companyId } });
   await prisma.stockMovement.deleteMany({ where: { companyId } });
@@ -119,6 +124,16 @@ async function createPurchaseFixture(financialYearStatus: "OPEN" | "CLOSED"): Pr
         resetPolicy: "NEVER",
       },
     }),
+    prisma.numberSeries.create({
+      data: {
+        companyId: company.id,
+        documentType: "PURCHASE_RETURN",
+        prefix: "PR-T-",
+        padding: 4,
+        nextNumber: 1,
+        resetPolicy: "NEVER",
+      },
+    }),
     ...[
       ["1200", "Inventory", "ASSET"],
       ["2000", "Accounts Payable", "LIABILITY"],
@@ -174,6 +189,27 @@ async function createPurchaseFixture(financialYearStatus: "OPEN" | "CLOSED"): Pr
     productVariantId: variant.id,
     warehouseId: warehouse.id,
   };
+}
+
+function purchaseContext(fixture: PurchaseFixture) {
+  return {
+    companyId: fixture.companyId,
+    userId: fixture.userId,
+    ipAddress: "127.0.0.1",
+    userAgent: "integration-test",
+  };
+}
+
+async function postFixtureInvoice(fixture: PurchaseFixture, quantity = 3) {
+  return postPurchaseInvoice(purchaseContext(fixture), {
+    supplierId: fixture.supplierId,
+    warehouseId: fixture.warehouseId,
+    invoiceDate: "2026-07-31",
+    taxMode: "CGST_SGST",
+    supplierBillNumber: "SUP-BILL-RETURN-TEST",
+    narration: "Purchase return integration invoice",
+    lines: [{ productVariantId: fixture.productVariantId, quantity, unitCost: 220 }],
+  });
 }
 
 test("purchase invoice posting updates inventory, accounting, GST input, supplier ledger, audit log, and number series atomically", async () => {

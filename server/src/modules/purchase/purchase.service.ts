@@ -2,6 +2,11 @@ import { Prisma } from "../../generated/prisma/client";
 import prisma from "../../lib/prisma";
 import type { RequestContext } from "../../types/request-context";
 import { ApiError } from "../../utils/api-error";
+import {
+  assertCumulativeReturnQuantity,
+  assertUniqueReturnLineIds,
+  calculateReturnAmount,
+} from "../../utils/return-integrity";
 import { approvalStatusForDocument, createApprovalRequestForDocument } from "../approvals/approvals.service";
 import { requireOpenFinancialYear } from "../financial-year/fiscal-period.service";
 import { formatDocumentNumber } from "../number-series/number-series.service";
@@ -953,6 +958,18 @@ export async function cancelPurchaseInvoice(context: PurchaseContext, invoiceId:
   const cancellationDate = parseDate(data.cancellationDate);
 
   return prisma.$transaction(async (tx) => {
+    const lockedInvoice = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "PurchaseInvoice"
+      WHERE "id" = CAST(${invoiceId} AS uuid)
+        AND "companyId" = CAST(${context.companyId} AS uuid)
+      FOR UPDATE
+    `;
+
+    if (lockedInvoice.length === 0) {
+      throw new ApiError(404, "PURCHASE_INVOICE_NOT_FOUND", "Purchase invoice not found.");
+    }
+
     await requireOpenFinancialYear(tx, context.companyId, cancellationDate);
 
     const invoice = await tx.purchaseInvoice.findFirst({
@@ -969,6 +986,44 @@ export async function cancelPurchaseInvoice(context: PurchaseContext, invoiceId:
 
     if (invoice.status !== "POSTED") {
       throw new ApiError(400, "PURCHASE_INVOICE_NOT_POSTED", "Only posted purchase invoices can be cancelled.");
+    }
+
+    const [postedReturn, postedAllocation] = await Promise.all([
+      tx.purchaseReturn.findFirst({
+        where: { companyId: context.companyId, purchaseInvoiceId: invoice.id, status: "POSTED" },
+        select: { id: true, returnNumber: true },
+      }),
+      tx.paymentAllocation.findFirst({
+        where: {
+          companyId: context.companyId,
+          partyType: "SUPPLIER",
+          supplierId: invoice.supplierId,
+          documentType: "PURCHASE_INVOICE",
+          allocatedAmount: { gt: 0 },
+          payment: { status: "POSTED" },
+          OR: [
+            { documentId: invoice.id },
+            { documentNumber: invoice.invoiceNumber },
+          ],
+        },
+        select: { id: true, documentNumber: true },
+      }),
+    ]);
+
+    if (postedReturn) {
+      throw new ApiError(
+        400,
+        "PURCHASE_INVOICE_HAS_POSTED_RETURN",
+        `Cancel or reverse purchase return ${postedReturn.returnNumber} before cancelling this invoice.`,
+      );
+    }
+
+    if (postedAllocation) {
+      throw new ApiError(
+        400,
+        "PURCHASE_INVOICE_HAS_PAYMENT_ALLOCATION",
+        "Reverse the posted supplier payment allocation before cancelling this invoice.",
+      );
     }
 
     const journalNumber = await nextDocumentNumber(
@@ -1065,7 +1120,7 @@ export async function cancelPurchaseInvoice(context: PurchaseContext, invoiceId:
         documentType: "PURCHASE_INVOICE_CANCEL",
         documentId: invoice.id,
         documentNumber: invoice.invoiceNumber,
-        entryDate: new Date(),
+        entryDate: cancellationDate,
         debitAmount: invoice.grandTotal,
         narration: reason,
       },
@@ -1098,7 +1153,7 @@ export async function cancelPurchaseInvoice(context: PurchaseContext, invoiceId:
     });
 
     return cancelled;
-  });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
 export async function postPurchaseReturn(context: PurchaseContext, body: unknown) {
@@ -1112,7 +1167,25 @@ export async function postPurchaseReturn(context: PurchaseContext, body: unknown
     throw new ApiError(400, "RETURN_LINES_REQUIRED", "At least one return line is required.");
   }
 
+  const requestedLines = rawLines.map((line) => ({
+    purchaseInvoiceLineId: requiredString(line.purchaseInvoiceLineId, "Purchase invoice line"),
+    quantity: positiveDecimal(line.quantity, "Return quantity", 3),
+  }));
+  assertUniqueReturnLineIds(requestedLines.map((line) => line.purchaseInvoiceLineId));
+
   return prisma.$transaction(async (tx) => {
+    const lockedInvoice = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "PurchaseInvoice"
+      WHERE "id" = CAST(${purchaseInvoiceId} AS uuid)
+        AND "companyId" = CAST(${context.companyId} AS uuid)
+      FOR UPDATE
+    `;
+
+    if (lockedInvoice.length === 0) {
+      throw new ApiError(404, "PURCHASE_INVOICE_NOT_FOUND", "Posted purchase invoice not found.");
+    }
+
     await requireOpenFinancialYear(tx, context.companyId, returnDate);
 
     const invoice = await tx.purchaseInvoice.findFirst({
@@ -1124,36 +1197,63 @@ export async function postPurchaseReturn(context: PurchaseContext, body: unknown
       throw new ApiError(404, "PURCHASE_INVOICE_NOT_FOUND", "Posted purchase invoice not found.");
     }
 
-    const inventoryAccount = await requireAccount(tx, context.companyId, "1200");
-    const gstInputAccount = await requireAccount(tx, context.companyId, "2200");
-    const payableAccount = await requireAccount(tx, context.companyId, "2000");
-    const returnNumber = await nextDocumentNumber(
-      tx,
-      context.companyId,
-      "PURCHASE_RETURN",
-      "Create a PURCHASE_RETURN number series before posting purchase returns.",
-    );
-    const journalNumber = await nextDocumentNumber(
-      tx,
-      context.companyId,
-      "JOURNAL_ENTRY",
-      "Create a JOURNAL_ENTRY number series before posting purchase returns.",
+    if (returnDate.getTime() < invoice.invoiceDate.getTime()) {
+      throw new ApiError(400, "RETURN_DATE_BEFORE_INVOICE", "Return date cannot be before the purchase invoice date.");
+    }
+
+    const legacyReturnLineCount = await tx.purchaseReturnLine.count({
+      where: {
+        companyId: context.companyId,
+        purchaseInvoiceLineId: null,
+        purchaseReturn: { purchaseInvoiceId: invoice.id, status: "POSTED" },
+      },
+    });
+
+    if (legacyReturnLineCount > 0) {
+      throw new ApiError(
+        409,
+        "RETURN_HISTORY_REVIEW_REQUIRED",
+        "This invoice has an older return without line traceability. Review it before posting another return.",
+      );
+    }
+
+    const returnHistoryRows = await tx.purchaseReturnLine.groupBy({
+      by: ["purchaseInvoiceLineId"],
+      where: {
+        companyId: context.companyId,
+        purchaseInvoiceLineId: { in: requestedLines.map((line) => line.purchaseInvoiceLineId) },
+        purchaseReturn: { purchaseInvoiceId: invoice.id, status: "POSTED" },
+      },
+      _sum: {
+        quantity: true,
+        taxableAmount: true,
+        cgstAmount: true,
+        sgstAmount: true,
+        igstAmount: true,
+        lineTotal: true,
+      },
+    });
+    const returnHistory = new Map(
+      returnHistoryRows
+        .filter((row) => row.purchaseInvoiceLineId !== null)
+        .map((row) => [row.purchaseInvoiceLineId as string, row._sum]),
     );
     const preparedLines = [];
 
-    for (const [index, line] of rawLines.entries()) {
-      const purchaseInvoiceLineId = requiredString(line.purchaseInvoiceLineId, "Purchase invoice line");
-      const invoiceLine = invoice.lines.find((item) => item.id === purchaseInvoiceLineId);
+    for (const [index, line] of requestedLines.entries()) {
+      const invoiceLine = invoice.lines.find((item) => item.id === line.purchaseInvoiceLineId);
 
       if (!invoiceLine) {
         throw new ApiError(400, "INVALID_RETURN_LINE", "Return line does not belong to the selected invoice.");
       }
 
-      const quantity = positiveDecimal(line.quantity, "Return quantity", 3);
-
-      if (quantity.gt(invoiceLine.quantity)) {
-        throw new ApiError(400, "RETURN_QUANTITY_EXCEEDS_INVOICE", "Return quantity cannot exceed invoice quantity.");
-      }
+      const history = returnHistory.get(invoiceLine.id);
+      const previouslyReturnedQuantity = new Prisma.Decimal(history?.quantity ?? 0);
+      assertCumulativeReturnQuantity({
+        invoiceQuantity: invoiceLine.quantity,
+        previouslyReturnedQuantity,
+        requestedQuantity: line.quantity,
+      });
 
       const key = locationKey({
         warehouseId: invoice.warehouseId,
@@ -1172,12 +1272,21 @@ export async function postPurchaseReturn(context: PurchaseContext, body: unknown
         },
       });
 
-      if (!balance || new Prisma.Decimal(balance.quantity).lt(quantity)) {
+      if (!balance || new Prisma.Decimal(balance.quantity).lt(line.quantity)) {
         throw new ApiError(400, "PURCHASE_RETURN_STOCK_SHORTAGE", "Purchase return quantity exceeds available stock.");
       }
 
-      const ratio = quantity.div(invoiceLine.quantity);
+      const returnAmount = (invoiceAmount: Prisma.Decimal, previouslyReturnedAmount: Prisma.Decimal | null | undefined) =>
+        calculateReturnAmount({
+          invoiceAmount,
+          previouslyReturnedAmount: new Prisma.Decimal(previouslyReturnedAmount ?? 0),
+          invoiceQuantity: invoiceLine.quantity,
+          previouslyReturnedQuantity,
+          requestedQuantity: line.quantity,
+        });
+
       preparedLines.push({
+        purchaseInvoiceLineId: invoiceLine.id,
         companyId: context.companyId,
         productId: invoiceLine.productId,
         productVariantId: invoiceLine.productVariantId,
@@ -1186,16 +1295,32 @@ export async function postPurchaseReturn(context: PurchaseContext, body: unknown
         shelfId: invoiceLine.shelfId,
         locationKey: key,
         hsnCode: invoiceLine.hsnCode,
-        quantity,
+        quantity: line.quantity,
         unitCost: invoiceLine.unitCost,
-        taxableAmount: invoiceLine.taxableAmount.mul(ratio).toDecimalPlaces(2),
-        cgstAmount: invoiceLine.cgstAmount.mul(ratio).toDecimalPlaces(2),
-        sgstAmount: invoiceLine.sgstAmount.mul(ratio).toDecimalPlaces(2),
-        igstAmount: invoiceLine.igstAmount.mul(ratio).toDecimalPlaces(2),
-        lineTotal: invoiceLine.lineTotal.mul(ratio).toDecimalPlaces(2),
+        taxableAmount: returnAmount(invoiceLine.taxableAmount, history?.taxableAmount),
+        cgstAmount: returnAmount(invoiceLine.cgstAmount, history?.cgstAmount),
+        sgstAmount: returnAmount(invoiceLine.sgstAmount, history?.sgstAmount),
+        igstAmount: returnAmount(invoiceLine.igstAmount, history?.igstAmount),
+        lineTotal: returnAmount(invoiceLine.lineTotal, history?.lineTotal),
         lineOrder: index + 1,
       });
     }
+
+    const inventoryAccount = await requireAccount(tx, context.companyId, "1200");
+    const gstInputAccount = await requireAccount(tx, context.companyId, "2200");
+    const payableAccount = await requireAccount(tx, context.companyId, "2000");
+    const returnNumber = await nextDocumentNumber(
+      tx,
+      context.companyId,
+      "PURCHASE_RETURN",
+      "Create a PURCHASE_RETURN number series before posting purchase returns.",
+    );
+    const journalNumber = await nextDocumentNumber(
+      tx,
+      context.companyId,
+      "JOURNAL_ENTRY",
+      "Create a JOURNAL_ENTRY number series before posting purchase returns.",
+    );
 
     const taxableAmount = preparedLines.reduce((total, line) => total.plus(line.taxableAmount), new Prisma.Decimal(0));
     const cgstAmount = preparedLines.reduce((total, line) => total.plus(line.cgstAmount), new Prisma.Decimal(0));
@@ -1329,5 +1454,5 @@ export async function postPurchaseReturn(context: PurchaseContext, body: unknown
     });
 
     return purchaseReturn;
-  });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }

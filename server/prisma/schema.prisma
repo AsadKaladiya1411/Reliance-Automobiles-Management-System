@@ -122,67 +122,67 @@ enum JobCardStatus {
 }
 
 model Company {
-  id            String       @id @default(uuid()) @db.Uuid
-  code          String       @unique @db.VarChar(32)
-  name          String       @db.VarChar(160)
-  legalName     String?      @db.VarChar(200)
-  gstin         String?      @unique @db.VarChar(15)
-  pan           String?      @db.VarChar(10)
-  tan           String?      @db.VarChar(10)
-  phone         String?      @db.VarChar(32)
-  email         String?      @db.VarChar(160)
-  addressLine1  String?      @db.VarChar(240)
-  addressLine2  String?      @db.VarChar(240)
-  city          String?      @db.VarChar(120)
-  state         String?      @db.VarChar(120)
-  pincode       String?      @db.VarChar(12)
-  country       String       @default("India") @db.VarChar(80)
-  baseCurrency  String       @default("INR") @db.VarChar(3)
-  timezone      String       @default("Asia/Kolkata") @db.VarChar(80)
-  status        RecordStatus @default(ACTIVE)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id           String       @id @default(uuid()) @db.Uuid
+  code         String       @unique @db.VarChar(32)
+  name         String       @db.VarChar(160)
+  legalName    String?      @db.VarChar(200)
+  gstin        String?      @unique @db.VarChar(15)
+  pan          String?      @db.VarChar(10)
+  tan          String?      @db.VarChar(10)
+  phone        String?      @db.VarChar(32)
+  email        String?      @db.VarChar(160)
+  addressLine1 String?      @db.VarChar(240)
+  addressLine2 String?      @db.VarChar(240)
+  city         String?      @db.VarChar(120)
+  state        String?      @db.VarChar(120)
+  pincode      String?      @db.VarChar(12)
+  country      String       @default("India") @db.VarChar(80)
+  baseCurrency String       @default("INR") @db.VarChar(3)
+  timezone     String       @default("Asia/Kolkata") @db.VarChar(80)
+  status       RecordStatus @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
-  financialYears FinancialYear[]
-  users          User[]
-  roles          Role[]
-  permissions    Permission[]
-  numberSeries   NumberSeries[]
-  auditLogs      AuditLog[]
-  units          Unit[]
-  hsnCodes       HsnCode[]
-  taxRates       TaxRate[]
-  brands         Brand[]
-  categories     Category[]
-  subCategories  SubCategory[]
-  products       Product[]
-  productVariants ProductVariant[]
-  warehouses     Warehouse[]
-  stockBalances  StockBalance[]
-  stockMovements StockMovement[]
-  customers      Customer[]
-  suppliers      Supplier[]
-  employees      Employee[]
-  vehicles       Vehicle[]
-  paymentModes   PaymentMode[]
-  accounts       Account[]
-  journalEntries JournalEntry[]
+  financialYears     FinancialYear[]
+  users              User[]
+  roles              Role[]
+  permissions        Permission[]
+  numberSeries       NumberSeries[]
+  auditLogs          AuditLog[]
+  units              Unit[]
+  hsnCodes           HsnCode[]
+  taxRates           TaxRate[]
+  brands             Brand[]
+  categories         Category[]
+  subCategories      SubCategory[]
+  products           Product[]
+  productVariants    ProductVariant[]
+  warehouses         Warehouse[]
+  stockBalances      StockBalance[]
+  stockMovements     StockMovement[]
+  customers          Customer[]
+  suppliers          Supplier[]
+  employees          Employee[]
+  vehicles           Vehicle[]
+  paymentModes       PaymentMode[]
+  accounts           Account[]
+  journalEntries     JournalEntry[]
   partyLedgerEntries PartyLedgerEntry[]
-  payments       Payment[]
+  payments           Payment[]
   paymentAllocations PaymentAllocation[]
-  financialNotes FinancialNote[]
-  purchaseOrders PurchaseOrder[]
-  goodsReceiptNotes GoodsReceiptNote[]
-  purchaseInvoices PurchaseInvoice[]
-  purchaseReturns PurchaseReturn[]
-  salesQuotations SalesQuotation[]
-  salesOrders SalesOrder[]
-  deliveryChallans DeliveryChallan[]
-  salesInvoices SalesInvoice[]
-  salesReturns SalesReturn[]
-  jobCards      JobCard[]
-  approvalRules ApprovalRule[]
-  approvalRequests ApprovalRequest[]
+  financialNotes     FinancialNote[]
+  purchaseOrders     PurchaseOrder[]
+  goodsReceiptNotes  GoodsReceiptNote[]
+  purchaseInvoices   PurchaseInvoice[]
+  purchaseReturns    PurchaseReturn[]
+  salesQuotations    SalesQuotation[]
+  salesOrders        SalesOrder[]
+  deliveryChallans   DeliveryChallan[]
+  salesInvoices      SalesInvoice[]
+  salesReturns       SalesReturn[]
+  jobCards           JobCard[]
+  approvalRules      ApprovalRule[]
+  approvalRequests   ApprovalRequest[]
 }
 
 model FinancialYear {
@@ -202,21 +202,21 @@ model FinancialYear {
 }
 
 model User {
-  id                   String     @id @default(uuid()) @db.Uuid
-  companyId            String     @db.Uuid
-  username             String     @db.VarChar(80)
-  email                String?    @db.VarChar(160)
-  passwordHash         String     @db.VarChar(255)
-  fullName             String     @db.VarChar(160)
-  phone                String?    @db.VarChar(32)
-  status               UserStatus @default(ACTIVE)
-  failedLoginAttempts  Int        @default(0)
-  lockedUntil          DateTime?
-  lastLoginAt          DateTime?
-  passwordChangedAt    DateTime?
-  createdAt            DateTime   @default(now())
-  updatedAt            DateTime   @updatedAt
-  deletedAt            DateTime?
+  id                  String     @id @default(uuid()) @db.Uuid
+  companyId           String     @db.Uuid
+  username            String     @db.VarChar(80)
+  email               String?    @db.VarChar(160)
+  passwordHash        String     @db.VarChar(255)
+  fullName            String     @db.VarChar(160)
+  phone               String?    @db.VarChar(32)
+  status              UserStatus @default(ACTIVE)
+  failedLoginAttempts Int        @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  passwordChangedAt   DateTime?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  deletedAt           DateTime?
 
   company   Company    @relation(fields: [companyId], references: [id])
   userRoles UserRole[]
@@ -336,7 +336,7 @@ model Unit {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  company  Company  @relation(fields: [companyId], references: [id])
+  company  Company   @relation(fields: [companyId], references: [id])
   products Product[]
 
   @@unique([companyId, code])
@@ -352,7 +352,7 @@ model HsnCode {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  company  Company  @relation(fields: [companyId], references: [id])
+  company  Company   @relation(fields: [companyId], references: [id])
   products Product[]
   taxRates TaxRate[]
 
@@ -360,21 +360,21 @@ model HsnCode {
 }
 
 model TaxRate {
-  id          String       @id @default(uuid()) @db.Uuid
-  companyId   String       @db.Uuid
-  hsnCodeId   String?      @db.Uuid
-  name        String       @db.VarChar(80)
-  cgstRate    Decimal      @default(0) @db.Decimal(5, 2)
-  sgstRate    Decimal      @default(0) @db.Decimal(5, 2)
-  igstRate    Decimal      @default(0) @db.Decimal(5, 2)
-  cessRate    Decimal      @default(0) @db.Decimal(5, 2)
-  effectiveFrom DateTime   @db.Date
-  status      RecordStatus @default(ACTIVE)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id            String       @id @default(uuid()) @db.Uuid
+  companyId     String       @db.Uuid
+  hsnCodeId     String?      @db.Uuid
+  name          String       @db.VarChar(80)
+  cgstRate      Decimal      @default(0) @db.Decimal(5, 2)
+  sgstRate      Decimal      @default(0) @db.Decimal(5, 2)
+  igstRate      Decimal      @default(0) @db.Decimal(5, 2)
+  cessRate      Decimal      @default(0) @db.Decimal(5, 2)
+  effectiveFrom DateTime     @db.Date
+  status        RecordStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id])
-  hsnCode HsnCode? @relation(fields: [hsnCodeId], references: [id])
+  company  Company   @relation(fields: [companyId], references: [id])
+  hsnCode  HsnCode?  @relation(fields: [hsnCodeId], references: [id])
   products Product[]
   jobCards JobCard[]
 
@@ -392,7 +392,7 @@ model Brand {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  company  Company  @relation(fields: [companyId], references: [id])
+  company  Company   @relation(fields: [companyId], references: [id])
   products Product[]
 
   @@unique([companyId, code])
@@ -428,8 +428,8 @@ model SubCategory {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  company  Company  @relation(fields: [companyId], references: [id])
-  category Category @relation(fields: [categoryId], references: [id])
+  company  Company   @relation(fields: [companyId], references: [id])
+  category Category  @relation(fields: [categoryId], references: [id])
   products Product[]
 
   @@unique([companyId, categoryId, code])
@@ -437,37 +437,37 @@ model SubCategory {
 }
 
 model Product {
-  id              String              @id @default(uuid()) @db.Uuid
-  companyId       String              @db.Uuid
-  code            String              @db.VarChar(40)
-  name            String              @db.VarChar(180)
-  description     String?             @db.VarChar(500)
-  brandId         String?             @db.Uuid
-  categoryId      String              @db.Uuid
-  subCategoryId   String?             @db.Uuid
-  unitId          String              @db.Uuid
-  hsnCodeId       String?             @db.Uuid
-  taxRateId       String?             @db.Uuid
-  trackingType    ProductTrackingType @default(NONE)
-  reorderLevel    Decimal             @default(0) @db.Decimal(14, 3)
-  status          RecordStatus        @default(ACTIVE)
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  id            String              @id @default(uuid()) @db.Uuid
+  companyId     String              @db.Uuid
+  code          String              @db.VarChar(40)
+  name          String              @db.VarChar(180)
+  description   String?             @db.VarChar(500)
+  brandId       String?             @db.Uuid
+  categoryId    String              @db.Uuid
+  subCategoryId String?             @db.Uuid
+  unitId        String              @db.Uuid
+  hsnCodeId     String?             @db.Uuid
+  taxRateId     String?             @db.Uuid
+  trackingType  ProductTrackingType @default(NONE)
+  reorderLevel  Decimal             @default(0) @db.Decimal(14, 3)
+  status        RecordStatus        @default(ACTIVE)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
-  company     Company          @relation(fields: [companyId], references: [id])
-  brand       Brand?           @relation(fields: [brandId], references: [id])
-  category    Category         @relation(fields: [categoryId], references: [id])
-  subCategory SubCategory?     @relation(fields: [subCategoryId], references: [id])
-  unit        Unit             @relation(fields: [unitId], references: [id])
-  hsnCode     HsnCode?         @relation(fields: [hsnCodeId], references: [id])
-  taxRate     TaxRate?         @relation(fields: [taxRateId], references: [id])
-  variants    ProductVariant[]
-  stockBalances StockBalance[]
-  stockMovements StockMovement[]
+  company              Company               @relation(fields: [companyId], references: [id])
+  brand                Brand?                @relation(fields: [brandId], references: [id])
+  category             Category              @relation(fields: [categoryId], references: [id])
+  subCategory          SubCategory?          @relation(fields: [subCategoryId], references: [id])
+  unit                 Unit                  @relation(fields: [unitId], references: [id])
+  hsnCode              HsnCode?              @relation(fields: [hsnCodeId], references: [id])
+  taxRate              TaxRate?              @relation(fields: [taxRateId], references: [id])
+  variants             ProductVariant[]
+  stockBalances        StockBalance[]
+  stockMovements       StockMovement[]
   purchaseInvoiceLines PurchaseInvoiceLine[]
-  purchaseReturnLines PurchaseReturnLine[]
-  salesInvoiceLines SalesInvoiceLine[]
-  salesReturnLines SalesReturnLine[]
+  purchaseReturnLines  PurchaseReturnLine[]
+  salesInvoiceLines    SalesInvoiceLine[]
+  salesReturnLines     SalesReturnLine[]
 
   @@unique([companyId, code])
   @@index([companyId, name])
@@ -475,32 +475,32 @@ model Product {
 }
 
 model ProductVariant {
-  id          String       @id @default(uuid()) @db.Uuid
-  companyId   String       @db.Uuid
-  productId   String       @db.Uuid
-  code        String       @db.VarChar(48)
-  name        String       @db.VarChar(160)
-  barcode     String?      @db.VarChar(80)
-  salePrice   Decimal      @default(0) @db.Decimal(14, 2)
-  purchasePrice Decimal    @default(0) @db.Decimal(14, 2)
-  status      RecordStatus @default(ACTIVE)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id            String       @id @default(uuid()) @db.Uuid
+  companyId     String       @db.Uuid
+  productId     String       @db.Uuid
+  code          String       @db.VarChar(48)
+  name          String       @db.VarChar(160)
+  barcode       String?      @db.VarChar(80)
+  salePrice     Decimal      @default(0) @db.Decimal(14, 2)
+  purchasePrice Decimal      @default(0) @db.Decimal(14, 2)
+  status        RecordStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
-  stockBalances StockBalance[]
-  stockMovements StockMovement[]
-  purchaseOrderLines PurchaseOrderLine[]
+  company               Company                @relation(fields: [companyId], references: [id])
+  product               Product                @relation(fields: [productId], references: [id])
+  stockBalances         StockBalance[]
+  stockMovements        StockMovement[]
+  purchaseOrderLines    PurchaseOrderLine[]
   goodsReceiptNoteLines GoodsReceiptNoteLine[]
-  purchaseInvoiceLines PurchaseInvoiceLine[]
-  purchaseReturnLines PurchaseReturnLine[]
-  salesQuotationLines SalesQuotationLine[]
-  salesOrderLines SalesOrderLine[]
-  deliveryChallanLines DeliveryChallanLine[]
-  salesInvoiceLines SalesInvoiceLine[]
-  salesReturnLines SalesReturnLine[]
-  jobCardParts JobCardPart[]
+  purchaseInvoiceLines  PurchaseInvoiceLine[]
+  purchaseReturnLines   PurchaseReturnLine[]
+  salesQuotationLines   SalesQuotationLine[]
+  salesOrderLines       SalesOrderLine[]
+  deliveryChallanLines  DeliveryChallanLine[]
+  salesInvoiceLines     SalesInvoiceLine[]
+  salesReturnLines      SalesReturnLine[]
+  jobCardParts          JobCardPart[]
 
   @@unique([companyId, code])
   @@unique([companyId, barcode])
@@ -508,25 +508,25 @@ model ProductVariant {
 }
 
 model Warehouse {
-  id          String       @id @default(uuid()) @db.Uuid
-  companyId   String       @db.Uuid
-  code        String       @db.VarChar(32)
-  name        String       @db.VarChar(120)
-  address     String?      @db.VarChar(300)
-  status      RecordStatus @default(ACTIVE)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id        String       @id @default(uuid()) @db.Uuid
+  companyId String       @db.Uuid
+  code      String       @db.VarChar(32)
+  name      String       @db.VarChar(120)
+  address   String?      @db.VarChar(300)
+  status    RecordStatus @default(ACTIVE)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id])
-  blocks  WarehouseBlock[]
-  stockBalances StockBalance[]
-  stockMovements StockMovement[]
+  company           Company            @relation(fields: [companyId], references: [id])
+  blocks            WarehouseBlock[]
+  stockBalances     StockBalance[]
+  stockMovements    StockMovement[]
   goodsReceiptNotes GoodsReceiptNote[]
-  purchaseInvoices PurchaseInvoice[]
-  purchaseReturns PurchaseReturn[]
-  deliveryChallans DeliveryChallan[]
-  salesInvoices SalesInvoice[]
-  salesReturns SalesReturn[]
+  purchaseInvoices  PurchaseInvoice[]
+  purchaseReturns   PurchaseReturn[]
+  deliveryChallans  DeliveryChallan[]
+  salesInvoices     SalesInvoice[]
+  salesReturns      SalesReturn[]
 
   @@unique([companyId, code])
   @@unique([companyId, name])
@@ -542,34 +542,34 @@ model WarehouseBlock {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  warehouse Warehouse       @relation(fields: [warehouseId], references: [id])
-  racks     WarehouseRack[]
-  stockBalances StockBalance[]
-  stockMovements StockMovement[]
+  warehouse            Warehouse             @relation(fields: [warehouseId], references: [id])
+  racks                WarehouseRack[]
+  stockBalances        StockBalance[]
+  stockMovements       StockMovement[]
   purchaseInvoiceLines PurchaseInvoiceLine[]
-  salesInvoiceLines SalesInvoiceLine[]
+  salesInvoiceLines    SalesInvoiceLine[]
 
   @@unique([warehouseId, code])
   @@unique([warehouseId, name])
 }
 
 model WarehouseRack {
-  id        String       @id @default(uuid()) @db.Uuid
-  blockId   String       @db.Uuid
-  code      String       @db.VarChar(32)
-  name      String       @db.VarChar(120)
-  rackType  String       @default("Open") @db.VarChar(40)
-  shelfCount Int         @default(1)
-  status    RecordStatus @default(ACTIVE)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id         String       @id @default(uuid()) @db.Uuid
+  blockId    String       @db.Uuid
+  code       String       @db.VarChar(32)
+  name       String       @db.VarChar(120)
+  rackType   String       @default("Open") @db.VarChar(40)
+  shelfCount Int          @default(1)
+  status     RecordStatus @default(ACTIVE)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
 
-  block   WarehouseBlock  @relation(fields: [blockId], references: [id])
-  shelves WarehouseShelf[]
-  stockBalances StockBalance[]
-  stockMovements StockMovement[]
+  block                WarehouseBlock        @relation(fields: [blockId], references: [id])
+  shelves              WarehouseShelf[]
+  stockBalances        StockBalance[]
+  stockMovements       StockMovement[]
   purchaseInvoiceLines PurchaseInvoiceLine[]
-  salesInvoiceLines SalesInvoiceLine[]
+  salesInvoiceLines    SalesInvoiceLine[]
 
   @@unique([blockId, code])
   @@unique([blockId, name])
@@ -585,11 +585,11 @@ model WarehouseShelf {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
-  rack WarehouseRack @relation(fields: [rackId], references: [id])
-  stockBalances StockBalance[]
-  stockMovements StockMovement[]
+  rack                 WarehouseRack         @relation(fields: [rackId], references: [id])
+  stockBalances        StockBalance[]
+  stockMovements       StockMovement[]
   purchaseInvoiceLines PurchaseInvoiceLine[]
-  salesInvoiceLines SalesInvoiceLine[]
+  salesInvoiceLines    SalesInvoiceLine[]
 
   @@unique([rackId, code])
   @@unique([rackId, name])
@@ -660,39 +660,39 @@ model StockMovement {
 }
 
 model Customer {
-  id          String       @id @default(uuid()) @db.Uuid
-  companyId   String       @db.Uuid
-  code        String       @db.VarChar(40)
-  name        String       @db.VarChar(180)
-  customerType String      @default("Retail") @db.VarChar(40)
-  phone       String?      @db.VarChar(32)
-  email       String?      @db.VarChar(160)
-  gstin       String?      @db.VarChar(15)
-  pan         String?      @db.VarChar(10)
-  addressLine1 String?     @db.VarChar(240)
-  addressLine2 String?     @db.VarChar(240)
-  city        String?      @db.VarChar(120)
-  state       String?      @db.VarChar(120)
-  pincode     String?      @db.VarChar(12)
-  placeOfSupply String?    @db.VarChar(120)
-  creditLimit Decimal      @default(0) @db.Decimal(14, 2)
-  creditDays  Int          @default(0)
-  status      RecordStatus @default(ACTIVE)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id            String       @id @default(uuid()) @db.Uuid
+  companyId     String       @db.Uuid
+  code          String       @db.VarChar(40)
+  name          String       @db.VarChar(180)
+  customerType  String       @default("Retail") @db.VarChar(40)
+  phone         String?      @db.VarChar(32)
+  email         String?      @db.VarChar(160)
+  gstin         String?      @db.VarChar(15)
+  pan           String?      @db.VarChar(10)
+  addressLine1  String?      @db.VarChar(240)
+  addressLine2  String?      @db.VarChar(240)
+  city          String?      @db.VarChar(120)
+  state         String?      @db.VarChar(120)
+  pincode       String?      @db.VarChar(12)
+  placeOfSupply String?      @db.VarChar(120)
+  creditLimit   Decimal      @default(0) @db.Decimal(14, 2)
+  creditDays    Int          @default(0)
+  status        RecordStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
-  company  Company  @relation(fields: [companyId], references: [id])
-  vehicles Vehicle[]
-  ledgerEntries PartyLedgerEntry[]
-  salesQuotations SalesQuotation[]
-  salesOrders SalesOrder[]
-  deliveryChallans DeliveryChallan[]
-  salesInvoices SalesInvoice[]
-  salesReturns SalesReturn[]
-  payments Payment[]
+  company            Company             @relation(fields: [companyId], references: [id])
+  vehicles           Vehicle[]
+  ledgerEntries      PartyLedgerEntry[]
+  salesQuotations    SalesQuotation[]
+  salesOrders        SalesOrder[]
+  deliveryChallans   DeliveryChallan[]
+  salesInvoices      SalesInvoice[]
+  salesReturns       SalesReturn[]
+  payments           Payment[]
   paymentAllocations PaymentAllocation[]
-  financialNotes FinancialNote[]
-  jobCards JobCard[]
+  financialNotes     FinancialNote[]
+  jobCards           JobCard[]
 
   @@unique([companyId, code])
   @@index([companyId, name])
@@ -700,29 +700,29 @@ model Customer {
 }
 
 model Supplier {
-  id          String       @id @default(uuid()) @db.Uuid
-  companyId   String       @db.Uuid
-  code        String       @db.VarChar(40)
-  name        String       @db.VarChar(180)
-  supplierType String      @default("Distributor") @db.VarChar(40)
-  phone       String?      @db.VarChar(32)
-  email       String?      @db.VarChar(160)
-  gstin       String?      @db.VarChar(15)
-  pan         String?      @db.VarChar(10)
-  creditDays  Int          @default(0)
-  status      RecordStatus @default(ACTIVE)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id           String       @id @default(uuid()) @db.Uuid
+  companyId    String       @db.Uuid
+  code         String       @db.VarChar(40)
+  name         String       @db.VarChar(180)
+  supplierType String       @default("Distributor") @db.VarChar(40)
+  phone        String?      @db.VarChar(32)
+  email        String?      @db.VarChar(160)
+  gstin        String?      @db.VarChar(15)
+  pan          String?      @db.VarChar(10)
+  creditDays   Int          @default(0)
+  status       RecordStatus @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
-  company       Company            @relation(fields: [companyId], references: [id])
-  ledgerEntries PartyLedgerEntry[]
-  purchaseOrders PurchaseOrder[]
-  goodsReceiptNotes GoodsReceiptNote[]
-  purchaseInvoices PurchaseInvoice[]
-  purchaseReturns PurchaseReturn[]
-  payments Payment[]
+  company            Company             @relation(fields: [companyId], references: [id])
+  ledgerEntries      PartyLedgerEntry[]
+  purchaseOrders     PurchaseOrder[]
+  goodsReceiptNotes  GoodsReceiptNote[]
+  purchaseInvoices   PurchaseInvoice[]
+  purchaseReturns    PurchaseReturn[]
+  payments           Payment[]
   paymentAllocations PaymentAllocation[]
-  financialNotes FinancialNote[]
+  financialNotes     FinancialNote[]
 
   @@unique([companyId, code])
   @@index([companyId, name])
@@ -743,8 +743,8 @@ model Employee {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id])
-  advisorJobCards JobCard[] @relation("JobCardAdvisor")
+  company            Company   @relation(fields: [companyId], references: [id])
+  advisorJobCards    JobCard[] @relation("JobCardAdvisor")
   technicianJobCards JobCard[] @relation("JobCardTechnician")
 
   @@unique([companyId, code])
@@ -780,7 +780,7 @@ model Vehicle {
 
 model PaymentMode {
   id                String       @id @default(uuid()) @db.Uuid
-  companyId          String       @db.Uuid
+  companyId         String       @db.Uuid
   code              String       @db.VarChar(40)
   name              String       @db.VarChar(120)
   paymentType       String       @db.VarChar(40)
@@ -790,7 +790,7 @@ model PaymentMode {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id])
+  company  Company   @relation(fields: [companyId], references: [id])
   payments Payment[]
 
   @@unique([companyId, code])
@@ -809,9 +809,9 @@ model Account {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id])
-  parent  Account? @relation("AccountHierarchy", fields: [parentId], references: [id])
-  children Account[] @relation("AccountHierarchy")
+  company      Company       @relation(fields: [companyId], references: [id])
+  parent       Account?      @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children     Account[]     @relation("AccountHierarchy")
   journalLines JournalLine[]
 
   @@unique([companyId, code])
@@ -834,15 +834,15 @@ model JournalEntry {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id])
-  lines   JournalLine[]
+  company            Company            @relation(fields: [companyId], references: [id])
+  lines              JournalLine[]
   partyLedgerEntries PartyLedgerEntry[]
-  purchaseInvoices PurchaseInvoice[]
-  purchaseReturns PurchaseReturn[]
-  salesInvoices SalesInvoice[]
-  salesReturns SalesReturn[]
-  payments Payment[]
-  financialNotes FinancialNote[]
+  purchaseInvoices   PurchaseInvoice[]
+  purchaseReturns    PurchaseReturn[]
+  salesInvoices      SalesInvoice[]
+  salesReturns       SalesReturn[]
+  payments           Payment[]
+  financialNotes     FinancialNote[]
 
   @@unique([companyId, entryNumber])
   @@index([companyId, entryDate])
@@ -894,17 +894,17 @@ model PartyLedgerEntry {
 }
 
 model ApprovalRule {
-  id             String       @id @default(uuid()) @db.Uuid
-  companyId      String       @db.Uuid
-  module         String       @db.VarChar(80)
-  documentType   String       @db.VarChar(80)
-  triggerAction  String       @default("POST") @db.VarChar(40)
-  requireApproval Boolean     @default(false)
-  minimumAmount  Decimal?     @db.Decimal(14, 2)
-  status         RecordStatus @default(ACTIVE)
-  createdByUserId String?     @db.Uuid
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id              String       @id @default(uuid()) @db.Uuid
+  companyId       String       @db.Uuid
+  module          String       @db.VarChar(80)
+  documentType    String       @db.VarChar(80)
+  triggerAction   String       @default("POST") @db.VarChar(40)
+  requireApproval Boolean      @default(false)
+  minimumAmount   Decimal?     @db.Decimal(14, 2)
+  status          RecordStatus @default(ACTIVE)
+  createdByUserId String?      @db.Uuid
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   company Company @relation(fields: [companyId], references: [id])
 
@@ -913,23 +913,23 @@ model ApprovalRule {
 }
 
 model ApprovalRequest {
-  id              String                @id @default(uuid()) @db.Uuid
-  companyId       String                @db.Uuid
-  module          String                @db.VarChar(80)
-  documentType    String                @db.VarChar(80)
-  documentId      String?               @db.VarChar(80)
-  documentNumber  String                @db.VarChar(80)
-  requestedAction String                @default("POST") @db.VarChar(40)
-  amount          Decimal?              @db.Decimal(14, 2)
-  status          ApprovalRequestStatus @default(PENDING)
-  reason          String?               @db.VarChar(500)
-  decisionNotes   String?               @db.VarChar(500)
-  requestedByUserId String?             @db.Uuid
-  decidedByUserId String?               @db.Uuid
-  requestedAt     DateTime              @default(now())
-  decidedAt       DateTime?
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
+  id                String                @id @default(uuid()) @db.Uuid
+  companyId         String                @db.Uuid
+  module            String                @db.VarChar(80)
+  documentType      String                @db.VarChar(80)
+  documentId        String?               @db.VarChar(80)
+  documentNumber    String                @db.VarChar(80)
+  requestedAction   String                @default("POST") @db.VarChar(40)
+  amount            Decimal?              @db.Decimal(14, 2)
+  status            ApprovalRequestStatus @default(PENDING)
+  reason            String?               @db.VarChar(500)
+  decisionNotes     String?               @db.VarChar(500)
+  requestedByUserId String?               @db.Uuid
+  decidedByUserId   String?               @db.Uuid
+  requestedAt       DateTime              @default(now())
+  decidedAt         DateTime?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
 
   company Company @relation(fields: [companyId], references: [id])
 
@@ -939,22 +939,22 @@ model ApprovalRequest {
 }
 
 model FinancialNote {
-  id             String         @id @default(uuid()) @db.Uuid
-  companyId      String         @db.Uuid
+  id             String          @id @default(uuid()) @db.Uuid
+  companyId      String          @db.Uuid
   partyType      PartyType
   noteType       LedgerEntryType
-  customerId     String?        @db.Uuid
-  supplierId     String?        @db.Uuid
-  journalEntryId String?        @db.Uuid
-  noteNumber     String         @db.VarChar(80)
-  noteDate       DateTime       @db.Date
-  amount         Decimal        @db.Decimal(14, 2)
-  reason         String         @db.VarChar(500)
-  status         DocumentStatus @default(POSTED)
-  postedByUserId String?        @db.Uuid
+  customerId     String?         @db.Uuid
+  supplierId     String?         @db.Uuid
+  journalEntryId String?         @db.Uuid
+  noteNumber     String          @db.VarChar(80)
+  noteDate       DateTime        @db.Date
+  amount         Decimal         @db.Decimal(14, 2)
+  reason         String          @db.VarChar(500)
+  status         DocumentStatus  @default(POSTED)
+  postedByUserId String?         @db.Uuid
   postedAt       DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   company      Company       @relation(fields: [companyId], references: [id])
   customer     Customer?     @relation(fields: [customerId], references: [id])
@@ -982,9 +982,9 @@ model PurchaseOrder {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  company  Company             @relation(fields: [companyId], references: [id])
-  supplier Supplier            @relation(fields: [supplierId], references: [id])
-  lines    PurchaseOrderLine[]
+  company           Company             @relation(fields: [companyId], references: [id])
+  supplier          Supplier            @relation(fields: [supplierId], references: [id])
+  lines             PurchaseOrderLine[]
   goodsReceiptNotes GoodsReceiptNote[]
 
   @@unique([companyId, orderNumber])
@@ -1024,11 +1024,11 @@ model GoodsReceiptNote {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  company       Company                @relation(fields: [companyId], references: [id])
-  supplier      Supplier               @relation(fields: [supplierId], references: [id])
-  warehouse     Warehouse              @relation(fields: [warehouseId], references: [id])
-  purchaseOrder PurchaseOrder?         @relation(fields: [purchaseOrderId], references: [id])
-  lines         GoodsReceiptNoteLine[]
+  company          Company                @relation(fields: [companyId], references: [id])
+  supplier         Supplier               @relation(fields: [supplierId], references: [id])
+  warehouse        Warehouse              @relation(fields: [warehouseId], references: [id])
+  purchaseOrder    PurchaseOrder?         @relation(fields: [purchaseOrderId], references: [id])
+  lines            GoodsReceiptNoteLine[]
   purchaseInvoices PurchaseInvoice[]
 
   @@unique([companyId, grnNumber])
@@ -1077,13 +1077,13 @@ model PurchaseInvoice {
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
-  company      Company       @relation(fields: [companyId], references: [id])
-  supplier     Supplier      @relation(fields: [supplierId], references: [id])
-  warehouse    Warehouse     @relation(fields: [warehouseId], references: [id])
-  goodsReceiptNote GoodsReceiptNote? @relation(fields: [goodsReceiptNoteId], references: [id])
-  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
-  lines        PurchaseInvoiceLine[]
-  returns      PurchaseReturn[]
+  company          Company               @relation(fields: [companyId], references: [id])
+  supplier         Supplier              @relation(fields: [supplierId], references: [id])
+  warehouse        Warehouse             @relation(fields: [warehouseId], references: [id])
+  goodsReceiptNote GoodsReceiptNote?     @relation(fields: [goodsReceiptNoteId], references: [id])
+  journalEntry     JournalEntry?         @relation(fields: [journalEntryId], references: [id])
+  lines            PurchaseInvoiceLine[]
+  returns          PurchaseReturn[]
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, supplierId, invoiceDate])
@@ -1092,33 +1092,34 @@ model PurchaseInvoice {
 }
 
 model PurchaseInvoiceLine {
-  id                String   @id @default(uuid()) @db.Uuid
-  purchaseInvoiceId String   @db.Uuid
-  companyId         String   @db.Uuid
-  productId         String   @db.Uuid
-  productVariantId  String   @db.Uuid
-  blockId           String?  @db.Uuid
-  rackId            String?  @db.Uuid
-  shelfId           String?  @db.Uuid
-  hsnCode           String?  @db.VarChar(8)
-  quantity          Decimal  @db.Decimal(14, 3)
-  unitCost          Decimal  @db.Decimal(14, 2)
-  taxableAmount     Decimal  @db.Decimal(14, 2)
-  cgstRate          Decimal  @default(0) @db.Decimal(5, 2)
-  sgstRate          Decimal  @default(0) @db.Decimal(5, 2)
-  igstRate          Decimal  @default(0) @db.Decimal(5, 2)
-  cgstAmount        Decimal  @default(0) @db.Decimal(14, 2)
-  sgstAmount        Decimal  @default(0) @db.Decimal(14, 2)
-  igstAmount        Decimal  @default(0) @db.Decimal(14, 2)
-  lineTotal         Decimal  @db.Decimal(14, 2)
-  lineOrder         Int      @default(0)
+  id                String  @id @default(uuid()) @db.Uuid
+  purchaseInvoiceId String  @db.Uuid
+  companyId         String  @db.Uuid
+  productId         String  @db.Uuid
+  productVariantId  String  @db.Uuid
+  blockId           String? @db.Uuid
+  rackId            String? @db.Uuid
+  shelfId           String? @db.Uuid
+  hsnCode           String? @db.VarChar(8)
+  quantity          Decimal @db.Decimal(14, 3)
+  unitCost          Decimal @db.Decimal(14, 2)
+  taxableAmount     Decimal @db.Decimal(14, 2)
+  cgstRate          Decimal @default(0) @db.Decimal(5, 2)
+  sgstRate          Decimal @default(0) @db.Decimal(5, 2)
+  igstRate          Decimal @default(0) @db.Decimal(5, 2)
+  cgstAmount        Decimal @default(0) @db.Decimal(14, 2)
+  sgstAmount        Decimal @default(0) @db.Decimal(14, 2)
+  igstAmount        Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal         Decimal @db.Decimal(14, 2)
+  lineOrder         Int     @default(0)
 
-  purchaseInvoice PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
-  product         Product         @relation(fields: [productId], references: [id])
-  productVariant  ProductVariant  @relation(fields: [productVariantId], references: [id])
-  block           WarehouseBlock? @relation(fields: [blockId], references: [id])
-  rack            WarehouseRack?  @relation(fields: [rackId], references: [id])
-  shelf           WarehouseShelf? @relation(fields: [shelfId], references: [id])
+  purchaseInvoice PurchaseInvoice      @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+  product         Product              @relation(fields: [productId], references: [id])
+  productVariant  ProductVariant       @relation(fields: [productVariantId], references: [id])
+  block           WarehouseBlock?      @relation(fields: [blockId], references: [id])
+  rack            WarehouseRack?       @relation(fields: [rackId], references: [id])
+  shelf           WarehouseShelf?      @relation(fields: [shelfId], references: [id])
+  returnLines     PurchaseReturnLine[]
 
   @@index([companyId, productVariantId])
 }
@@ -1145,11 +1146,11 @@ model PurchaseReturn {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
-  company         Company         @relation(fields: [companyId], references: [id])
-  purchaseInvoice PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id])
-  supplier        Supplier        @relation(fields: [supplierId], references: [id])
-  warehouse       Warehouse       @relation(fields: [warehouseId], references: [id])
-  journalEntry    JournalEntry?   @relation(fields: [journalEntryId], references: [id])
+  company         Company              @relation(fields: [companyId], references: [id])
+  purchaseInvoice PurchaseInvoice      @relation(fields: [purchaseInvoiceId], references: [id])
+  supplier        Supplier             @relation(fields: [supplierId], references: [id])
+  warehouse       Warehouse            @relation(fields: [warehouseId], references: [id])
+  journalEntry    JournalEntry?        @relation(fields: [journalEntryId], references: [id])
   lines           PurchaseReturnLine[]
 
   @@unique([companyId, returnNumber])
@@ -1160,6 +1161,7 @@ model PurchaseReturn {
 model PurchaseReturnLine {
   id                    String  @id @default(uuid()) @db.Uuid
   purchaseReturnId      String  @db.Uuid
+  purchaseInvoiceLineId String? @db.Uuid
   companyId             String  @db.Uuid
   productId             String  @db.Uuid
   productVariantId      String  @db.Uuid
@@ -1176,11 +1178,14 @@ model PurchaseReturnLine {
   lineTotal             Decimal @db.Decimal(14, 2)
   lineOrder             Int     @default(0)
 
-  purchaseReturn PurchaseReturn @relation(fields: [purchaseReturnId], references: [id], onDelete: Cascade)
-  product        Product        @relation(fields: [productId], references: [id])
-  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+  purchaseReturn      PurchaseReturn       @relation(fields: [purchaseReturnId], references: [id], onDelete: Cascade)
+  purchaseInvoiceLine PurchaseInvoiceLine? @relation(fields: [purchaseInvoiceLineId], references: [id], onDelete: SetNull)
+  product             Product              @relation(fields: [productId], references: [id])
+  productVariant      ProductVariant       @relation(fields: [productVariantId], references: [id])
 
+  @@unique([purchaseReturnId, purchaseInvoiceLineId])
   @@index([companyId, productVariantId])
+  @@index([companyId, purchaseInvoiceLineId])
 }
 
 model SalesQuotation {
@@ -1245,12 +1250,12 @@ model SalesOrder {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  company   Company          @relation(fields: [companyId], references: [id])
-  customer  Customer         @relation(fields: [customerId], references: [id])
-  quotation SalesQuotation?  @relation(fields: [quotationId], references: [id])
-  lines     SalesOrderLine[]
+  company          Company           @relation(fields: [companyId], references: [id])
+  customer         Customer          @relation(fields: [customerId], references: [id])
+  quotation        SalesQuotation?   @relation(fields: [quotationId], references: [id])
+  lines            SalesOrderLine[]
   deliveryChallans DeliveryChallan[]
-  salesInvoices SalesInvoice[]
+  salesInvoices    SalesInvoice[]
 
   @@unique([companyId, orderNumber])
   @@index([companyId, customerId, orderDate])
@@ -1290,11 +1295,11 @@ model DeliveryChallan {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  company    Company               @relation(fields: [companyId], references: [id])
-  customer   Customer              @relation(fields: [customerId], references: [id])
-  warehouse  Warehouse             @relation(fields: [warehouseId], references: [id])
-  salesOrder SalesOrder?           @relation(fields: [salesOrderId], references: [id])
-  lines      DeliveryChallanLine[]
+  company       Company               @relation(fields: [companyId], references: [id])
+  customer      Customer              @relation(fields: [customerId], references: [id])
+  warehouse     Warehouse             @relation(fields: [warehouseId], references: [id])
+  salesOrder    SalesOrder?           @relation(fields: [salesOrderId], references: [id])
+  lines         DeliveryChallanLine[]
   salesInvoices SalesInvoice[]
 
   @@unique([companyId, challanNumber])
@@ -1303,12 +1308,12 @@ model DeliveryChallan {
 }
 
 model DeliveryChallanLine {
-  id                 String  @id @default(uuid()) @db.Uuid
-  deliveryChallanId  String  @db.Uuid
-  companyId          String  @db.Uuid
-  productVariantId   String  @db.Uuid
-  quantity           Decimal @db.Decimal(14, 3)
-  lineOrder          Int     @default(0)
+  id                String  @id @default(uuid()) @db.Uuid
+  deliveryChallanId String  @db.Uuid
+  companyId         String  @db.Uuid
+  productVariantId  String  @db.Uuid
+  quantity          Decimal @db.Decimal(14, 3)
+  lineOrder         Int     @default(0)
 
   deliveryChallan DeliveryChallan @relation(fields: [deliveryChallanId], references: [id], onDelete: Cascade)
   productVariant  ProductVariant  @relation(fields: [productVariantId], references: [id])
@@ -1317,41 +1322,41 @@ model DeliveryChallanLine {
 }
 
 model SalesInvoice {
-  id              String         @id @default(uuid()) @db.Uuid
-  companyId       String         @db.Uuid
-  customerId      String         @db.Uuid
-  warehouseId     String         @db.Uuid
-  salesOrderId    String?        @db.Uuid
-  deliveryChallanId String?      @db.Uuid
-  invoiceNumber   String         @db.VarChar(80)
-  invoiceDate     DateTime       @db.Date
-  taxMode         String         @default("CGST_SGST") @db.VarChar(16)
-  taxableAmount   Decimal        @default(0) @db.Decimal(14, 2)
-  cgstAmount      Decimal        @default(0) @db.Decimal(14, 2)
-  sgstAmount      Decimal        @default(0) @db.Decimal(14, 2)
-  igstAmount      Decimal        @default(0) @db.Decimal(14, 2)
-  totalTaxAmount  Decimal        @default(0) @db.Decimal(14, 2)
-  grandTotal      Decimal        @default(0) @db.Decimal(14, 2)
-  costOfGoodsSold Decimal        @default(0) @db.Decimal(14, 2)
-  status          DocumentStatus @default(POSTED)
-  journalEntryId  String?        @db.Uuid
-  postedByUserId  String?        @db.Uuid
-  postedAt        DateTime?
-  cancelledByUserId String?      @db.Uuid
-  cancelledAt     DateTime?
-  cancellationReason String?     @db.VarChar(500)
-  narration       String?        @db.VarChar(500)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  id                 String         @id @default(uuid()) @db.Uuid
+  companyId          String         @db.Uuid
+  customerId         String         @db.Uuid
+  warehouseId        String         @db.Uuid
+  salesOrderId       String?        @db.Uuid
+  deliveryChallanId  String?        @db.Uuid
+  invoiceNumber      String         @db.VarChar(80)
+  invoiceDate        DateTime       @db.Date
+  taxMode            String         @default("CGST_SGST") @db.VarChar(16)
+  taxableAmount      Decimal        @default(0) @db.Decimal(14, 2)
+  cgstAmount         Decimal        @default(0) @db.Decimal(14, 2)
+  sgstAmount         Decimal        @default(0) @db.Decimal(14, 2)
+  igstAmount         Decimal        @default(0) @db.Decimal(14, 2)
+  totalTaxAmount     Decimal        @default(0) @db.Decimal(14, 2)
+  grandTotal         Decimal        @default(0) @db.Decimal(14, 2)
+  costOfGoodsSold    Decimal        @default(0) @db.Decimal(14, 2)
+  status             DocumentStatus @default(POSTED)
+  journalEntryId     String?        @db.Uuid
+  postedByUserId     String?        @db.Uuid
+  postedAt           DateTime?
+  cancelledByUserId  String?        @db.Uuid
+  cancelledAt        DateTime?
+  cancellationReason String?        @db.VarChar(500)
+  narration          String?        @db.VarChar(500)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
-  company      Company       @relation(fields: [companyId], references: [id])
-  customer     Customer      @relation(fields: [customerId], references: [id])
-  warehouse    Warehouse     @relation(fields: [warehouseId], references: [id])
-  salesOrder   SalesOrder?   @relation(fields: [salesOrderId], references: [id])
-  deliveryChallan DeliveryChallan? @relation(fields: [deliveryChallanId], references: [id])
-  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
-  lines        SalesInvoiceLine[]
-  returns      SalesReturn[]
+  company         Company            @relation(fields: [companyId], references: [id])
+  customer        Customer           @relation(fields: [customerId], references: [id])
+  warehouse       Warehouse          @relation(fields: [warehouseId], references: [id])
+  salesOrder      SalesOrder?        @relation(fields: [salesOrderId], references: [id])
+  deliveryChallan DeliveryChallan?   @relation(fields: [deliveryChallanId], references: [id])
+  journalEntry    JournalEntry?      @relation(fields: [journalEntryId], references: [id])
+  lines           SalesInvoiceLine[]
+  returns         SalesReturn[]
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, customerId, invoiceDate])
@@ -1361,36 +1366,37 @@ model SalesInvoice {
 }
 
 model SalesInvoiceLine {
-  id               String   @id @default(uuid()) @db.Uuid
-  salesInvoiceId   String   @db.Uuid
-  companyId        String   @db.Uuid
-  productId        String   @db.Uuid
-  productVariantId String   @db.Uuid
-  blockId          String?  @db.Uuid
-  rackId           String?  @db.Uuid
-  shelfId          String?  @db.Uuid
-  hsnCode          String?  @db.VarChar(8)
-  quantity         Decimal  @db.Decimal(14, 3)
-  unitPrice        Decimal  @db.Decimal(14, 2)
-  discountAmount   Decimal  @default(0) @db.Decimal(14, 2)
-  unitCost         Decimal  @default(0) @db.Decimal(14, 2)
-  taxableAmount    Decimal  @db.Decimal(14, 2)
-  cgstRate         Decimal  @default(0) @db.Decimal(5, 2)
-  sgstRate         Decimal  @default(0) @db.Decimal(5, 2)
-  igstRate         Decimal  @default(0) @db.Decimal(5, 2)
-  cgstAmount       Decimal  @default(0) @db.Decimal(14, 2)
-  sgstAmount       Decimal  @default(0) @db.Decimal(14, 2)
-  igstAmount       Decimal  @default(0) @db.Decimal(14, 2)
-  lineTotal        Decimal  @db.Decimal(14, 2)
-  costAmount       Decimal  @default(0) @db.Decimal(14, 2)
-  lineOrder        Int      @default(0)
+  id               String  @id @default(uuid()) @db.Uuid
+  salesInvoiceId   String  @db.Uuid
+  companyId        String  @db.Uuid
+  productId        String  @db.Uuid
+  productVariantId String  @db.Uuid
+  blockId          String? @db.Uuid
+  rackId           String? @db.Uuid
+  shelfId          String? @db.Uuid
+  hsnCode          String? @db.VarChar(8)
+  quantity         Decimal @db.Decimal(14, 3)
+  unitPrice        Decimal @db.Decimal(14, 2)
+  discountAmount   Decimal @default(0) @db.Decimal(14, 2)
+  unitCost         Decimal @default(0) @db.Decimal(14, 2)
+  taxableAmount    Decimal @db.Decimal(14, 2)
+  cgstRate         Decimal @default(0) @db.Decimal(5, 2)
+  sgstRate         Decimal @default(0) @db.Decimal(5, 2)
+  igstRate         Decimal @default(0) @db.Decimal(5, 2)
+  cgstAmount       Decimal @default(0) @db.Decimal(14, 2)
+  sgstAmount       Decimal @default(0) @db.Decimal(14, 2)
+  igstAmount       Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal        Decimal @db.Decimal(14, 2)
+  costAmount       Decimal @default(0) @db.Decimal(14, 2)
+  lineOrder        Int     @default(0)
 
-  salesInvoice  SalesInvoice   @relation(fields: [salesInvoiceId], references: [id], onDelete: Cascade)
-  product       Product        @relation(fields: [productId], references: [id])
-  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
-  block         WarehouseBlock? @relation(fields: [blockId], references: [id])
-  rack          WarehouseRack?  @relation(fields: [rackId], references: [id])
-  shelf         WarehouseShelf? @relation(fields: [shelfId], references: [id])
+  salesInvoice   SalesInvoice      @relation(fields: [salesInvoiceId], references: [id], onDelete: Cascade)
+  product        Product           @relation(fields: [productId], references: [id])
+  productVariant ProductVariant    @relation(fields: [productVariantId], references: [id])
+  block          WarehouseBlock?   @relation(fields: [blockId], references: [id])
+  rack           WarehouseRack?    @relation(fields: [rackId], references: [id])
+  shelf          WarehouseShelf?   @relation(fields: [shelfId], references: [id])
+  returnLines    SalesReturnLine[]
 
   @@index([companyId, productVariantId])
 }
@@ -1418,11 +1424,11 @@ model SalesReturn {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  company      Company       @relation(fields: [companyId], references: [id])
-  salesInvoice SalesInvoice  @relation(fields: [salesInvoiceId], references: [id])
-  customer     Customer      @relation(fields: [customerId], references: [id])
-  warehouse    Warehouse     @relation(fields: [warehouseId], references: [id])
-  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  company      Company           @relation(fields: [companyId], references: [id])
+  salesInvoice SalesInvoice      @relation(fields: [salesInvoiceId], references: [id])
+  customer     Customer          @relation(fields: [customerId], references: [id])
+  warehouse    Warehouse         @relation(fields: [warehouseId], references: [id])
+  journalEntry JournalEntry?     @relation(fields: [journalEntryId], references: [id])
   lines        SalesReturnLine[]
 
   @@unique([companyId, returnNumber])
@@ -1431,31 +1437,35 @@ model SalesReturn {
 }
 
 model SalesReturnLine {
-  id               String  @id @default(uuid()) @db.Uuid
-  salesReturnId    String  @db.Uuid
-  companyId        String  @db.Uuid
-  productId        String  @db.Uuid
-  productVariantId String  @db.Uuid
-  blockId          String? @db.Uuid
-  rackId           String? @db.Uuid
-  shelfId          String? @db.Uuid
-  hsnCode          String? @db.VarChar(8)
-  quantity         Decimal @db.Decimal(14, 3)
-  unitPrice        Decimal @db.Decimal(14, 2)
-  unitCost         Decimal @default(0) @db.Decimal(14, 2)
-  taxableAmount    Decimal @db.Decimal(14, 2)
-  cgstAmount       Decimal @default(0) @db.Decimal(14, 2)
-  sgstAmount       Decimal @default(0) @db.Decimal(14, 2)
-  igstAmount       Decimal @default(0) @db.Decimal(14, 2)
-  lineTotal        Decimal @db.Decimal(14, 2)
-  costAmount       Decimal @default(0) @db.Decimal(14, 2)
-  lineOrder        Int     @default(0)
+  id                 String  @id @default(uuid()) @db.Uuid
+  salesReturnId      String  @db.Uuid
+  salesInvoiceLineId String? @db.Uuid
+  companyId          String  @db.Uuid
+  productId          String  @db.Uuid
+  productVariantId   String  @db.Uuid
+  blockId            String? @db.Uuid
+  rackId             String? @db.Uuid
+  shelfId            String? @db.Uuid
+  hsnCode            String? @db.VarChar(8)
+  quantity           Decimal @db.Decimal(14, 3)
+  unitPrice          Decimal @db.Decimal(14, 2)
+  unitCost           Decimal @default(0) @db.Decimal(14, 2)
+  taxableAmount      Decimal @db.Decimal(14, 2)
+  cgstAmount         Decimal @default(0) @db.Decimal(14, 2)
+  sgstAmount         Decimal @default(0) @db.Decimal(14, 2)
+  igstAmount         Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal          Decimal @db.Decimal(14, 2)
+  costAmount         Decimal @default(0) @db.Decimal(14, 2)
+  lineOrder          Int     @default(0)
 
-  salesReturn   SalesReturn    @relation(fields: [salesReturnId], references: [id], onDelete: Cascade)
-  product       Product        @relation(fields: [productId], references: [id])
-  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+  salesReturn      SalesReturn       @relation(fields: [salesReturnId], references: [id], onDelete: Cascade)
+  salesInvoiceLine SalesInvoiceLine? @relation(fields: [salesInvoiceLineId], references: [id], onDelete: SetNull)
+  product          Product           @relation(fields: [productId], references: [id])
+  productVariant   ProductVariant    @relation(fields: [productVariantId], references: [id])
 
+  @@unique([salesReturnId, salesInvoiceLineId])
   @@index([companyId, productVariantId])
+  @@index([companyId, salesInvoiceLineId])
 }
 
 model Payment {
@@ -1477,11 +1487,11 @@ model Payment {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  company      Company       @relation(fields: [companyId], references: [id])
-  customer     Customer?     @relation(fields: [customerId], references: [id])
-  supplier     Supplier?     @relation(fields: [supplierId], references: [id])
-  paymentMode  PaymentMode   @relation(fields: [paymentModeId], references: [id])
-  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  company      Company             @relation(fields: [companyId], references: [id])
+  customer     Customer?           @relation(fields: [customerId], references: [id])
+  supplier     Supplier?           @relation(fields: [supplierId], references: [id])
+  paymentMode  PaymentMode         @relation(fields: [paymentModeId], references: [id])
+  journalEntry JournalEntry?       @relation(fields: [journalEntryId], references: [id])
   allocations  PaymentAllocation[]
 
   @@unique([companyId, paymentNumber])
@@ -1489,20 +1499,20 @@ model Payment {
 }
 
 model PaymentAllocation {
-  id             String    @id @default(uuid()) @db.Uuid
-  companyId      String    @db.Uuid
-  paymentId      String    @db.Uuid
-  partyType      PartyType
-  customerId     String?   @db.Uuid
-  supplierId     String?   @db.Uuid
-  documentType   String    @db.VarChar(80)
-  documentId     String?   @db.VarChar(80)
-  documentNumber String    @db.VarChar(80)
-  allocatedAmount Decimal  @db.Decimal(14, 2)
-  allocatedAt     DateTime @default(now())
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @db.Uuid
+  paymentId       String    @db.Uuid
+  partyType       PartyType
+  customerId      String?   @db.Uuid
+  supplierId      String?   @db.Uuid
+  documentType    String    @db.VarChar(80)
+  documentId      String?   @db.VarChar(80)
+  documentNumber  String    @db.VarChar(80)
+  allocatedAmount Decimal   @db.Decimal(14, 2)
+  allocatedAt     DateTime  @default(now())
 
-  company  Company  @relation(fields: [companyId], references: [id])
-  payment  Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  company  Company   @relation(fields: [companyId], references: [id])
+  payment  Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   customer Customer? @relation(fields: [customerId], references: [id])
   supplier Supplier? @relation(fields: [supplierId], references: [id])
 
@@ -1513,63 +1523,63 @@ model PaymentAllocation {
 }
 
 model JobCard {
-  id                String        @id @default(uuid()) @db.Uuid
-  companyId         String        @db.Uuid
-  customerId        String        @db.Uuid
-  vehicleId         String        @db.Uuid
-  advisorEmployeeId String?       @db.Uuid
-  technicianEmployeeId String?    @db.Uuid
-  jobCardNumber     String        @db.VarChar(80)
-  jobDate           DateTime      @db.Date
-  expectedDeliveryAt DateTime?
-  odometerReading   Int           @default(0)
-  fuelLevel         String?       @db.VarChar(40)
-  complaint         String        @db.VarChar(800)
-  diagnosis         String?       @db.VarChar(800)
-  workNotes         String?       @db.VarChar(800)
-  technicianStatus  String        @default("PENDING") @db.VarChar(40)
-  technicianNotes   String?       @db.VarChar(800)
-  technicianStartedAt DateTime?
-  technicianCompletedAt DateTime?
-  inspectionChecklist Json?
-  inspectionNotes  String?        @db.VarChar(800)
-  qualityCheckedByUserId String?  @db.Uuid
-  qualityCheckedAt DateTime?
-  readyAt          DateTime?
-  deliveryNotes    String?        @db.VarChar(800)
-  deliveredAt      DateTime?
-  status            JobCardStatus @default(OPEN)
-  estimatedPartsTotal Decimal     @default(0) @db.Decimal(14, 2)
-  estimatedLaborTotal Decimal     @default(0) @db.Decimal(14, 2)
-  estimatedTotal    Decimal       @default(0) @db.Decimal(14, 2)
-  partsIssueWarehouseId String?   @db.Uuid
-  partsIssueJournalEntryId String? @db.Uuid
-  partsIssuedByUserId String?     @db.Uuid
-  partsIssuedAt     DateTime?
-  billingNumber     String?       @db.VarChar(80)
-  serviceTaxRateId  String?       @db.Uuid
-  billingTaxMode    String        @default("CGST_SGST") @db.VarChar(16)
-  billingHsnCode    String?       @db.VarChar(8)
-  billingTaxableAmount Decimal    @default(0) @db.Decimal(14, 2)
-  billingCgstAmount Decimal       @default(0) @db.Decimal(14, 2)
-  billingSgstAmount Decimal       @default(0) @db.Decimal(14, 2)
-  billingIgstAmount Decimal       @default(0) @db.Decimal(14, 2)
-  billingTotalTaxAmount Decimal   @default(0) @db.Decimal(14, 2)
-  billingAmount     Decimal       @default(0) @db.Decimal(14, 2)
-  billingJournalEntryId String?   @db.Uuid
-  billedByUserId    String?       @db.Uuid
-  billedAt          DateTime?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id                       String        @id @default(uuid()) @db.Uuid
+  companyId                String        @db.Uuid
+  customerId               String        @db.Uuid
+  vehicleId                String        @db.Uuid
+  advisorEmployeeId        String?       @db.Uuid
+  technicianEmployeeId     String?       @db.Uuid
+  jobCardNumber            String        @db.VarChar(80)
+  jobDate                  DateTime      @db.Date
+  expectedDeliveryAt       DateTime?
+  odometerReading          Int           @default(0)
+  fuelLevel                String?       @db.VarChar(40)
+  complaint                String        @db.VarChar(800)
+  diagnosis                String?       @db.VarChar(800)
+  workNotes                String?       @db.VarChar(800)
+  technicianStatus         String        @default("PENDING") @db.VarChar(40)
+  technicianNotes          String?       @db.VarChar(800)
+  technicianStartedAt      DateTime?
+  technicianCompletedAt    DateTime?
+  inspectionChecklist      Json?
+  inspectionNotes          String?       @db.VarChar(800)
+  qualityCheckedByUserId   String?       @db.Uuid
+  qualityCheckedAt         DateTime?
+  readyAt                  DateTime?
+  deliveryNotes            String?       @db.VarChar(800)
+  deliveredAt              DateTime?
+  status                   JobCardStatus @default(OPEN)
+  estimatedPartsTotal      Decimal       @default(0) @db.Decimal(14, 2)
+  estimatedLaborTotal      Decimal       @default(0) @db.Decimal(14, 2)
+  estimatedTotal           Decimal       @default(0) @db.Decimal(14, 2)
+  partsIssueWarehouseId    String?       @db.Uuid
+  partsIssueJournalEntryId String?       @db.Uuid
+  partsIssuedByUserId      String?       @db.Uuid
+  partsIssuedAt            DateTime?
+  billingNumber            String?       @db.VarChar(80)
+  serviceTaxRateId         String?       @db.Uuid
+  billingTaxMode           String        @default("CGST_SGST") @db.VarChar(16)
+  billingHsnCode           String?       @db.VarChar(8)
+  billingTaxableAmount     Decimal       @default(0) @db.Decimal(14, 2)
+  billingCgstAmount        Decimal       @default(0) @db.Decimal(14, 2)
+  billingSgstAmount        Decimal       @default(0) @db.Decimal(14, 2)
+  billingIgstAmount        Decimal       @default(0) @db.Decimal(14, 2)
+  billingTotalTaxAmount    Decimal       @default(0) @db.Decimal(14, 2)
+  billingAmount            Decimal       @default(0) @db.Decimal(14, 2)
+  billingJournalEntryId    String?       @db.Uuid
+  billedByUserId           String?       @db.Uuid
+  billedAt                 DateTime?
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
 
-  company    Company   @relation(fields: [companyId], references: [id])
-  customer   Customer  @relation(fields: [customerId], references: [id])
-  vehicle    Vehicle   @relation(fields: [vehicleId], references: [id])
-  advisor    Employee? @relation("JobCardAdvisor", fields: [advisorEmployeeId], references: [id])
-  technician Employee? @relation("JobCardTechnician", fields: [technicianEmployeeId], references: [id])
-  serviceTaxRate TaxRate? @relation(fields: [serviceTaxRateId], references: [id])
-  parts      JobCardPart[]
-  laborLines JobCardLabor[]
+  company        Company        @relation(fields: [companyId], references: [id])
+  customer       Customer       @relation(fields: [customerId], references: [id])
+  vehicle        Vehicle        @relation(fields: [vehicleId], references: [id])
+  advisor        Employee?      @relation("JobCardAdvisor", fields: [advisorEmployeeId], references: [id])
+  technician     Employee?      @relation("JobCardTechnician", fields: [technicianEmployeeId], references: [id])
+  serviceTaxRate TaxRate?       @relation(fields: [serviceTaxRateId], references: [id])
+  parts          JobCardPart[]
+  laborLines     JobCardLabor[]
 
   @@unique([companyId, jobCardNumber])
   @@unique([companyId, billingNumber])

@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import prisma from "../../lib/prisma";
 import { ApiError } from "../../utils/api-error";
-import { postSalesInvoice } from "./sales.service";
+import { postPayment } from "../payments/payments.service";
+import { cancelSalesInvoice, postSalesInvoice, postSalesReturn } from "./sales.service";
 
 type SalesFixture = {
   companyId: string;
@@ -12,11 +13,16 @@ type SalesFixture = {
   productId: string;
   productVariantId: string;
   warehouseId: string;
+  paymentModeId: string;
 };
 
 async function cleanupCompany(companyId: string) {
   await prisma.auditLog.deleteMany({ where: { companyId } });
+  await prisma.paymentAllocation.deleteMany({ where: { companyId } });
   await prisma.partyLedgerEntry.deleteMany({ where: { companyId } });
+  await prisma.salesReturnLine.deleteMany({ where: { companyId } });
+  await prisma.salesReturn.deleteMany({ where: { companyId } });
+  await prisma.payment.deleteMany({ where: { companyId } });
   await prisma.salesInvoiceLine.deleteMany({ where: { companyId } });
   await prisma.salesInvoice.deleteMany({ where: { companyId } });
   await prisma.stockMovement.deleteMany({ where: { companyId } });
@@ -31,6 +37,7 @@ async function cleanupCompany(companyId: string) {
   await prisma.customer.deleteMany({ where: { companyId } });
   await prisma.category.deleteMany({ where: { companyId } });
   await prisma.unit.deleteMany({ where: { companyId } });
+  await prisma.paymentMode.deleteMany({ where: { companyId } });
   await prisma.numberSeries.deleteMany({ where: { companyId } });
   await prisma.financialYear.deleteMany({ where: { companyId } });
   await prisma.user.deleteMany({ where: { companyId } });
@@ -54,7 +61,7 @@ async function createSalesFixture(): Promise<SalesFixture> {
       passwordHash: "not-used-in-integration-test",
     },
   });
-  const [customer, unit, category, warehouse, hsnCode] = await Promise.all([
+  const [customer, unit, category, warehouse, hsnCode, paymentMode] = await Promise.all([
     prisma.customer.create({
       data: {
         companyId: company.id,
@@ -91,6 +98,14 @@ async function createSalesFixture(): Promise<SalesFixture> {
         description: "Filtering machinery parts",
       },
     }),
+    prisma.paymentMode.create({
+      data: {
+        companyId: company.id,
+        code: "CASH",
+        name: "Cash",
+        paymentType: "CASH",
+      },
+    }),
     prisma.financialYear.create({
       data: {
         companyId: company.id,
@@ -120,9 +135,31 @@ async function createSalesFixture(): Promise<SalesFixture> {
         resetPolicy: "NEVER",
       },
     }),
+    prisma.numberSeries.create({
+      data: {
+        companyId: company.id,
+        documentType: "SALES_RETURN",
+        prefix: "SR-T-",
+        padding: 4,
+        nextNumber: 1,
+        resetPolicy: "NEVER",
+      },
+    }),
+    prisma.numberSeries.create({
+      data: {
+        companyId: company.id,
+        documentType: "PAYMENT_RECEIPT",
+        prefix: "RCPT-T-",
+        padding: 4,
+        nextNumber: 1,
+        resetPolicy: "NEVER",
+      },
+    }),
     ...[
+      ["1000", "Cash", "ASSET"],
       ["1100", "Accounts Receivable", "ASSET"],
       ["1200", "Inventory", "ASSET"],
+      ["2000", "Accounts Payable", "LIABILITY"],
       ["2100", "GST Payable", "LIABILITY"],
       ["4000", "Sales Revenue", "INCOME"],
       ["5000", "Cost of Goods Sold", "EXPENSE"],
@@ -189,7 +226,31 @@ async function createSalesFixture(): Promise<SalesFixture> {
     productId: product.id,
     productVariantId: variant.id,
     warehouseId: warehouse.id,
+    paymentModeId: paymentMode.id,
   };
+}
+
+function contextFor(fixture: SalesFixture) {
+  return {
+    companyId: fixture.companyId,
+    userId: fixture.userId,
+    ipAddress: "127.0.0.1",
+    userAgent: "integration-test",
+  };
+}
+
+function postFixtureSalesInvoice(fixture: SalesFixture) {
+  return postSalesInvoice(
+    contextFor(fixture),
+    {
+      customerId: fixture.customerId,
+      warehouseId: fixture.warehouseId,
+      invoiceDate: "2026-07-31",
+      taxMode: "CGST_SGST",
+      narration: "Return-integrity test invoice",
+      lines: [{ productVariantId: fixture.productVariantId, quantity: 2, unitPrice: 350 }],
+    },
+  );
 }
 
 test("sales invoice posting updates inventory, accounting, GST, ledger, audit log, and number series atomically", async () => {
